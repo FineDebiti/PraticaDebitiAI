@@ -1,0 +1,15 @@
+# Frontend Next.js - build di PRODUZIONE (per installazione locale offline).
+# Compila l'app e la serve con "next start" (niente dev server / hot-reload).
+FROM node:20-slim
+WORKDIR /app
+
+# Dipendenze (sfrutta la cache: cambia solo se cambia package.json)
+COPY package.json ./
+RUN npm install
+
+# Codice + build di produzione
+COPY . .
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "run", "start"]

@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pratica
+      POSTGRES_PASSWORD: pratica
+      POSTGRES_DB: pratica_debiti
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pratica"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/code
+      - ./backend/storage:/code/storage          # legacy: documenti pre-storage
+      - filestore:/data/uploads                  # volume DEDICATO e persistente per i file originali
+    # Applica le migrazioni Alembic PRIMA di avviare l'app (niente più down -v).
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  worker:
+    build: ./backend
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      # Aspetta che il backend abbia applicato le migrazioni: niente race sullo schema.
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./backend:/code
+      - ./backend/storage:/code/storage          # legacy: documenti pre-storage
+      - filestore:/data/uploads                  # volume DEDICATO e persistente per i file originali
+    command: celery -A app.workers.celery_app worker --loglevel=info -Q default
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:        # database Postgres
+  filestore:     # file originali caricati (separato dal DB: un down -v del DB non li tocca)

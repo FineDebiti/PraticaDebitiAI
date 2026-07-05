@@ -1,0 +1,8 @@
+# Non copiare dati locali/temporanei nell'immagine: i file caricati e i documenti
+# vivono su volumi Docker, non dentro l'immagine.
+__pycache__
+*.pyc
+storage
+.git
+.env
+.env.local

@@ -1,0 +1,244 @@
+/* ============================================================
+   PRATICA DEBITI AI — DESIGN SYSTEM
+   Direzione B "Professionale / legale"
+   Token + componenti. CSS puro con variabili: funziona con
+   qualsiasi setup (CSS modules, global CSS, accanto a Tailwind).
+   ============================================================ */
+
+:root {
+  /* ---------- Tipografia ---------- */
+  --pd-font-ui: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --pd-font-display: "Iowan Old Style", Georgia, "Times New Roman", serif; /* titoli */
+  --pd-font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --pd-fs-xs: 12px;
+  --pd-fs-sm: 13.5px;
+  --pd-fs-base: 14px;
+  --pd-fs-lg: 16px;
+  --pd-fs-xl: 20px;
+  --pd-fs-2xl: 26px;
+  --pd-fw-regular: 400;
+  --pd-fw-medium: 500;
+  --pd-fw-bold: 600;
+
+  /* ---------- Colori: superfici ---------- */
+  --pd-bg: #f3f1ec;            /* sfondo pagina (grigio caldo) */
+  --pd-surface: #ffffff;       /* card, tabelle, input */
+  --pd-surface-2: #faf8f4;     /* righe alternate, hover leggero */
+  --pd-border: #e4ded3;        /* bordi standard */
+  --pd-border-strong: #d2c9ba; /* bordi enfatizzati */
+
+  /* ---------- Colori: testo ---------- */
+  --pd-text: #2b2722;          /* testo principale */
+  --pd-text-muted: #7a7367;    /* testo secondario / label */
+  --pd-text-faint: #a39a8c;    /* hint, placeholder */
+
+  /* ---------- Colori: brand ---------- */
+  --pd-primary: #3f4a3c;       /* verde oliva scuro istituzionale (sidebar, header tabelle) */
+  --pd-primary-600: #515f4c;   /* hover primario */
+  --pd-primary-50: #eef0ea;    /* riga totale, sfondi tenui */
+  --pd-accent: #8a6d3b;        /* ottone sobrio: link, azioni */
+  --pd-accent-600: #6f5730;
+
+  /* ---------- Colori: semantici (stato) ---------- */
+  --pd-ok: #426a4f;       --pd-ok-bg: #e9f0ea;
+  --pd-warn: #936215;     --pd-warn-bg: #f5ecdb;
+  --pd-danger: #8f2f24;   --pd-danger-bg: #f3e5e2;
+  --pd-info: #4a5d6e;     --pd-info-bg: #eaeef2;
+  --pd-neutral: #5b554c;  --pd-neutral-bg: #ece8e1;
+
+  /* ---------- Forma & spazio ---------- */
+  --pd-radius: 6px;
+  --pd-radius-sm: 4px;
+  --pd-radius-lg: 8px;
+  --pd-shadow: 0 1px 2px rgba(43,39,34,.07);
+  --pd-shadow-md: 0 2px 6px rgba(43,39,34,.10);
+  --pd-space-1: 4px;
+  --pd-space-2: 8px;
+  --pd-space-3: 12px;
+  --pd-space-4: 16px;
+  --pd-space-5: 24px;
+  --pd-space-6: 32px;
+
+  /* ---------- Focus (accessibilità) ---------- */
+  --pd-focus-ring: 2px solid var(--pd-accent);
+}
+
+/* ============================================================
+   ELEMENTI BASE
+   ============================================================ */
+.pd-app {
+  font-family: var(--pd-font-ui);
+  font-size: var(--pd-fs-base);
+  color: var(--pd-text);
+  background: var(--pd-bg);
+  line-height: 1.55;
+}
+.pd-h1, .pd-h2, .pd-h3 { font-family: var(--pd-font-display); color: var(--pd-primary); font-weight: var(--pd-fw-bold); margin: 0; }
+.pd-h1 { font-size: var(--pd-fs-2xl); }
+.pd-h2 { font-size: var(--pd-fs-xl); }
+.pd-h3 { font-size: var(--pd-fs-lg); }
+.pd-muted { color: var(--pd-text-muted); }
+
+/* numeri/importi: sempre tabellari per allineamento colonne */
+.pd-num { font-variant-numeric: tabular-nums; }
+
+/* Focus visibile su TUTTO ciò che è interattivo (WCAG 2.4.7) */
+.pd-app a:focus-visible,
+.pd-app button:focus-visible,
+.pd-app input:focus-visible,
+.pd-app select:focus-visible,
+.pd-app [tabindex]:focus-visible { outline: var(--pd-focus-ring); outline-offset: 1px; }
+
+/* ============================================================
+   HOVER UNIFORME su TUTTO l'interattivo
+   Usa filter/box-shadow/transform: proprietà NON impostate inline,
+   così l'effetto è identico ovunque a prescindere dagli stili inline.
+   ============================================================ */
+.pd-app a { cursor: pointer; }
+.pd-app a,
+.pd-app button,
+.pd-app [role="tab"],
+.pd-app summary,
+.pd-app .pd-card--clickable,
+.pd-app label[onclick] {
+  transition: filter .12s ease, box-shadow .12s ease, transform .12s ease, color .12s ease;
+}
+/* tutto ciò che è cliccabile: leggero scurimento al passaggio */
+.pd-app a:hover,
+.pd-app button:not([disabled]):not([aria-disabled="true"]):hover,
+.pd-app [role="tab"]:not([aria-selected="true"]):hover,
+.pd-app summary:hover {
+  filter: brightness(0.92);
+}
+/* i bottoni in più si "sollevano" con un'ombra (affordance chiara) */
+.pd-app button:not([disabled]):not([aria-disabled="true"]):hover {
+  box-shadow: var(--pd-shadow-md);
+  transform: translateY(-1px);
+}
+.pd-app button[disabled], .pd-app button[aria-disabled="true"] { cursor: not-allowed; }
+
+/* ============================================================
+   BADGE DI STATO  — significato FISSO in tutta l'app
+   ok=verde  warn=arancio  danger=rosso  info=blu-grigio  neutral=grigio
+   ============================================================ */
+.pd-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: var(--pd-radius-sm);
+  font-size: var(--pd-fs-xs); font-weight: var(--pd-fw-bold); line-height: 1;
+  white-space: nowrap;
+}
+.pd-badge--ok      { background: var(--pd-ok-bg);      color: var(--pd-ok); }
+.pd-badge--warn    { background: var(--pd-warn-bg);    color: var(--pd-warn); }
+.pd-badge--danger  { background: var(--pd-danger-bg);  color: var(--pd-danger); }
+.pd-badge--info    { background: var(--pd-info-bg);    color: var(--pd-info); }
+.pd-badge--neutral { background: var(--pd-neutral-bg); color: var(--pd-neutral); }
+
+/* ============================================================
+   CARD
+   ============================================================ */
+.pd-card {
+  background: var(--pd-surface);
+  border: 1px solid var(--pd-border);
+  border-radius: var(--pd-radius-lg);
+  box-shadow: var(--pd-shadow);
+  padding: var(--pd-space-4) var(--pd-space-5);
+}
+.pd-card__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--pd-space-3); }
+.pd-card__title { font-weight: var(--pd-fw-bold); color: var(--pd-primary); font-size: var(--pd-fs-base); }
+.pd-card__link { font-size: var(--pd-fs-sm); color: var(--pd-accent); text-decoration: none; }
+.pd-card__link:hover { color: var(--pd-accent-600); text-decoration: underline; }
+/* card cliccabile per intero (fix UX P2.3) */
+.pd-card--clickable { cursor: pointer; transition: box-shadow .12s, border-color .12s; }
+.pd-card--clickable:hover { box-shadow: var(--pd-shadow-md); border-color: var(--pd-border-strong); }
+
+/* coppia chiave/valore dentro le card */
+.pd-kv { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed var(--pd-border); }
+.pd-kv:last-child { border-bottom: none; }
+.pd-kv__k { color: var(--pd-text-muted); }
+.pd-kv__v { font-weight: var(--pd-fw-bold); font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   TABELLE
+   ============================================================ */
+.pd-table { width: 100%; border-collapse: collapse; background: var(--pd-surface);
+  border: 1px solid var(--pd-border); border-radius: var(--pd-radius-lg); overflow: hidden; font-size: var(--pd-fs-sm); }
+.pd-table thead th { background: var(--pd-primary); color: #fff; text-align: left;
+  padding: 9px 12px; font-weight: var(--pd-fw-bold); font-size: var(--pd-fs-xs); }
+.pd-table tbody td { padding: 9px 12px; border-top: 1px solid var(--pd-border); }
+.pd-table tbody tr:nth-child(even) td { background: var(--pd-surface-2); }
+.pd-table td.pd-num, .pd-table th.pd-num { text-align: right; font-variant-numeric: tabular-nums; }
+.pd-table .pd-table__total td { font-weight: var(--pd-fw-bold); background: var(--pd-primary-50) !important; border-top: 2px solid var(--pd-primary); }
+/* riga da verificare (bassa confidenza / quadratura ko) */
+.pd-table tr.pd-row--review td { background: var(--pd-warn-bg) !important; }
+
+/* wrapper per scroll orizzontale su schermi stretti (fix responsive) */
+.pd-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ============================================================
+   BOTTONI
+   ============================================================ */
+.pd-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: inherit; font-size: var(--pd-fs-base); font-weight: var(--pd-fw-bold);
+  cursor: pointer; padding: 9px 16px; border-radius: var(--pd-radius-sm);
+  border: 1px solid transparent; transition: background .12s, border-color .12s;
+}
+.pd-btn--primary   { background: var(--pd-primary); color: #fff; }
+.pd-btn--primary:hover { background: var(--pd-primary-600); }
+.pd-btn--secondary { background: var(--pd-surface); color: var(--pd-primary); border-color: var(--pd-border-strong); }
+.pd-btn--secondary:hover { background: var(--pd-surface-2); }
+.pd-btn--danger    { background: var(--pd-danger-bg); color: var(--pd-danger); }
+.pd-btn--danger:hover { background: #ecd6d2; }
+.pd-btn--ghost     { background: transparent; color: var(--pd-accent); padding: 6px 8px; }
+.pd-btn[disabled]  { opacity: .5; cursor: not-allowed; }
+
+/* ============================================================
+   FORM
+   ============================================================ */
+.pd-field { margin-bottom: var(--pd-space-3); }
+.pd-field__label { display: block; font-size: var(--pd-fs-sm); color: var(--pd-text-muted);
+  margin-bottom: 5px; font-weight: var(--pd-fw-medium); }
+.pd-field__req { color: var(--pd-danger); margin-left: 2px; }
+.pd-input, .pd-select {
+  width: 100%; padding: 9px 11px; font-size: var(--pd-fs-base); font-family: inherit;
+  border: 1px solid var(--pd-border-strong); border-radius: var(--pd-radius-sm);
+  background: var(--pd-surface); color: var(--pd-text);
+}
+.pd-input::placeholder { color: var(--pd-text-faint); }
+.pd-field--error .pd-input { border-color: var(--pd-danger); background: var(--pd-danger-bg); }
+.pd-field__err { font-size: var(--pd-fs-xs); color: var(--pd-danger); margin-top: 5px; }
+
+/* ============================================================
+   TOAST / FEEDBACK  (fix UX P1.1)
+   ============================================================ */
+.pd-toast {
+  display: flex; align-items: center; gap: 9px;
+  border-radius: var(--pd-radius-sm); padding: 10px 14px;
+  font-size: var(--pd-fs-sm); font-weight: var(--pd-fw-bold); border: 1px solid transparent;
+}
+.pd-toast--ok    { background: var(--pd-ok-bg);   color: var(--pd-ok);   border-color: rgba(66,106,79,.25); }
+.pd-toast--warn  { background: var(--pd-warn-bg); color: var(--pd-warn); border-color: rgba(147,98,21,.25); }
+.pd-toast--danger{ background: var(--pd-danger-bg); color: var(--pd-danger); border-color: rgba(143,47,36,.25); }
+
+/* ============================================================
+   TAB (pattern accessibile)
+   usare con role="tablist"/"tab"/"tabpanel" + aria-selected
+   ============================================================ */
+.pd-tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--pd-border); }
+.pd-tab {
+  padding: 10px 16px; font-size: var(--pd-fs-base); font-weight: var(--pd-fw-medium);
+  color: var(--pd-text-muted); background: transparent; border: none; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+}
+.pd-tab[aria-selected="true"] { color: var(--pd-primary); border-bottom-color: var(--pd-primary); font-weight: var(--pd-fw-bold); }
+.pd-tab:hover:not([aria-selected="true"]) { color: var(--pd-text); }
+/* tab realmente disabilitata: NON solo colore, anche cursore + aria-disabled (fix P1.3 / WCAG 1.4.1) */
+.pd-tab[aria-disabled="true"] { color: var(--pd-text-faint); cursor: not-allowed; }
+
+/* ============================================================
+   UTILITY IMPORTI
+   Nota: il VALORE va formattato lato codice (vedi spec, §Formato importi).
+   Queste classi servono solo all'allineamento/peso visivo.
+   ============================================================ */
+.pd-amount { font-variant-numeric: tabular-nums; font-weight: var(--pd-fw-bold); }
+.pd-amount--muted { color: var(--pd-text-muted); font-weight: var(--pd-fw-regular); } /* per "da stimare" */
