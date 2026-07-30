@@ -170,8 +170,8 @@ export default function Scheda({ params }) {
   const nAz = companies.length + (needSeed ? 1 : 0);
   const nDoc = docs.length;
   const nDocOk = docs.filter(x => x.status === "elaborato").length;
-  const socioGarante = ["garante", "coobbligato"].includes(d.client_type)
-    || companies.some(c => (c.members || []).some(m => m.is_client));
+  const isSocioAz = companies.some(c => (c.members || []).some(m => m.is_client));
+  const isGaranteClient = ["garante", "coobbligato"].includes(d.client_type);
   const titolare = isAzienda
     ? (clienteCompanies[0]?.name || d.last_name || "—")
     : (`${d.first_name || ""} ${d.last_name || ""}`.trim() || "—");
@@ -259,7 +259,8 @@ export default function Scheda({ params }) {
           )}
           <SummaryCard title="Aziende" onGo={() => goTab("aziende")}>
             <SLine k="Aziende collegate" v={nAz} />
-            {socioGarante && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>⚠ Il cliente è socio/garante</div>}
+            {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>⚠ Il cliente è socio o titolare di cariche</div>}
+            {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>⚠ Il cliente è garante/coobbligato</div>}
           </SummaryCard>
           <SummaryCard title="Documenti" onGo={() => goTab("documenti")}>
             <SLine k="Caricati" v={nDoc} />

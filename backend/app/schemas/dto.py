@@ -1,15 +1,13 @@
 from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
 class CaseCreate(BaseModel):
     client_kind: str = "persona"     # "persona" | "azienda"
-    # Persona fisica
     first_name: str = ""
     last_name: str = ""
-    # Azienda
     denomination: str = ""
-    # Comune a entrambi: codice fiscale (persona) o partita IVA (azienda)
     client_tax_code: str = ""
     code: str = ""
     notes: str = ""
@@ -66,5 +64,69 @@ class PositionOut(BaseModel):
 
 
 class CaseDetail(CaseOut):
-    documents: list[DocumentOut] = []
-    positions: list[PositionOut] = []
+    documents: List[DocumentOut] = []
+    positions: List[PositionOut] = []
+
+
+class IncomeDocumentOut(BaseModel):
+    document_id: str
+    doc_type: str
+    original_filename: str
+    status: str
+    created_at: str
+    data: Dict[str, Any] = {}
+
+
+class RelatedCaseOut(BaseModel):
+    case_id: str
+    case_label: str
+    cf: str
+    n_documenti: int
+    n_visure: int
+    ultima_attivita: str
+
+
+class IndicatorItemOut(BaseModel):
+    code: str
+    label: str
+    area: str
+    value: Optional[Any] = None
+    unit: str
+    formula_human: str
+    kind: str = "det"
+    status: str = "na"
+    criterion: Optional[str] = None
+    source_section: str = ""
+    source_tab: str = "riepilogo"
+    detail: Optional[List[Dict[str, Any]]] = None
+
+
+class CaseIndicatorsOut(BaseModel):
+    macro: List[IndicatorItemOut] = []
+    indicators: List[IndicatorItemOut] = []
+
+
+class FieldEditOut(BaseModel):
+    id: str
+    entity_type: str
+    entity_id: str
+    field: str
+    old_value: str
+    new_value: str
+    reason: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class EnrichmentRequestOut(BaseModel):
+    id: str
+    source: str
+    query: str
+    status: str
+    sandbox: bool
+    error: str
+    mapped_data: Dict[str, Any] = {}
+    raw_response: Dict[str, Any] = {}
+    created_at: str

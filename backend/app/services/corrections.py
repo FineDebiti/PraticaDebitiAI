@@ -8,16 +8,17 @@ Principio (dati legali): l'AI/API propone, l'operatore corregge, ma:
 
 Un solo punto (EDITABLE + i recompute) descrive cosa è correggibile e cosa si ricalcola.
 """
+from typing import Dict, Any, List, Set, Tuple
+from sqlalchemy.orm import Session
 from app.models import (
     FinancialStatement, FinancialIndicator, TaxDebtStatement, TaxDebtItem,
     CreditExposure, GuaranteeGiven, CreditReportSummary, RealEstate, Vehicle, FieldEdit,
 )
 from app.services.indicators import compute_indicators
 from app.services import aer_parser
+from app.services.pipeline_service import _valore_catastale
 
 
-# ---------------- whitelist campi editabili per tipo ----------------
-# kind: num | str | bool ; path (solo bilancio) = percorso annidato in raw_extraction
 EDITABLE = {
     "real_estate": {
         "model": RealEstate,
@@ -62,7 +63,6 @@ EDITABLE = {
     },
     "financial_statement": {
         "model": FinancialStatement,
-        # campi annidati in raw_extraction: chiave logica -> (path, kind)
         "nested": {
             "ricavi": ("conto_economico.ricavi_vendite.corrente", "num"),
             "utile": ("conto_economico.utile_perdita.corrente", "num"),
@@ -79,43 +79,49 @@ class CorrectionError(Exception):
     pass
 
 
-def _coerce(kind, v):
+def _coerce(kind: str, v: Any) -> Any:
     if kind == "num":
         if v in (None, "", "-"):
             return 0.0
-        return float(str(v).replace(".", "").replace(",", ".")) if isinstance(v, str) and "," in str(v) else float(v)
+        if isinstance(v, str) and "," in v:
+            v = v.replace(".", "").replace(",", ".")
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
     if kind == "bool":
         return v in (True, "true", "True", 1, "1", "si", "Si", "sì")
     return "" if v is None else str(v)
 
 
-def _spec(entity_type):
+def _spec(entity_type: str) -> dict:
     spec = EDITABLE.get(entity_type)
     if not spec:
         raise CorrectionError(f"Tipo non correggibile: {entity_type}")
     return spec
 
 
-def apply_corrections(db, case_id, entity_type, entity_id, changes, reason="", operator=""):
+def apply_corrections(db: Session, case_id: str, entity_type: str, entity_id: str, changes: Dict[str, Any], reason: str = "", operator: str = "") -> Any:
     """Applica le correzioni, scrive l'audit, ricalcola a valle. Ritorna l'oggetto aggiornato."""
     spec = _spec(entity_type)
     obj = db.get(spec["model"], entity_id)
     if not obj or not _belongs(obj, case_id, db):
         raise CorrectionError("Record non trovato in questa pratica")
 
-    edits = []
     if entity_type == "financial_statement":
         edits = _apply_nested(obj, spec["nested"], changes)
     else:
         edits = _apply_flat(obj, spec["fields"], changes)
 
     if not edits:
-        return obj  # nessun cambiamento reale
+        return obj
 
     for field, old, new in edits:
-        db.add(FieldEdit(case_id=case_id, entity_type=entity_type, entity_id=str(entity_id),
-                         field=field, old_value=str(old), new_value=str(new),
-                         operator=operator, reason=reason))
+        db.add(FieldEdit(
+            case_id=case_id, entity_type=entity_type, entity_id=str(entity_id),
+            field=field, old_value=str(old), new_value=str(new),
+            operator=operator, reason=reason,
+        ))
 
     _recompute(db, entity_type, obj, {f for f, _, _ in edits})
     db.commit()
@@ -123,10 +129,9 @@ def apply_corrections(db, case_id, entity_type, entity_id, changes, reason="", o
     return obj
 
 
-def _belongs(obj, case_id, db):
+def _belongs(obj: Any, case_id: str, db: Session) -> bool:
     if getattr(obj, "case_id", None) == case_id:
         return True
-    # tax_debt_item: risale allo statement
     parent_id = getattr(obj, "statement_id", None)
     if parent_id:
         st = db.get(TaxDebtStatement, parent_id)
@@ -134,7 +139,7 @@ def _belongs(obj, case_id, db):
     return False
 
 
-def _apply_flat(obj, fields, changes):
+def _apply_flat(obj: Any, fields: Dict[str, str], changes: Dict[str, Any]) -> List[Tuple[str, Any, Any]]:
     edits = []
     for key, val in (changes or {}).items():
         if key not in fields:
@@ -147,8 +152,7 @@ def _apply_flat(obj, fields, changes):
     return edits
 
 
-def _effective_raw(stmt):
-    """Vista corrente del bilancio: fonte + eventuali correzioni (la fonte non si tocca)."""
+def _effective_raw(stmt: FinancialStatement) -> dict:
     import copy
     base = copy.deepcopy(stmt.raw_extraction or {})
     over = stmt.raw_corrected or {}
@@ -160,10 +164,9 @@ def _effective_raw(stmt):
     return base
 
 
-def _apply_nested(obj, nested, changes):
-    # la FONTE (raw_extraction) resta immutabile: le correzioni vivono in raw_corrected
+def _apply_nested(obj: FinancialStatement, nested: Dict[str, Tuple[str, str]], changes: Dict[str, Any]) -> List[Tuple[str, Any, Any]]:
     import copy
-    eff = _effective_raw(obj)             # valori attualmente in vigore (per il confronto)
+    eff = _effective_raw(obj)
     over = copy.deepcopy(obj.raw_corrected or {})
     edits = []
     for key, val in (changes or {}).items():
@@ -176,11 +179,11 @@ def _apply_nested(obj, nested, changes):
             _set_path(over, path, new)
             edits.append((key, old, new))
     if edits:
-        obj.raw_corrected = over          # riassegna: triggera il dirty sul JSON
+        obj.raw_corrected = over
     return edits
 
 
-def _get_path(d, path):
+def _get_path(d: dict, path: str) -> Any:
     cur = d
     for p in path.split("."):
         if not isinstance(cur, dict):
@@ -189,7 +192,7 @@ def _get_path(d, path):
     return cur
 
 
-def _set_path(d, path, value):
+def _set_path(d: dict, path: str, value: Any) -> None:
     parts = path.split(".")
     cur = d
     for p in parts[:-1]:
@@ -199,13 +202,17 @@ def _set_path(d, path, value):
     cur[parts[-1]] = value
 
 
-# ---------------- ricalcolo deterministico a valle ----------------
-def _cur(blk, key):
+def _cur(blk: dict, key: str) -> float:
     v = (blk or {}).get(key)
-    return float(v.get("corrente") or 0) if isinstance(v, dict) else 0.0
+    if isinstance(v, dict):
+        try:
+            return float(v.get("corrente") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
 
 
-def _recompute(db, entity_type, obj, changed):
+def _recompute(db: Session, entity_type: str, obj: Any, changed: Set[str]) -> None:
     if entity_type == "financial_statement":
         _recompute_bilancio(db, obj)
     elif entity_type == "tax_debt_item":
@@ -216,16 +223,15 @@ def _recompute(db, entity_type, obj, changed):
         _recompute_cr_totali(db, obj.case_id)
 
 
-def _recompute_bilancio(db, stmt):
-    raw = _effective_raw(stmt)   # fonte + correzioni: gli indici si ricalcolano sul dato corretto
+def _recompute_bilancio(db: Session, stmt: FinancialStatement) -> None:
+    raw = _effective_raw(stmt)
     sp, ce, deb = raw.get("stato_patrimoniale") or {}, raw.get("conto_economico") or {}, raw.get("debiti_per_natura") or {}
-    # denormalizzati
     stmt.total_assets = _cur(sp, "totale_attivo")
     stmt.equity = _cur(sp, "patrimonio_netto")
     stmt.total_debts = _cur(sp, "debiti_totali")
     stmt.revenues = _cur(ce, "ricavi_vendite")
     stmt.net_result = _cur(ce, "utile_perdita")
-    # indici: cancella e ricalcola
+
     for ind in list(stmt.indicators):
         db.delete(ind)
     db.flush()
@@ -233,18 +239,17 @@ def _recompute_bilancio(db, stmt):
         db.add(FinancialIndicator(statement_id=stmt.id, **ind))
 
 
-def _recompute_aer(db, item, changed):
-    # categoria coerente con l'ente, se l'ente è cambiato ma non la categoria
+def _recompute_aer(db: Session, item: TaxDebtItem, changed: Set[str]) -> None:
     if "ente_creditore" in changed and "ente_categoria" not in changed:
         item.ente_categoria = aer_parser.ente_categoria(item.ente_creditore)
-    # quadrature di riga
+
     tol = 0.01
     item.needs_review = (
         abs(item.residuo_carico - (item.carico_affidato - item.sgravio - item.gia_pagato - item.stralcio)) > tol
         or abs(item.totale_residuo - (item.residuo_carico + item.interessi_mora + item.oneri_diritti)) > tol
         or abs(item.totale_residuo_netto - (item.totale_residuo - item.importo_sospeso)) > tol
     )
-    # ricalcolo statement: totali, conteggi, quadratura, aggregazioni
+
     st = db.get(TaxDebtStatement, item.statement_id)
     if not st:
         return
@@ -265,16 +270,14 @@ def _recompute_aer(db, item, changed):
     st.raw_extraction = raw
 
 
-def _recompute_immobile(re, changed):
-    # se l'operatore NON ha forzato a mano il valore catastale, lo ricalcoliamo dagli input
+def _recompute_immobile(re: RealEstate, changed: Set[str]) -> None:
     if "cadastral_value" in changed:
         return
-    from app.workers.tasks import _valore_catastale
     re.cadastral_value = _valore_catastale(
         re.cadastral_income, re.category, re.ownership_share, re.is_primary_residence)
 
 
-def _recompute_cr_totali(db, case_id):
+def _recompute_cr_totali(db: Session, case_id: str) -> None:
     exps = db.query(CreditExposure).filter_by(case_id=case_id).all()
     gars = db.query(GuaranteeGiven).filter_by(case_id=case_id).all()
     summary = db.query(CreditReportSummary).filter_by(case_id=case_id).order_by(
