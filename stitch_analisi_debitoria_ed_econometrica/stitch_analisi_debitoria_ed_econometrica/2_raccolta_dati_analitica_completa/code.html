@@ -1,0 +1,469 @@
+<!DOCTYPE html><html class="light" lang="it"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Economic Data Collection | DebtAnalysis Pro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-fixed": "#f4e1b2",
+                    "surface-container": "#eeeeec",
+                    "on-secondary-container": "#716045",
+                    "secondary": "#6c5c42",
+                    "surface-container-highest": "#e2e3e1",
+                    "surface": "#f9f9f7",
+                    "primary-fixed-dim": "#bfcab6",
+                    "on-primary-fixed-variant": "#404a3b",
+                    "on-primary": "#ffffff",
+                    "on-surface-variant": "#444841",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-container": "#4a3e1c",
+                    "on-tertiary-fixed": "#241a00",
+                    "on-secondary-fixed-variant": "#53452c",
+                    "on-secondary-fixed": "#251a05",
+                    "secondary-fixed": "#f6dfbe",
+                    "surface-container-high": "#e8e8e6",
+                    "primary-container": "#434d3e",
+                    "inverse-surface": "#2f3130",
+                    "surface-bright": "#f9f9f7",
+                    "surface-dim": "#dadad8",
+                    "background": "#f9f9f7",
+                    "primary-fixed": "#dbe6d2",
+                    "on-tertiary-fixed-variant": "#524623",
+                    "on-surface": "#1a1c1b",
+                    "on-secondary": "#ffffff",
+                    "secondary-fixed-dim": "#d9c4a3",
+                    "on-primary-fixed": "#151e12",
+                    "on-background": "#1a1c1b",
+                    "inverse-on-surface": "#f1f1ef",
+                    "error": "#ba1a1a",
+                    "tertiary-container": "#bbaa7f",
+                    "surface-container-lowest": "#ffffff",
+                    "primary": "#2d3628",
+                    "outline": "#757871",
+                    "surface-tint": "#576151",
+                    "on-tertiary": "#ffffff",
+                    "inverse-primary": "#bfcab6",
+                    "outline-variant": "#c5c7bf",
+                    "surface-container-low": "#f4f4f2",
+                    "error-container": "#ffdad6",
+                    "tertiary": "#6b5d38",
+                    "on-primary-container": "#b2bdaa",
+                    "secondary-container": "#f3ddbb",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed-dim": "#d7c598",
+                    "surface-variant": "#e2e3e1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "stack-md": "1rem",
+                    "stack-lg": "2rem",
+                    "stack-sm": "0.5rem",
+                    "sidebar-width": "260px",
+                    "container-max-width": "1280px",
+                    "gutter": "1.5rem"
+            },
+            "fontFamily": {
+                    "button": ["Hanken Grotesk"],
+                    "label-md": ["Hanken Grotesk"],
+                    "body-md": ["Hanken Grotesk"],
+                    "headline-lg": ["Hanken Grotesk"],
+                    "headline-xl": ["Hanken Grotesk"],
+                    "headline-md": ["Hanken Grotesk"],
+                    "body-lg": ["Hanken Grotesk"]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .tab-active { border-bottom: 2px solid theme('colors.secondary'); color: theme('colors.primary'); }
+        .form-input-focus:focus { border-color: theme('colors.secondary'); outline: none; box-shadow: 0 0 0 1px theme('colors.secondary'); }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md">
+<!-- Side Navigation -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-primary flex flex-col py-6 z-50">
+<div class="px-6 mb-8">
+<h1 class="font-headline-md text-headline-md font-bold text-on-primary">DebtAnalysis Pro</h1>
+<p class="font-label-md text-label-md text-on-primary-container opacity-80">Institutional Portal</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-4 py-3 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">gavel</span>
+<span>Practices</span>
+</a>
+<a class="flex items-center px-4 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-lg mx-2 transition-colors" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">database</span>
+<span>Economic Data</span>
+</a>
+<a class="flex items-center px-4 py-3 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">analytics</span>
+<span>Econometric Evaluation</span>
+</a>
+<a class="flex items-center px-4 py-3 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined mr-3">description</span>
+<span>Reports</span>
+</a>
+</nav>
+</aside>
+<!-- Top App Bar -->
+<header class="fixed top-0 left-[260px] w-[calc(100%-260px)] h-16 bg-surface border-b border-outline-variant flex justify-between items-center px-gutter z-40">
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md text-primary">Analisi Posizione Debitoria</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative flex items-center">
+<input class="bg-surface-container-low border border-outline-variant rounded-full px-4 py-1.5 text-body-md w-64 focus:ring-1 focus:ring-secondary focus:outline-none" placeholder="Cerca dati..." type="text">
+<span class="material-symbols-outlined absolute right-3 text-on-surface-variant">search</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant">account_circle</span>
+</div>
+</div>
+</header>
+<main class="ml-[260px] pt-16 min-h-screen">
+<div class="max-w-[1280px] mx-auto px-gutter py-8">
+<!-- Progress Stepper -->
+<div class="mb-8">
+<div class="flex justify-between items-end mb-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-primary">Fase 2: Raccolta Dati Economici</h2>
+<p class="text-on-surface-variant font-body-md">Pratica: #DEBT-2024-0812 | Trotta Valerio</p>
+</div>
+<div class="text-right">
+<span class="text-label-md font-bold text-secondary uppercase">Step 2 di 4</span>
+<p class="text-headline-md font-bold text-primary">65% Completato</p>
+</div>
+</div>
+<div class="w-full h-2 bg-surface-container-highest rounded-full">
+<div class="h-full bg-secondary w-[65%] rounded-full"></div>
+</div>
+</div>
+<!-- Sections Navigation -->
+<div class="flex gap-8 border-b border-outline-variant mb-8 overflow-x-auto whitespace-nowrap">
+<button class="pb-3 text-body-md font-bold tab-active">Redditi e Nucleo Familiare</button>
+<button class="pb-3 text-body-md text-on-surface-variant hover:text-primary transition-colors">Spese e Sostentamento</button>
+<button class="pb-3 text-body-md text-on-surface-variant hover:text-primary transition-colors">Stato Passivo</button>
+<button class="pb-3 text-body-md text-on-surface-variant hover:text-primary transition-colors">Patrimonio</button>
+<button class="pb-3 text-body-md text-on-surface-variant hover:text-primary transition-colors">Analisi Reddittuale e Crisi</button>
+</div>
+<div class="space-y-8">
+<!-- 1. Redditi e Nucleo Familiare -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-secondary">family_restroom</span>
+<h3 class="font-headline-md text-headline-md text-primary">Redditi e Composizione Nucleo</h3>
+</div>
+<div class="mb-8">
+<h4 class="text-label-md font-bold text-secondary uppercase mb-4">Reddito Netto Medio Mensile (Ultimi 3 Anni)</h4>
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead>
+<tr class="bg-surface-container text-left">
+<th class="px-4 py-2 border border-outline-variant text-label-md">Anno</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md">Reddito Annuo Netto</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md">Reddito Mensile Netto</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md">Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">2022</td>
+<td class="px-4 py-3 border border-outline-variant font-medium">€ 89.090,00</td>
+<td class="px-4 py-3 border border-outline-variant">€ 7.424,17</td>
+<td class="px-4 py-3 border border-outline-variant text-on-surface-variant italic">PF 2023</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">2023</td>
+<td class="px-4 py-3 border border-outline-variant font-medium">€ 84.419,00</td>
+<td class="px-4 py-3 border border-outline-variant">€ 7.034,92</td>
+<td class="px-4 py-3 border border-outline-variant text-on-surface-variant italic">PF 2024</td>
+</tr>
+<tr class="bg-surface-container-low">
+<td class="px-4 py-3 border border-outline-variant">2024</td>
+<td class="px-4 py-3 border border-outline-variant font-medium">€ 95.138,00</td>
+<td class="px-4 py-3 border border-outline-variant">€ 7.928,17</td>
+<td class="px-4 py-3 border border-outline-variant text-on-surface-variant italic">PF 2025</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div>
+<h4 class="text-label-md font-bold text-secondary uppercase mb-4">Membri del Nucleo Familiare</h4>
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead class="bg-surface-container">
+<tr>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Parentela</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Cognome e Nome</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Luogo di Nascita</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Data di Nascita</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="px-4 py-3 border border-outline-variant font-medium">Dichiarante</td>
+<td class="px-4 py-3 border border-outline-variant text-primary font-bold">TROTTA VALERIO</td>
+<td class="px-4 py-3 border border-outline-variant">FUSCALDO (CS)</td>
+<td class="px-4 py-3 border border-outline-variant">27/02/1948</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">Coniuge</td>
+<td class="px-4 py-3 border border-outline-variant">SERPA NELLINA</td>
+<td class="px-4 py-3 border border-outline-variant text-error font-medium italic">Da definire</td>
+<td class="px-4 py-3 border border-outline-variant">-</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">Figlio/a</td>
+<td class="px-4 py-3 border border-outline-variant">TROTTA MARTA ROBERTA</td>
+<td class="px-4 py-3 border border-outline-variant">MILANO (MI)</td>
+<td class="px-4 py-3 border border-outline-variant">14/10/1974</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- 2. Spese e Sostentamento -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-secondary">payments</span>
+<h3 class="font-headline-md text-headline-md text-primary">Spese Correnti di Sostentamento</h3>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead class="bg-surface-container">
+<tr>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Voci di Spesa</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-right">Media Mensile</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">Canone di locazione</td>
+<td class="px-4 py-3 border border-outline-variant text-right">€ 0,00</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">Utenze (Acqua, Luce, Gas)</td>
+<td class="px-4 py-3 border border-outline-variant text-right font-medium text-primary">€ 600,00</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">Fabbisogno Nutrizionale</td>
+<td class="px-4 py-3 border border-outline-variant text-right font-medium text-primary">€ 400,00</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">Altre Spese Essenziali (Carburante, Condominio)</td>
+<td class="px-4 py-3 border border-outline-variant text-right font-medium text-primary">€ 300,00</td>
+</tr>
+<tr class="bg-primary text-on-primary">
+<td class="px-4 py-3 font-bold">TOTALE SPESE MENSILI</td>
+<td class="px-4 py-3 text-right font-bold">€ 1.300,00</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-6 bg-surface-container rounded-lg">
+<h4 class="font-headline-md text-primary mb-2">Note di Supporto</h4>
+<p class="text-body-md text-on-surface-variant">Le spese mensili dichiarate risultano compatibili con lo stile di vita del nucleo familiare e sono supportate da documentazione fiscale prodotta in fase istruttoria.</p>
+</div>
+</div>
+</section>
+<!-- 3. Stato Passivo -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-error">receipt_long</span>
+<h3 class="font-headline-md text-headline-md text-primary">Stato Passivo - Posizioni Debitorie</h3>
+</div>
+<button class="bg-primary text-on-primary px-4 py-2 rounded flex items-center gap-2 font-button">
+<span class="material-symbols-outlined">upload_file</span>
+                            Importa Estratto ADeR
+                        </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead>
+<tr class="bg-primary text-on-primary text-left">
+<th class="px-4 py-3 border border-primary-container text-label-md">Creditore / Ente</th>
+<th class="px-4 py-3 border border-primary-container text-label-md">Natura Obbligazione</th>
+<th class="px-4 py-3 border border-primary-container text-label-md">Debitore / Garante</th>
+<th class="px-4 py-3 border border-primary-container text-label-md text-right">Rata Mensile</th>
+<th class="px-4 py-3 border border-primary-container text-label-md text-right">Debito Residuo</th>
+<th class="px-4 py-3 border border-primary-container text-label-md">Note</th>
+</tr>
+</thead>
+<tbody class="text-body-md">
+<tr class="bg-error-container/10">
+<td class="px-4 py-3 border border-outline-variant font-bold">ADeR (Ag. Entrate Riscossione)</td>
+<td class="px-4 py-3 border border-outline-variant">Debiti Erariali / Fiscali</td>
+<td class="px-4 py-3 border border-outline-variant">Trotta Valerio</td>
+<td class="px-4 py-3 border border-outline-variant text-right">-</td>
+<td class="px-4 py-3 border border-outline-variant text-right font-bold text-error">€ 160.679,55</td>
+<td class="px-4 py-3 border border-outline-variant text-sm italic">Privo di garanzie reali attive</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant">Banca Centropadana</td>
+<td class="px-4 py-3 border border-outline-variant">Affidamento Bancario</td>
+<td class="px-4 py-3 border border-outline-variant">Trotta Valerio (G: Serpa N.)</td>
+<td class="px-4 py-3 border border-outline-variant text-right">€ 0,00</td>
+<td class="px-4 py-3 border border-outline-variant text-right">€ 0,00</td>
+<td class="px-4 py-3 border border-outline-variant text-sm italic">Posizione regolare mar-2026</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- 4. Patrimonio -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="flex items-center gap-3 mb-8">
+<span class="material-symbols-outlined text-secondary">account_balance</span>
+<h3 class="font-headline-md text-headline-md text-primary">Analisi Patrimoniale</h3>
+</div>
+<!-- Beni Mobili -->
+<div class="mb-10">
+<h4 class="text-label-md font-bold text-secondary uppercase mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">local_shipping</span> Beni Mobili Registrati
+                        </h4>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="p-4 border border-outline-variant rounded-lg bg-surface-container-low flex justify-between items-center">
+<div>
+<p class="font-bold">Furgone Fiat Ducato (2008)</p>
+<p class="text-sm text-on-surface-variant">Targa: DS374PV | 360.000 km</p>
+</div>
+<span class="material-symbols-outlined text-secondary">verified</span>
+</div>
+<div class="p-4 border border-outline-variant rounded-lg bg-surface-container-low flex justify-between items-center">
+<div>
+<p class="font-bold">Furgone Fiat Talento (2018)</p>
+<p class="text-sm text-on-surface-variant">Targa: FN901AY | 200.000 km</p>
+</div>
+<span class="material-symbols-outlined text-secondary">verified</span>
+</div>
+</div>
+</div>
+<!-- Beni Immobili -->
+<div>
+<h4 class="text-label-md font-bold text-secondary uppercase mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">domain</span> Patrimonio Immobiliare
+                        </h4>
+<div class="overflow-x-auto">
+<table class="w-full border-collapse">
+<thead class="bg-surface-container">
+<tr>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Estremi Catastali</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Ubicazione</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-center">Mq</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-left">Quota</th>
+<th class="px-4 py-2 border border-outline-variant text-label-md text-right">Valore Stimato</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="px-4 py-3 border border-outline-variant text-sm font-medium">F. 1, P. 478, Sub 4, Cat C/2</td>
+<td class="px-4 py-3 border border-outline-variant text-sm">Via Vistarino 24, Copiano (PV)</td>
+<td class="px-4 py-3 border border-outline-variant text-center">183</td>
+<td class="px-4 py-3 border border-outline-variant">Proprietà 100%</td>
+<td class="px-4 py-3 border border-outline-variant text-right font-bold">€ 115.290,00</td>
+</tr>
+<tr>
+<td class="px-4 py-3 border border-outline-variant text-sm font-medium">F. 1, P. 478, Sub 5, Cat A/7</td>
+<td class="px-4 py-3 border border-outline-variant text-sm">Via Vistarino 24, Copiano (PV)</td>
+<td class="px-4 py-3 border border-outline-variant text-center">190</td>
+<td class="px-4 py-3 border border-outline-variant">Proprietà 100%</td>
+<td class="px-4 py-3 border border-outline-variant text-right font-bold">€ 168.150,00</td>
+</tr>
+<tr class="bg-surface-container-low/50">
+<td class="px-4 py-3 border border-outline-variant text-sm font-medium">Terreno F. 1, P. 479</td>
+<td class="px-4 py-3 border border-outline-variant text-sm">Copiano (PV)</td>
+<td class="px-4 py-3 border border-outline-variant text-center">1.075</td>
+<td class="px-4 py-3 border border-outline-variant">Proprietà 1/2</td>
+<td class="px-4 py-3 border border-outline-variant text-right italic text-on-surface-variant">Non valorizzato</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- 5. Analisi Reddittuale e Crisi -->
+<section class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-secondary">monitoring</span>
+<h3 class="font-headline-md text-headline-md text-primary">Analisi di Sostenibilità e Rischio</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Risk Indicator -->
+<div class="bg-surface-container-high rounded-lg p-6 flex flex-col items-center justify-center border-l-8 border-tertiary">
+<span class="text-label-md font-bold uppercase mb-2">Semaforo di Rischio</span>
+<div class="w-16 h-16 rounded-full bg-tertiary mb-3 shadow-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-on-tertiary text-4xl">warning</span>
+</div>
+<span class="text-headline-md font-bold text-primary uppercase">GIALLO ALTO</span>
+<p class="text-xs text-on-surface-variant mt-2 text-center">Tensione finanziaria significativa rilevata</p>
+</div>
+<!-- EBITDA Metrics -->
+<div class="col-span-2 space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="p-4 bg-white border border-outline-variant rounded shadow-sm">
+<p class="text-label-md text-on-surface-variant uppercase">Margine EBITDA Medio</p>
+<p class="text-headline-md font-bold text-primary">€ 14.500 / mese</p>
+</div>
+<div class="p-4 bg-white border border-outline-variant rounded shadow-sm">
+<p class="text-label-md text-on-surface-variant uppercase">Capacità Residua</p>
+<p class="text-headline-md font-bold text-secondary">€ 1.840 / mese</p>
+</div>
+</div>
+<div class="p-4 bg-white border border-outline-variant rounded">
+<h4 class="text-label-md font-bold mb-3 uppercase">Situazione Contabile Previsionale</h4>
+<div class="flex justify-between items-center text-sm">
+<div class="text-center">
+<p class="text-on-surface-variant">2024 (R)</p>
+<p class="font-bold text-primary">€ 95k</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">trending_flat</span>
+<div class="text-center">
+<p class="text-on-surface-variant">2025 (P)</p>
+<p class="font-bold text-primary">€ 92k</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">trending_flat</span>
+<div class="text-center">
+<p class="text-on-surface-variant">2026 (P)</p>
+<p class="font-bold text-primary">€ 88k</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Sticky Actions Bar -->
+<div class="fixed bottom-0 left-[260px] w-[calc(100%-260px)] bg-white border-t border-outline-variant px-gutter py-4 flex justify-between items-center shadow-lg z-30">
+<button class="px-6 py-2 border border-outline text-on-surface-variant font-button rounded hover:bg-surface-container-low transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">save</span>
+                    Salva Bozza
+                </button>
+<div class="flex items-center gap-4">
+<button class="px-8 py-3 bg-secondary text-on-primary font-button rounded shadow hover:opacity-90 transition-all flex items-center gap-2">
+                        Revisiona e Continua
+                        <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<div class="h-24"></div> <!-- Spacer for sticky bar -->
+</div>
+</main>
+</body></html>

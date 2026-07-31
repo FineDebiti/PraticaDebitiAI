@@ -1,0 +1,522 @@
+<!DOCTYPE html><html lang="it"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-tab-border {
+            position: relative;
+        }
+        .active-tab-border::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #A69375;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c5c7bf;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #757871;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-fixed": "#241a00",
+                      "background": "#f9f9f7",
+                      "outline-variant": "#c5c7bf",
+                      "on-surface": "#1a1c1b",
+                      "surface-variant": "#e2e3e1",
+                      "on-surface-variant": "#444841",
+                      "primary": "#2d3628",
+                      "on-primary": "#ffffff",
+                      "on-secondary-container": "#716045",
+                      "surface-bright": "#f9f9f7",
+                      "primary-fixed-dim": "#bfcab6",
+                      "surface-container-high": "#e8e8e6",
+                      "secondary-fixed-dim": "#d9c4a3",
+                      "on-tertiary-fixed-variant": "#524623",
+                      "error": "#ba1a1a",
+                      "surface": "#f9f9f7",
+                      "surface-container-highest": "#e2e3e1",
+                      "primary-container": "#434d3e",
+                      "on-tertiary-container": "#4a3e1c",
+                      "outline": "#757871",
+                      "surface-tint": "#576151",
+                      "secondary-fixed": "#f6dfbe",
+                      "surface-dim": "#dadad8",
+                      "tertiary-fixed": "#f4e1b2",
+                      "tertiary-fixed-dim": "#d7c598",
+                      "error-container": "#ffdad6",
+                      "on-error-container": "#93000a",
+                      "secondary-container": "#f3ddbb",
+                      "inverse-primary": "#bfcab6",
+                      "on-error": "#ffffff",
+                      "on-secondary-fixed": "#251a05",
+                      "on-secondary-fixed-variant": "#53452c",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-container": "#eeeeec",
+                      "inverse-surface": "#2f3130",
+                      "on-primary-container": "#b2bdaa",
+                      "on-secondary": "#ffffff",
+                      "inverse-on-surface": "#f1f1ef",
+                      "tertiary": "#6b5d38",
+                      "tertiary-container": "#bbaa7f",
+                      "on-background": "#1a1c1b",
+                      "secondary": "#6c5c42",
+                      "surface-container-low": "#f4f4f2",
+                      "on-primary-fixed": "#151e12",
+                      "on-primary-fixed-variant": "#404a3b",
+                      "on-tertiary": "#ffffff",
+                      "primary-fixed": "#dbe6d2"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "stack-lg": "2rem",
+                      "stack-md": "1rem",
+                      "container-max-width": "1280px",
+                      "sidebar-width": "260px",
+                      "stack-sm": "0.5rem",
+                      "gutter": "1.5rem"
+              },
+              "fontFamily": {
+                      "body-lg": ["Hanken Grotesk"],
+                      "label-md": ["Hanken Grotesk"],
+                      "headline-xl": ["Hanken Grotesk"],
+                      "headline-md": ["Hanken Grotesk"],
+                      "headline-lg": ["Hanken Grotesk"],
+                      "body-md": ["Hanken Grotesk"],
+                      "button": ["Hanken Grotesk"]
+              },
+              "fontSize": {
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "headline-xl": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "headline-lg": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "button": ["14px", {"lineHeight": "20px", "fontWeight": "600"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden">
+<!-- SIDEBAR -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-primary dark:bg-primary-container flex flex-col py-6 z-50">
+<div class="px-6 mb-10">
+<h1 class="font-headline-md text-headline-md font-bold text-on-primary">DebtAnalysis Pro</h1>
+<p class="font-label-md text-label-md text-on-primary-container opacity-70">Institutional Portal</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 py-3 px-4 bg-secondary-container text-on-secondary-container font-bold rounded-lg mx-2 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="gavel">gavel</span>
+<span class="font-body-md">Practices</span>
+</a>
+<a class="flex items-center gap-3 py-3 px-4 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+<span class="font-body-md">Economic Data</span>
+</a>
+<a class="flex items-center gap-3 py-3 px-4 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-body-md">Econometric Evaluation</span>
+</a>
+<a class="flex items-center gap-3 py-3 px-4 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-body-md">Reports</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-white/10 space-y-1">
+<a class="flex items-center gap-3 py-2 px-4 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 py-2 px-4 text-on-primary-container hover:text-on-primary opacity-80 mx-2 hover:bg-primary-fixed-dim/10 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-body-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- MAIN CONTENT -->
+<main class="ml-[260px] h-screen flex flex-col overflow-hidden">
+<!-- TOP NAV BAR -->
+<header class="h-16 flex justify-between items-center px-gutter bg-surface border-b border-outline-variant z-40">
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md text-primary">Debt Analysis</span>
+<div class="h-6 w-[1px] bg-outline-variant"></div>
+<span class="text-on-surface-variant font-label-md">Practice Management / Client Registration</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative w-72">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-full text-body-md focus:outline-none focus:border-secondary transition-all" placeholder="Search records..." type="text">
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:text-secondary transition-colors"><span class="material-symbols-outlined" data-icon="notifications">notifications</span></button>
+<button class="text-on-surface-variant hover:text-secondary transition-colors"><span class="material-symbols-outlined" data-icon="account_circle">account_circle</span></button>
+</div>
+</div>
+</header>
+<!-- DASHBOARD BODY -->
+<div class="flex-1 overflow-y-auto p-gutter space-y-gutter bg-background">
+<div class="grid grid-cols-12 gap-gutter">
+<!-- LEFT SECTION (Form + Help) -->
+<section class="col-span-12 lg:col-span-4 space-y-stack-md">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-secondary" data-icon="add_circle">add_circle</span>
+<h2 class="font-headline-lg text-headline-lg text-primary">Nuova Pratica</h2>
+</div>
+<!-- Registration Tabs -->
+<div class="flex border-b border-outline-variant mb-6" id="registration-tabs">
+<button class="flex-1 py-3 text-center font-button text-secondary active-tab-border" id="tab-persona" onclick="switchTab('persona')">
+                            Persona Fisica
+                        </button>
+<button class="flex-1 py-3 text-center font-button text-on-surface-variant hover:text-secondary transition-colors" id="tab-azienda" onclick="switchTab('azienda')">
+                            Azienda
+                        </button>
+</div>
+<!-- Form -->
+<form class="space-y-stack-md">
+<div class="space-y-4" id="persona-fields">
+<div class="space-y-2">
+<label class="block text-label-md text-on-surface-variant">Nome</label>
+<input class="w-full p-3 bg-white border border-outline-variant rounded-lg focus:ring-1 focus:ring-secondary focus:border-secondary outline-none transition-all" placeholder="Inserisci nome" type="text">
+</div>
+<div class="space-y-2">
+<label class="block text-label-md text-on-surface-variant">Cognome</label>
+<input class="w-full p-3 bg-white border border-outline-variant rounded-lg focus:ring-1 focus:ring-secondary focus:border-secondary outline-none transition-all" placeholder="Inserisci cognome" type="text">
+</div>
+<div class="space-y-2">
+<label class="block text-label-md text-on-surface-variant">Codice Fiscale</label>
+<input class="w-full p-3 bg-white border border-outline-variant rounded-lg focus:ring-1 focus:ring-secondary focus:border-secondary outline-none transition-all" placeholder="XXXXXX00X00X000X" type="text">
+</div>
+</div>
+<div class="space-y-4 hidden" id="azienda-fields">
+<div class="space-y-2">
+<label class="block text-label-md text-on-surface-variant">Ragione Sociale</label>
+<input class="w-full p-3 bg-white border border-outline-variant rounded-lg focus:ring-1 focus:ring-secondary focus:border-secondary outline-none transition-all" placeholder="Inserisci ragione sociale" type="text">
+</div>
+<div class="space-y-2">
+<label class="block text-label-md text-on-surface-variant">P. IVA</label>
+<input class="w-full p-3 bg-white border border-outline-variant rounded-lg focus:ring-1 focus:ring-secondary focus:border-secondary outline-none transition-all" placeholder="Inserisci 11 cifre P. IVA" type="text">
+</div>
+</div>
+<div class="pt-4">
+<button class="w-full py-4 bg-secondary text-on-primary font-button rounded-lg hover:brightness-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2" type="button">
+<span class="material-symbols-outlined text-[20px]" data-icon="save">save</span>
+                                Crea Anagrafica
+                            </button>
+</div>
+</form>
+</div>
+<!-- Helpful Context Card -->
+<div class="bg-primary p-6 rounded-lg text-on-primary relative overflow-hidden group">
+<div class="relative z-10">
+<h3 class="font-headline-md text-headline-md mb-2">Supporto Istituzionale</h3>
+<p class="text-body-md opacity-80 mb-4">Consulta le linee guida per la valutazione del debito prima di iniziare una nuova pratica.</p>
+<a class="inline-flex items-center gap-2 text-secondary-fixed font-button hover:underline" href="#">
+                            Leggi documentazione <span class="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
+</a>
+</div>
+<div class="absolute -right-8 -bottom-8 opacity-10 scale-150 rotate-12 group-hover:rotate-0 transition-transform duration-700">
+<span class="material-symbols-outlined text-[160px]" data-icon="gavel">gavel</span>
+</div>
+</div>
+</section>
+<!-- RIGHT SECTION (Documentazione + Stats + Table) -->
+<section class="col-span-12 lg:col-span-8 space-y-stack-md">
+<!-- NEW DOCUMENTATION AREA (Based on Image_2) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary" data-icon="folder_shared">folder_shared</span>
+<h2 class="font-headline-lg text-headline-lg text-primary">Documentazione Richiesta</h2>
+</div>
+<span class="text-label-md bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full">Prerequisiti D. Lgs. 14/2019</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+<!-- Left Column Docs -->
+<div class="space-y-3">
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Visura camerale ordinaria</p>
+<p class="text-label-md text-on-surface-variant">Estratta in data recente</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Anagrafica fiscale (QR Code)</p>
+<p class="text-label-md text-on-surface-variant">P.IVA e codice destinatario</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Identità e Tessera Sanitaria</p>
+<p class="text-label-md text-on-surface-variant">Documento in corso di validità</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Dichiarazione Stato Famiglia</p>
+<p class="text-label-md text-on-surface-variant">Sostitutiva atto di notorietà</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Spese Familiari Mensili</p>
+<p class="text-label-md text-on-surface-variant">Dettaglio mensile spese</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Dichiarazione Redditi</p>
+<p class="text-label-md text-on-surface-variant">Anni 2022, 2023, 2024</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Situazioni contabili</p>
+<p class="text-label-md text-on-surface-variant">2024, 2025, Maggio 2026</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+</div>
+<!-- Right Column Docs -->
+<div class="space-y-3">
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Certificazioni Uniche 2026</p>
+<p class="text-label-md text-on-surface-variant">Relativa ai redditi percepiti</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">DURC</p>
+<p class="text-label-md text-on-surface-variant">Documento Regolarità Contributiva</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Prospetti AdE Riscossione</p>
+<p class="text-label-md text-on-surface-variant">Cartelle/avvisi saldati o gravati</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Centrale Rischi Bankitalia</p>
+<p class="text-label-md text-on-surface-variant">Prospetto integrale</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Riscontro CTC</p>
+<p class="text-label-md text-on-surface-variant">Informazioni creditizie</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Visure Catastali</p>
+<p class="text-label-md text-on-surface-variant">Province di Pavia e Cosenza</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+<label class="flex items-center gap-3 p-3 rounded-lg border border-outline-variant hover:bg-background cursor-pointer transition-colors">
+<input class="rounded text-secondary focus:ring-secondary w-5 h-5" type="checkbox">
+<div class="flex-1">
+<p class="text-body-md font-bold leading-tight">Elenco beni mobili</p>
+<p class="text-label-md text-on-surface-variant">Dichiarati dal debitore</p>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="upload_file">upload_file</span>
+</label>
+</div>
+</div>
+</div>
+<!-- Statistics Row -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-lg">
+<div class="text-label-md text-on-surface-variant mb-1 uppercase tracking-wider">Pratiche Totali</div>
+<div class="text-headline-xl font-bold text-primary">1,284</div>
+<div class="text-[12px] text-green-600 mt-2 flex items-center gap-1 font-bold">
+<span class="material-symbols-outlined text-[14px]" data-icon="trending_up">trending_up</span> +12% questo mese
+                        </div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-lg">
+<div class="text-label-md text-on-surface-variant mb-1 uppercase tracking-wider">In Analisi</div>
+<div class="text-headline-xl font-bold text-secondary">42</div>
+<div class="text-[12px] text-on-tertiary-container mt-2 flex items-center gap-1">
+                            Priorità alta per 15 casi
+                        </div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant p-5 rounded-lg">
+<div class="text-label-md text-on-surface-variant mb-1 uppercase tracking-wider">Debito Recuperato</div>
+<div class="text-headline-xl font-bold text-primary-container">€2.4M</div>
+<div class="text-[12px] text-on-surface-variant mt-2 flex items-center gap-1">
+                            Target istituzionale raggiunto
+                        </div>
+</div>
+</div>
+<!-- Main Table Card -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden shadow-sm">
+<div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container">
+<h2 class="font-headline-md text-headline-md text-primary">Pratiche Esistenti</h2>
+<div class="flex gap-2">
+<button class="p-2 border border-outline-variant rounded hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="filter_list">filter_list</span>
+</button>
+<button class="p-2 border border-outline-variant rounded hover:bg-white transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="download">download</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-primary text-on-primary">
+<tr>
+<th class="px-6 py-4 font-label-md uppercase tracking-widest text-[11px]">Codice Pratica</th>
+<th class="px-6 py-4 font-label-md uppercase tracking-widest text-[11px]">Identità Cliente</th>
+<th class="px-6 py-4 font-label-md uppercase tracking-widest text-[11px]">Stato</th>
+<th class="px-6 py-4 font-label-md uppercase tracking-widest text-[11px]">Data Creazione</th>
+<th class="px-6 py-4 font-label-md uppercase tracking-widest text-[11px] text-right">Azioni</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-background transition-colors group">
+<td class="px-6 py-4 font-bold text-primary">#PRA-2024-001</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-body-md font-bold">Rossi, Marco</span>
+<span class="text-label-md text-on-surface-variant">RSSMRC80A01H501U</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[12px] font-bold bg-green-100 text-green-800">
+<span class="w-1.5 h-1.5 rounded-full bg-green-600"></span> Risolta
+                                        </span>
+</td>
+<td class="px-6 py-4 text-body-md">12 Gen 2024</td>
+<td class="px-6 py-4 text-right">
+<button class="text-on-surface-variant hover:text-secondary group-hover:scale-110 transition-all">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-background transition-colors group">
+<td class="px-6 py-4 font-bold text-primary">#PRA-2024-042</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-body-md font-bold">Global Logistics S.p.A.</span>
+<span class="text-label-md text-on-surface-variant">P.IVA 12345678901</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[12px] font-bold bg-secondary-container text-on-secondary-container">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span> In Lavorazione
+                                        </span>
+</td>
+<td class="px-6 py-4 text-body-md">05 Feb 2024</td>
+<td class="px-6 py-4 text-right">
+<button class="text-on-surface-variant hover:text-secondary group-hover:scale-110 transition-all">
+<span class="material-symbols-outlined" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 flex items-center justify-between border-t border-outline-variant bg-surface-container-low">
+<span class="text-label-md text-on-surface-variant">Visualizzando da 1 a 4 di 1,284 voci</span>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white text-on-surface-variant"><span class="material-symbols-outlined text-[18px]" data-icon="chevron_left">chevron_left</span></button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-secondary text-on-primary font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white text-on-surface-variant">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white text-on-surface-variant">3</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-white text-on-surface-variant"><span class="material-symbols-outlined text-[18px]" data-icon="chevron_right">chevron_right</span></button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+<!-- FLOATING ACTION BUTTON -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-secondary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all group z-[100]">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+<span class="absolute right-full mr-4 bg-primary text-on-primary text-body-md py-2 px-4 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Accesso Rapido</span>
+</button>
+<script>
+    function switchTab(type) {
+        const personaTab = document.getElementById('tab-persona');
+        const aziendaTab = document.getElementById('tab-azienda');
+        const personaFields = document.getElementById('persona-fields');
+        const aziendaFields = document.getElementById('azienda-fields');
+
+        if (type === 'persona') {
+            personaTab.classList.add('active-tab-border', 'text-secondary');
+            personaTab.classList.remove('text-on-surface-variant');
+            aziendaTab.classList.remove('active-tab-border', 'text-secondary');
+            aziendaTab.classList.add('text-on-surface-variant');
+            
+            personaFields.classList.remove('hidden');
+            aziendaFields.classList.add('hidden');
+        } else {
+            aziendaTab.classList.add('active-tab-border', 'text-secondary');
+            aziendaTab.classList.remove('text-on-surface-variant');
+            personaTab.classList.remove('active-tab-border', 'text-secondary');
+            personaTab.classList.add('text-on-surface-variant');
+            
+            aziendaFields.classList.remove('hidden');
+            personaFields.classList.add('hidden');
+        }
+    }
+</script>
+</body></html>
