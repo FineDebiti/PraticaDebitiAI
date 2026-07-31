@@ -1,5 +1,5 @@
-import Link from "next/link";
-import "./design-system.css";   // token + componenti Direzione B (fonte unica di colori/spazi)
+﻿import Link from "next/link";
+import "./design-system.css";
 
 export const metadata = {
   title: "DossierLex",
@@ -7,61 +7,71 @@ export const metadata = {
 };
 
 const NAV = [
-  { icon: "📁", label: "Pratiche", href: "/", active: true },
+  { icon: "gavel", label: "Pratiche", href: "/", active: true },
+  { icon: "database", label: "Dati economici", href: "/", muted: true },
+  { icon: "analytics", label: "Valutazione", href: "/", muted: true },
+  { icon: "description", label: "Report", href: "/", muted: true },
 ];
 
 export default function RootLayout({ children }) {
   return (
     <html lang="it">
-      <body className="pd-app" style={{ margin: 0 }}>
-        <style>{`
-          .app-shell { display: flex; min-height: 100vh; align-items: stretch; }
-          .app-sidebar {
-            width: 220px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
-            background: var(--pd-primary); color: #fff; display: flex; flex-direction: column;
-            box-sizing: border-box; overflow: hidden;
-          }
-          .app-main { flex: 1; min-width: 0; padding: 24px; max-width: 1600px; box-sizing: border-box; }
-          .nav-item {
-            display: flex; align-items: center; gap: 12px; padding: 11px 18px;
-            font-size: 15px; text-decoration: none; color: #fff; white-space: nowrap;
-          }
-          .nav-item .nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; }
-          .nav-active { background: var(--pd-accent); font-weight: bold; }
-          .nav-link:hover { background: rgba(255,255,255,0.10); }
-          .nav-disabled { color: rgba(255,255,255,0.55); cursor: default; }
-          .nav-soon { margin-left: auto; font-size: 10px; background: rgba(255,255,255,0.12); padding: 2px 6px; border-radius: 8px; }
-          @media (max-width: 800px) {
-            .app-sidebar { width: 56px; }
-            .nav-label, .nav-soon, .brand-sub { display: none; }
-            .brand-logo { display: none; }
-            .nav-item { justify-content: center; padding: 12px 0; gap: 0; }
-          }
-        `}</style>
-
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+      </head>
+      <body className="pd-app">
         <div className="app-shell">
           <aside className="app-sidebar">
-            <div style={{ padding: "18px 18px 14px", borderBottom: "1px solid rgba(255,255,255,0.12)", marginBottom: 8 }}>
-              <img className="brand-logo" src="/DossierLex-logo-white.svg" alt="DossierLex"
-                style={{ width: "100%", maxWidth: 150, height: "auto", display: "block" }} />
+            <div className="app-brand">
+              <p className="app-brand__title">DossierLex</p>
+              <p className="app-brand__sub">Institutional Portal</p>
             </div>
-
-            <nav style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-              {NAV.map(item => (
-                <Link key={item.label} href={item.href} className="nav-item nav-link nav-active" title={item.label}>
-                  <span className="nav-icon">{item.icon}</span>
-                  <span className="nav-label">{item.label}</span>
+            <nav className="app-nav" aria-label="Navigazione principale">
+              {NAV.map((item) => (
+                <Link
+                  key={item.label}
+                  href={item.href}
+                  className={`app-nav__item ${item.active ? "app-nav__item--active" : ""}`}
+                  aria-current={item.active ? "page" : undefined}
+                  title={item.label}
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true">{item.icon}</span>
+                  <span className="app-nav__label">{item.label}</span>
                 </Link>
               ))}
-
-              <span className="nav-item nav-disabled" title="Altre funzioni in arrivo" style={{ marginTop: "auto", borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                <span className="nav-icon">⏳</span>
-                <span className="nav-label">Altro in arrivo</span>
-              </span>
+              <div className="app-nav__bottom">
+                <span className="app-nav__item" title="Impostazioni">
+                  <span className="material-symbols-outlined" aria-hidden="true">settings</span>
+                  <span className="app-nav__label">Impostazioni</span>
+                </span>
+                <span className="app-nav__item" title="Supporto">
+                  <span className="material-symbols-outlined" aria-hidden="true">help</span>
+                  <span className="app-nav__label">Supporto</span>
+                </span>
+              </div>
             </nav>
           </aside>
-
-          <main className="app-main">{children}</main>
+          <main className="app-main">
+            <header className="app-topbar">
+              <div className="app-topbar__title">
+                <strong>Debt Analysis</strong>
+                <span className="app-topbar__crumb">Pre-analisi documentale, legale ed econometrica</span>
+              </div>
+              <div className="app-topbar__actions">
+                <span className="pd-badge pd-badge--info">Ambiente operativo</span>
+                <button className="pd-icon-btn" type="button" aria-label="Notifiche">
+                  <span className="material-symbols-outlined" aria-hidden="true">notifications</span>
+                </button>
+                <button className="pd-icon-btn" type="button" aria-label="Profilo utente">
+                  <span className="material-symbols-outlined" aria-hidden="true">account_circle</span>
+                </button>
+              </div>
+            </header>
+            <div className="app-content">{children}</div>
+          </main>
         </div>
       </body>
     </html>
