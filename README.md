@@ -90,6 +90,18 @@ La **scheda cliente** è il cuore dell'app: anagrafica, dati economici, nucleo
 familiare, situazioni in corso, immobili e veicoli. Si apre dal pulsante
 "📋 Apri scheda cliente" nella pagina pratica.
 
+Le sezioni principali della scheda hanno anche URL dedicati, così puoi passare
+da una vista all'altra senza restare nella stessa pagina:
+
+- `/pratiche/:id/scheda` — riepilogo
+- `/pratiche/:id/scheda/documenti` — pannello documentale
+- `/pratiche/:id/scheda/patrimonio` — immobili e veicoli
+- `/pratiche/:id/scheda/banca` — centrale rischi
+- `/pratiche/:id/scheda/aer` — stato passivo / estratti di ruolo
+- `/pratiche/:id/scheda/econometria` — valutazione econometrica
+- `/pratiche/:id/scheda/report` — report finale
+- `/pratiche/:id/scheda/audit` — correzioni tracciate
+
 Ogni sezione del patrimonio (immobili, veicoli) e i dati azienda hanno un
 **box di ricerca 🔎**: inserisci il codice fiscale / P.IVA, premi Cerca, e i
 risultati pre-compilano i campi. Confermi con Importa, poi Salva.
@@ -130,3 +142,7 @@ da Openapi (in stub), pipeline OCR+AI (in pausa nella UI ma attiva nel codice).
 Mancano (volutamente, per la Fase 0): autenticazione/login, multi-utente,
 report PDF/Excel, gestione ruoli, migrazioni DB. Da aggiungere nella fase MVP
 vera dopo la validazione.
+
+Stato frontend attuale: home pratiche, scheda cliente, pannello documentale,
+valutazione econometrica, report finale e audit sono già esposti nella UI.
+Se avvii il progetto con Docker, apri il browser su http://localhost:3000.

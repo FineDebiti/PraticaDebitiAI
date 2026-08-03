@@ -1,11 +1,18 @@
 ﻿"use client";
-import { useEffect, useRef, useState, Children } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getCard, getCase, saveDebtor, createCompany, updateCompany, deleteCompany, uploadDoc, addRealEstate, delRealEstate, addVehicle, delVehicle,
   setPrimaryResidence, openapiSearch, openapiRequests, openapiRequest, companyFill, companyImport, promoteCompany,
   uploadAer, deleteAer, relatedCases, openRelated, docFileUrl, patchRecord, getEdits, getIndicators,
   getIncomeDocuments, getIncomeSummary } from "../../../api";
 import DocumentsPanel from "../../../components/DocumentsPanel";
+import { CrBadge, Section, Stat, ToolsBar } from "./scheda-ui";
+import {
+  AuditTrail as AuditTrailView,
+  EconometricEvaluation as EconometricEvaluationView,
+  FinalReport as FinalReportView,
+} from "./scheda-analysis";
 
 const EMPTY = {
   first_name: "", last_name: "", tax_code: "", birth_date: "", birth_place: "",
@@ -28,13 +35,14 @@ const EMPTY_COMPANY = {
   business_summary: "", members: [],
 };
 
-export default function Scheda({ params }) {
+export default function Scheda({ params, initialSection = "riepilogo" }) {
   const { id } = params;
+  const router = useRouter();
   const [d, setD] = useState(EMPTY);
   const [card, setCard] = useState({ real_estates: [], vehicles: [] });
   const [saved, setSaved] = useState("");
   const [incomeToast, setIncomeToast] = useState("");  // "verifica e salva" dopo estrazione reddito
-  const [activeTab, setActiveTab] = useState("riepilogo");
+  const [activeTab, setActiveTab] = useState(initialSection || "riepilogo");
   const [drafts, setDrafts] = useState([]);   // nuove aziende non ancora salvate (moduli aggiunti)
   const [docs, setDocs] = useState([]);          // documenti (per conteggi + auto-refresh cross-tab)
   const [uploadedByScope, setUploadedByScope] = useState({});  // id doc caricati per sezione (persistono al cambio tab)
@@ -44,6 +52,10 @@ export default function Scheda({ params }) {
   const [correction, setCorrection] = useState(null);  // modale correzione aperta {entityType,...}
   const docStatusRef = useRef({});
   const draftSeq = useRef(0);
+
+  useEffect(() => {
+    setActiveTab(initialSection || "riepilogo");
+  }, [initialSection]);
 
   function addUploaded(scope, docId) {
     setUploadedByScope(prev => ({ ...prev, [scope]: [...(prev[scope] || []), docId] }));
@@ -128,7 +140,8 @@ export default function Scheda({ params }) {
     if (k === activeTab) return;
     if (dirty && activeTab === "anagrafica" &&
         !window.confirm("Hai modifiche non salvate nell'anagrafica. Cambiare scheda senza salvarle?")) return;
-    setActiveTab(k);
+    const target = k === "riepilogo" ? `/pratiche/${id}/scheda` : `/pratiche/${id}/scheda/${k}`;
+    router.push(target);
   }
 
   // moduli azienda: aggiunge una bozza vuota (nuova azienda da compilare)
@@ -469,37 +482,13 @@ export default function Scheda({ params }) {
       )}
 
       {/* ===== VALUTAZIONE ECONOMETRICA ===== */}
-      {activeTab === "econometria" && (
-        <EconometricEvaluation
-          indicators={indic}
-          debtor={d}
-          card={card}
-          docs={docs}
-          patrimonio={patrimonio}
-          totalAer={totAer}
-          goTab={goTab}
-        />
-      )}
+      {activeTab === "econometria" && <EconometricEvaluationView indicators={indic} debtor={d} card={card} docs={docs} patrimonio={patrimonio} totalAer={totAer} goTab={goTab} />}
 
       {/* ===== REPORT FINALE ===== */}
-      {activeTab === "report" && (
-        <FinalReport
-          indicators={indic}
-          debtor={d}
-          card={card}
-          docs={docs}
-          edits={edits}
-          title={titolare}
-          totalAer={totAer}
-          patrimonio={patrimonio}
-          goTab={goTab}
-        />
-      )}
+      {activeTab === "report" && <FinalReportView indicators={indic} debtor={d} card={card} docs={docs} edits={edits} title={titolare} totalAer={totAer} patrimonio={patrimonio} goTab={goTab} />}
 
       {/* ===== AUDIT ===== */}
-      {activeTab === "audit" && (
-        <AuditTrail edits={edits} docs={docs} goTab={goTab} />
-      )}
+      {activeTab === "audit" && <AuditTrailView edits={edits} docs={docs} goTab={goTab} />}
       </div>
     </div>
   );
@@ -2234,20 +2223,6 @@ function CentraleRischi({ card, corr }) {
   );
 }
 
-function Stat({ label, value }) {
-  return <div>
-    <div style={{ fontSize: 11, color: "var(--pd-text-muted)", textTransform: "uppercase", letterSpacing: 0.3 }}>{label}</div>
-    <div style={{ fontSize: 16, fontWeight: "bold", color: "var(--pd-primary)" }}>{value}</div>
-  </div>;
-}
-
-function CrBadge({ on, okText, alertText, tone }) {
-  // on=true => situazione negativa (rosso/arancio); on=false => ok (verde)
-  const v = on ? (tone === "warning" ? "warn" : "danger") : "ok";
-  return <span className={`pd-badge pd-badge--${v}`}>{on ? alertText : okText}</span>;
-}
-
-
 // ---------- UI helpers ----------
 // Avviso discreto: esistono altre pratiche con lo stesso CF. Mostra SOLO il sommario
 // (GDPR: niente importi/contenuti). L'apertura di una correlata viene tracciata (AccessLog).
@@ -2292,31 +2267,6 @@ function RelatedBanner({ caseId, related }) {
       <p style={{ fontSize: 12, color: "var(--pd-warn)", margin: "8px 0 0" }}>
         Solo il riepilogo Ã¨ mostrato (nessun importo/contenuto). L'apertura di una pratica correlata viene registrata.
       </p>
-    </div>
-  );
-}
-
-function Section({ title, children }) {
-  return (
-    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 18, marginBottom: 18 }}>
-      <h2 style={{ color: "var(--pd-accent)", marginTop: 0, fontSize: 18 }}>{title}</h2>
-      {children}
-    </div>
-  );
-}
-
-// ---------- Tab helpers ----------
-function ToolsBar({ children }) {
-  return (
-    <div style={{ background: "var(--pd-surface-2)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "12px 14px", marginBottom: 18 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pd-primary)", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 10 }}>
-        ðŸ›  Strumenti per popolare questa sezione
-      </div>
-      {/* moduli affiancati (recupera altezza); 2 moduli -> 65/35, altrimenti colonne uguali;
-          colonna singola su schermi stretti */}
-      <div className={"tools-grid " + (Children.count(children) === 2 ? "tools-2col" : "tools-auto")}>
-        {children}
-      </div>
     </div>
   );
 }

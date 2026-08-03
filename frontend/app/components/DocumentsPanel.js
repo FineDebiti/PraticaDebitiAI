@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { deleteDoc, docFileUrl, getCase, uploadDoc } from "../api";
+import { Kpi } from "./PraticheHome";
 
 const DOC_TYPE_LABELS = {
   busta_paga: "Busta paga",
@@ -21,6 +22,7 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [priority, setPriority] = useState("ordinaria");
+  const [docType, setDocType] = useState("da_classificare");
   const prevStatuses = useRef({});
 
   async function refresh() {
@@ -52,7 +54,7 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
     if (!file) return;
     setBusy(true);
     setNotice("");
-    const res = await uploadDoc(caseId, file).catch(() => null);
+    const res = await uploadDoc(caseId, file, docType).catch(() => null);
     setBusy(false);
     e.target.value = "";
     if (res && res.duplicate) setNotice(`"${res.original_filename}" e gia presente: deduplicazione applicata.`);
@@ -82,9 +84,9 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
       </div>
 
       <div className="pd-grid pd-grid--3">
-        <DocumentKpi label="Elaborati" value={`${elaborati}/${docs.length || 0}`} />
-        <DocumentKpi label="Da verificare" value={review} tone={review ? "warn" : "ok"} />
-        <DocumentKpi label="Deduplicazione" value="SHA-256" note="Controllo backend" />
+        <Kpi label="Elaborati" value={`${elaborati}/${docs.length || 0}`} note="Stato documentale" />
+        <Kpi label="Da verificare" value={review} note={review ? "Richiede controllo" : "Nessun alert"} tone="accent" />
+        <Kpi label="Deduplicazione" value="SHA-256" note="Controllo backend" />
       </div>
 
       <div className="pd-card">
@@ -96,15 +98,26 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
             </h3>
             <p className="pd-card__subtitle">PDF o immagine. OCR ed estrazione vengono gestiti dal backend.</p>
           </div>
-          <select className="pd-select" value={priority} onChange={e => setPriority(e.target.value)} style={{ width: 180 }} aria-label="Priorita documentale">
-            <option value="ordinaria">Priorita ordinaria</option>
-            <option value="alta">Priorita alta</option>
-            <option value="critica">Priorita critica</option>
-          </select>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <select className="pd-select" value={docType} onChange={e => setDocType(e.target.value)} style={{ width: 220 }} aria-label="Tipo documento">
+              <option value="da_classificare">Classificazione automatica</option>
+              {Object.entries(DOC_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <select className="pd-select" value={priority} onChange={e => setPriority(e.target.value)} style={{ width: 180 }} aria-label="Priorita documentale">
+              <option value="ordinaria">Priorita ordinaria</option>
+              <option value="alta">Priorita alta</option>
+              <option value="critica">Priorita critica</option>
+            </select>
+          </div>
         </div>
         <input className="pd-input" type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
         {busy && <p className="pd-muted">Upload in corso...</p>}
         {notice && <div className="pd-badge pd-badge--warn" style={{ marginTop: 10 }}>{notice}</div>}
+        <p className="pd-faint" style={{ margin: "8px 0 0", fontSize: 12 }}>
+          Tipo: {DOC_TYPE_LABELS[docType] || "Classificazione automatica"} · Priorita: {priority}
+        </p>
       </div>
 
       <div className="pd-table-wrap">
@@ -159,16 +172,6 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
           </tbody>
         </table>
       </div>
-    </div>
-  );
-}
-
-function DocumentKpi({ label, value, note, tone }) {
-  return (
-    <div className="pd-kpi">
-      <div className="pd-kpi__label">{label}</div>
-      <div className="pd-kpi__value" style={tone === "warn" ? { color: "var(--pd-warn)" } : tone === "ok" ? { color: "var(--pd-ok)" } : undefined}>{value}</div>
-      <div className="pd-kpi__note">{note || "Stato documentale"}</div>
     </div>
   );
 }

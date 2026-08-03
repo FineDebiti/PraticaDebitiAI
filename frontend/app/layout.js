@@ -31,16 +31,28 @@ export default function RootLayout({ children }) {
             </div>
             <nav className="app-nav" aria-label="Navigazione principale">
               {NAV.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className={`app-nav__item ${item.active ? "app-nav__item--active" : ""}`}
-                  aria-current={item.active ? "page" : undefined}
-                  title={item.label}
-                >
-                  <span className="material-symbols-outlined" aria-hidden="true">{item.icon}</span>
-                  <span className="app-nav__label">{item.label}</span>
-                </Link>
+                item.href && !item.muted ? (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`app-nav__item ${item.active ? "app-nav__item--active" : ""}`}
+                    aria-current={item.active ? "page" : undefined}
+                    title={item.label}
+                  >
+                    <span className="material-symbols-outlined" aria-hidden="true">{item.icon}</span>
+                    <span className="app-nav__label">{item.label}</span>
+                  </Link>
+                ) : (
+                  <span
+                    key={item.label}
+                    className="app-nav__item app-nav__item--muted"
+                    title={item.label}
+                    aria-disabled="true"
+                  >
+                    <span className="material-symbols-outlined" aria-hidden="true">{item.icon}</span>
+                    <span className="app-nav__label">{item.label}</span>
+                  </span>
+                )
               ))}
               <div className="app-nav__bottom">
                 <span className="app-nav__item" title="Impostazioni">
