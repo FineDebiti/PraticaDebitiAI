@@ -38,6 +38,10 @@ until curl -s -o /dev/null http://localhost:8000/api/health; do
 done
 if [ "$tries" -lt 60 ]; then
   echo "      Pronta."
+  if [ -f "backup.sql" ]; then
+    echo "      Caricamento dati di prova (Traietti Alessandro e Planeta S.r.l.)..."
+    docker compose -f docker-compose.local.yml exec -T db psql -U pratica pratica_debiti < backup.sql >/dev/null 2>&1 || true
+  fi
 fi
 
 echo ""

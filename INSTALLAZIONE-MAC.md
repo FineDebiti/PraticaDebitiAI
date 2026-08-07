@@ -1,101 +1,95 @@
-# Pratica Debiti AI — Installazione su Mac (locale, offline)
+# DossierLex — Guida all'Installazione e Uso su macOS (Locale & Offline)
 
-Questa guida installa l'applicazione **sul computer del cliente**. I dati (pratiche,
-documenti) **restano sul computer**: non vengono inviati su internet. L'estrazione
-dei documenti usa un OCR locale; l'AI gira in modalità dimostrativa (vedi ultima
-sezione per l'estrazione AI reale offline).
+Questa guida passo-passo consente al cliente di installare ed eseguire la piattaforma **DossierLex** in totale autonomia sul proprio Mac, **senza inviare dati a server esterni** (100% riservato ed offline).
+
+L'applicazione viene fornita già con i due profili di test caricati ed analizzati:
+1. **Persona Fisica:** Alessandro Traietti (con 12 documenti reali allegati)
+2. **Azienda:** Planeta S.r.l. (con 6 documenti contabili/camerali allegati)
 
 ---
 
-## 1. Requisiti
+## 1. Requisiti di Sistema
+- **Mac OS:** macOS 12 (Monterey) o versione successiva (Chip Apple Silicon M1/M2/M3/M4 o Intel).
+- **RAM:** Minimo 8 GB (Consigliati 16 GB).
+- **Spazio su Disco:** Almeno 5 GB liberi.
+- **Docker Desktop per Mac:** (Gratuito, istruzioni al punto 2).
 
-- **macOS 12 (Monterey) o successivo** — Mac con chip Apple (M1/M2/M3/M4) o Intel
-- **8 GB di RAM** (consigliati 16 GB)
-- **~5 GB di spazio libero** su disco
-- **Docker Desktop** (gratuito)
+---
 
-## 2. Installare Docker Desktop (una volta sola)
+## 2. Installazione di Docker Desktop (Da fare solo la prima volta)
 
-1. Scarica Docker Desktop da: https://www.docker.com/products/docker-desktop/
-   (scegli la versione giusta: **Apple Silicon** per Mac M1/M2/M3/M4, **Intel** per i Mac più vecchi.
-   Non sai quale hai? Menu  → "Informazioni su questo Mac": se c'è scritto "Apple M…" è Apple Silicon).
-2. Apri il file `.dmg` scaricato e trascina **Docker** nella cartella **Applicazioni**.
-3. Apri **Docker** dalle Applicazioni e concedi i permessi richiesti al primo avvio.
-4. Aspetta che l'icona della balena nella barra dei menu sia **ferma** (Engine running). Lascialo aperto.
+1. **Scarica il file di installazione:**
+   - Apri il browser e vai su: **https://www.docker.com/products/docker-desktop/**
+   - Scegli la versione corretta per il tuo Mac:
+     - **Mac con Apple Silicon** (se il tuo Mac ha un chip M1, M2, M3 o M4).
+     - **Mac con chip Intel** (per i modelli Mac più datati).
+     *(Se non sai quale chip hai: clicca in alto a sinistra sul simbolo della mela  -> "Informazioni su questo Mac").*
 
-## 3. Copiare l'applicazione
+2. **Installa l'applicazione:**
+   - Fai doppio clic sul file `.dmg` scaricato.
+   - Trascina l'icona di **Docker** nella cartella **Applicazioni**.
 
-Copia l'intera cartella `pratica-debiti-ai-mvp` sul computer, ad esempio nella
-cartella **Documenti** o direttamente nella Home.
+3. **Primo avvio di Docker:**
+   - Apri **Docker** dalla cartella Applicazioni.
+   - Accetta i termini di licenza e fornisci i permessi richiesti.
+   - Nella barra dei menu in alto al Mac comparirà un'icona a forma di balena 🐋.
+   - **IMPORTANTE:** Attendi finché l'icona della balena non diventa stazionaria (stato: *Engine Running*). Lascia Docker aperto.
 
-## 4. Primo avvio
+---
 
-1. Assicurati che **Docker Desktop sia avviato** (icona della balena nella barra dei menu).
-2. Entra nella cartella e fai **doppio clic su `avvia.command`**.
-3. La **prima volta** macOS potrebbe chiedere conferma perché il file arriva da
-   un altro computer: se compare l'avviso, fai **clic destro sul file → Apri → Apri**
-   (basta una volta sola; vale anche per `ferma.command` e `popola-demo.command`).
-4. La **prima volta** scarica e prepara tutto: può richiedere **diversi minuti**.
-   Le volte successive l'avvio è in pochi secondi.
-5. Al termine si apre da solo il browser su **http://localhost:3000**.
+## 3. Avvio di DossierLex con i Dati di Prova
 
-Se il browser non si apre da solo, aprilo a mano e vai su `http://localhost:3000`.
+1. Copia la cartella del progetto (`PraticaDebitiAI`) sul desktop o nella cartella Documenti del tuo Mac.
+2. Apri la cartella `PraticaDebitiAI`.
+3. Fai **doppio clic sul file `avvia.command`**.
+   *(Nota: Se macOS mostra un avviso di sicurezza la prima volta, fai **Clic Destro sul file -> Apri -> Apri**).*
+4. Si aprirà una finestra di terminale che installerà e preparerà l'ambiente.
+   *(La prima volta può richiedere 2-3 minuti per compilare i servizi. Le volte successive si avvierà in pochi secondi).*
+5. Non appena completato, il browser del Mac si aprirà automaticamente sull'indirizzo **`http://localhost:3000`**.
 
-> Se il doppio clic non funziona proprio (il file si apre come testo o non parte),
-> apri il **Terminale**, trascina dentro il file `avvia.command` e premi INVIO.
+---
 
-## 5. Uso quotidiano
+## 4. Come Testare le Pratiche già Caricate
 
-- **Avviare:** doppio clic su `avvia.command` (con Docker Desktop aperto).
-- **Spegnere:** doppio clic su `ferma.command`. I dati restano salvati.
-- **Caricare una pratica di esempio:** doppio clic su `popola-demo.command`
-  (crea la pratica fittizia `DEMO-0001` per fare una dimostrazione).
+Al primo accesso su `http://localhost:3000` troverai già presenti le due anagrafiche:
 
-## 6. Dove finiscono i dati
+- **Alessandro Traietti (Persona Fisica):**
+  - Clicca su **Dati** per visualizzare i quadri dei redditi, spese e i 12 documenti PDF allegati ed estratti tramite OCR.
+  - Clicca su **Valutazione** per esaminare gli indici di rischio, DTI Ratio e i grafici econometrici.
+  - Clicca su **Report** per visualizzare ed esportare in PDF la scheda finale.
 
-Database e documenti sono salvati in **volumi Docker** sul computer e sopravvivono
-allo spegnimento e ai riavvii. Restano finché non vengono cancellati di proposito.
+- **Planeta S.r.l. (Azienda):**
+  - Clicca sui rispettivi moduli per esaminare la Visura Camerale, i Bilanci 2023, 2024, 2025 e i debiti di ruolo ADeR.
 
-- **Backup:** vedi sezione 8.
-- **Azzerare tutto** (cancella pratiche e documenti):
-  ```
-  docker compose -f docker-compose.local.yml down -v
-  ```
-  ⚠️ Il flag `-v` elimina anche i dati. Usalo solo per ripartire da zero.
+---
 
-## 7. Problemi comuni
+## 5. Come Creare e Testare Nuove Pratiche
 
-| Sintomo | Soluzione |
+Puoi testare l'inserimento di nuovi clienti e l'analisi di nuovi documenti in qualsiasi momento:
+
+1. **Torna nella schermata principale Pratiche (`/`):**
+2. **Nel box "Nuova Pratica":**
+   - Seleziona **Persona fisica** ed inserisci *Nome*, *Cognome* e *Codice Fiscale* (16 caratteri).
+   - Oppure seleziona **Azienda** ed inserisci *Ragione Sociale* e *Partita IVA* (11 cifre).
+   - Clicca su **Crea anagrafica**.
+3. **Carica i Documenti:**
+   - Dalla riga del nuovo cliente appena creato, clicca su **Dati** (o **Scheda**).
+   - Nella sezione *Pannello Documentale*, trascina i file PDF che vuoi far analizzare (es. Visure, Dichiarazioni, Estratti).
+   - L'OCR elaborerà il file ed aggiornerà la scheda.
+
+---
+
+## 6. Spegnimento e Uso Quotidiano
+
+- **Per chiudere l'app a fine lavoro:** Fai doppio clic su `ferma.command`. Tutti i dati creati rimarranno salvati sul Mac.
+- **Per riaprire l'app nei giorni successivi:** Apri Docker Desktop e fai doppio clic su `avvia.command`.
+
+---
+
+## 7. Risoluzione Problemi Comuni
+
+| Problema | Soluzione |
 |---|---|
-| "Docker non risulta in esecuzione" | Apri Docker Desktop e aspetta la balena ferma, poi rilancia `avvia.command`. |
-| macOS blocca il file (".command non può essere aperto") | Clic destro sul file → **Apri** → **Apri**. Serve solo la prima volta. |
-| La pagina `localhost:3000` non si apre | Aspetta 1 minuto al primo avvio; ricarica. Verifica che Docker sia avviato. |
-| Porta 3000 o 8000 occupata | Chiudi il programma che la usa, oppure chiedici di cambiare porta. |
-| Voglio ripartire pulito | `docker compose -f docker-compose.local.yml down -v` poi `avvia.command`. |
-
-## 8. Backup e ripristino (facoltativo)
-
-I comandi vanno eseguiti nel **Terminale**, dentro la cartella dell'app, con l'app avviata.
-
-Backup del database:
-```
-docker compose -f docker-compose.local.yml exec db pg_dump -U pratica pratica_debiti > backup.sql
-```
-Ripristino:
-```
-docker compose -f docker-compose.local.yml exec -T db psql -U pratica pratica_debiti < backup.sql
-```
-
----
-
-## Nota tecnica — Estrazione AI reale in modalità offline
-
-In questa configurazione l'AI è in modalità **`stub`**: l'app mostra l'intero flusso
-(caricamento documento → OCR locale → scheda compilata) ma i campi estratti dal
-documento sono **simulati**. L'OCR (lettura del testo) è invece reale e locale.
-
-Per un'estrazione AI **vera senza internet** serve un modello linguistico **locale**
-(es. tramite **Ollama**): è una piccola estensione di codice (un nuovo "provider" LLM).
-Va valutata la qualità sui documenti reali e un computer adeguato (più RAM, idealmente GPU).
-Chiedici questa estensione se la demo deve mostrare estrazioni reali completamente
-offline.
+| *"Docker non risulta in esecuzione"* | Apri Docker Desktop dalla cartella Applicazioni e attendi che la balena sia nello stato *Engine Running*. |
+| macOS dice *"Impossibile aprire avvia.command"* | Fai **clic destro** sul file `avvia.command` -> scegli **Apri** dal menu -> conferma **Apri**. |
+| La pagina `localhost:3000` non si carica | Attendi circa 1 minuto al primo avvio. Ricarica la pagina nel browser (`Cmd + R`). |

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -406,7 +406,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
         <>
           <ToolsBar>
             <OpenapiSearch caseId={id} taxCode={d.tax_code} scope="patrimonio"
-              title="ðŸ”Ž Cerca al Catasto / PRA"
+              title="Cerca al Catasto / PRA"
               subtitle="Recupera immobili (Catasto) e veicoli (PRA) da fonti ufficiali. L'elaborazione avviene in background."
               onImportItems={async (source, items) => {
                 for (const it of items) {
@@ -416,7 +416,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
                 }
                 load();
               }} />
-            <UploadBox caseId={id} label="ðŸ“Ž Carica visura catastale (PDF/immagine)" onUploaded={load} docs={docs}
+            <UploadBox caseId={id} label="Carica visura catastale (PDF/immagine)" onUploaded={load} docs={docs}
               scope="catastale" docType="visura_catastale" uploadedIds={uploadedByScope.catastale || []} onUploadedId={addUploaded} />
           </ToolsBar>
           <Patrimonio caseId={id} card={card} reload={load} totale={patrimonio} corr={corr} />
@@ -428,9 +428,9 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
         <>
           <ToolsBar>
             <OpenapiSearch caseId={id} taxCode={d.tax_code} scope="banca"
-              title="ðŸ”Ž Richiedi Centrale Rischi"
+              title="Richiedi Centrale Rischi"
               subtitle="Richiesta alla Centrale Rischi di Banca d'Italia. L'elaborazione avviene in background." />
-            <UploadBox caseId={id} label="ðŸ“Ž Carica prospetto Centrale Rischi (PDF)" onUploaded={load} docs={docs}
+            <UploadBox caseId={id} label="Carica prospetto Centrale Rischi (PDF)" onUploaded={load} docs={docs}
               scope="centrale_rischi" docType="centrale_rischi" uploadedIds={uploadedByScope.centrale_rischi || []} onUploadedId={addUploaded} />
           </ToolsBar>
           <CentraleRischi card={card} corr={corr} />
@@ -448,9 +448,9 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
         <>
           <ToolsBar>
             <CompletaDatiAzienda caseId={id} taxCode={d.tax_code} onImported={load} />
-            <UploadBox caseId={id} label="ðŸ“Ž Carica visura camerale (PDF)" onUploaded={load} docs={docs}
+            <UploadBox caseId={id} label="Carica visura camerale (PDF)" onUploaded={load} docs={docs}
               scope="camerale" docType="visura_camerale" uploadedIds={uploadedByScope.camerale || []} onUploadedId={addUploaded} />
-            <UploadBox caseId={id} label="ðŸ“Ž Carica bilancio d'esercizio (PDF)" onUploaded={load} docs={docs}
+            <UploadBox caseId={id} label="Carica bilancio d'esercizio (PDF)" onUploaded={load} docs={docs}
               scope="bilancio" docType="bilancio" uploadedIds={uploadedByScope.bilancio || []} onUploadedId={addUploaded} />
           </ToolsBar>
 
@@ -1126,9 +1126,9 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
                 <tbody>
                   {d.soci.map((s, i) => (
                     <tr key={i} style={{ borderTop: "1px solid var(--pd-border)" }}>
-                      <td style={td}>{s.denominazione || "â€”"}</td>
-                      <td style={td}>{s.codice_fiscale || "â€”"}</td>
-                      <td style={tdNum}>{s.quota_percentuale != null ? Number(s.quota_percentuale).toLocaleString("it-IT") + "%" : "â€”"}</td>
+                      <td style={td}>{s.denominazione || "—"}</td>
+                      <td style={td}>{s.codice_fiscale || "—"}</td>
+                      <td style={tdNum}>{s.quota_percentuale != null ? Number(s.quota_percentuale).toLocaleString("it-IT") + "%" : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1138,15 +1138,15 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
 
           <button onClick={doImport} disabled={importing || imported}
             style={importing || imported ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "default" } : { ...btnSmall, background: "var(--pd-ok)" }}>
-            {imported ? "âœ“ Importata" : importing ? "Salvataggioâ€¦" : "âœ“ Importa nella scheda"}
+            {imported ? "✓ Importata" : importing ? "Salvataggio…" : "✓ Importa nella scheda"}
           </button>
           <p style={{ fontSize: 12, color: "var(--pd-text-muted)", margin: "6px 0 0" }}>
-            {imported ? "Azienda salvata: la trovi nella sezione \"Aziende\" qui sotto." : "VerrÃ  salvata come azienda del cliente nella sezione \"Aziende\"."}
+            {imported ? "Azienda salvata: la trovi nella sezione \"Aziende\" qui sotto." : "Verrà salvata come azienda del cliente nella sezione \"Aziende\"."}
           </p>
 
           {d._raw != null && (
             <details open={showRaw} onToggle={e => setShowRaw(e.target.open)} style={{ marginTop: 10 }}>
-              <summary style={sumStyle}>ðŸ”§ Risposta completa (diagnostica)</summary>
+              <summary style={sumStyle}>⚙️ Risposta completa (diagnostica)</summary>
               <pre style={{ background: "var(--pd-surface-2)", border: "1px solid var(--pd-border)", borderRadius: 6, padding: 10, fontSize: 11, fontFamily: "monospace", maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {JSON.stringify(d._raw, null, 2)}
               </pre>
@@ -1160,7 +1160,7 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
 
 /* Ricerca camerale REALE via Openapi: asincrona (avvio -> polling -> risultato),
    con avviso sandbox/reale, import nella scheda, pannello diagnostico grezzo e storico. */
-// fonti disponibili per ambito (scope), per filtrare il menÃ¹ nella tab giusta
+// fonti disponibili per ambito (scope), per filtrare il menu nella tab giusta
 const OPENAPI_SOURCES = {
   patrimonio: [["immobili", "Relazione immobiliare"], ["veicoli", "Veicoli al PRA"]],
   banca: [["centrale_rischi", "Centrale Rischi (persona fisica)"], ["experian", "Experian"]],
@@ -1179,7 +1179,7 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
   const [sandbox, setSandbox] = useState(null); // bool dall'avvio
   const [req, setReq] = useState(null);         // richiesta corrente (con status, mapped_data, raw_response)
   const [msg, setMsg] = useState("");
-  const [showRaw, setShowRaw] = useState(true); // diagnostica aperta di default finchÃ© tariamo i mapping
+  const [showRaw, setShowRaw] = useState(true); // diagnostica aperta di default finche tariamo i mapping
   const [history, setHistory] = useState([]);
   const timer = useRef(null);
 
@@ -1221,7 +1221,7 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
     const reqId = res.request_id;
     setReq({ id: reqId, status: "pending" });
     setPolling(true);
-    // polling ogni 4s finchÃ© conclusa
+    // polling ogni 4s finche conclusa
     clearInterval(timer.current);
     timer.current = setInterval(async () => {
       let r;
@@ -1236,13 +1236,13 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
   const mdRows = md ? [
     ["Denominazione", md.denominazione], ["Partita IVA", md.partita_iva],
     ["Codice fiscale", md.codice_fiscale], ["PEC", md.pec],
-    ["Sede legale", md.sede_legale], ["Stato attivitÃ ", md.stato_attivita], ["REA", md.rea],
+    ["Sede legale", md.sede_legale], ["Stato attività", md.stato_attivita], ["REA", md.rea],
   ].filter(([, v]) => v) : [];
 
   return (
     <Section title={title || "Ricerca esterna (Openapi)"}>
       <p style={{ fontSize: 13, color: "var(--pd-text-muted)", marginTop: 0 }}>
-        {subtitle || "Visure reali e asincrone: l'elaborazione avviene in background e puÃ² richiedere qualche minuto."}
+        {subtitle || "Visure reali e asincrone: l'elaborazione avviene in background e può richiedere qualche minuto."}
       </p>
 
       {/* Form di avvio */}
@@ -1261,14 +1261,14 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
           </>
         )}
         <button onClick={start} disabled={busy || polling} style={busy || polling ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "not-allowed" } : btnSmall}>
-          {busy ? "Avvioâ€¦" : "Avvia ricerca"}
+          {busy ? "Avvio…" : "Avvia ricerca"}
         </button>
       </div>
 
       {/* Avviso sandbox / reale */}
       {sandbox !== null && (
         <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "8px 10px", margin: "10px 0 0", fontSize: 13, color: "var(--pd-warn)" }}>
-          {sandbox ? "ðŸ§ª Ambiente di test (gratuito): i risultati possono essere vuoti o di esempio." : "âš  Ambiente reale: questa ricerca Ã¨ a pagamento (consuma credito Openapi)."}
+          {sandbox ? "Ambiente di test (gratuito): i risultati possono essere vuoti o di esempio." : "Ambiente reale: questa ricerca è a pagamento (consuma credito Openapi)."}
         </div>
       )}
 
@@ -1276,13 +1276,13 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
 
       {/* Stato in corso */}
       {req?.status === "pending" && (
-        <p style={{ color: "var(--pd-warn)", fontSize: 14, margin: "10px 0 0" }}>â³ Ricerca in corsoâ€¦ (puÃ² richiedere qualche minuto)</p>
+        <p style={{ color: "var(--pd-warn)", fontSize: 14, margin: "10px 0 0" }}>Ricerca in corso… (può richiedere qualche minuto)</p>
       )}
 
       {/* Errore / timeout */}
       {(req?.status === "error" || req?.status === "timeout") && (
         <p style={{ color: "var(--pd-danger)", fontSize: 13, margin: "10px 0 0" }}>
-          âœ— {req.status === "timeout" ? "Tempo scaduto" : "Errore"}: {req.error || "riprova ad avviare la ricerca."}
+          {req.status === "timeout" ? "Tempo scaduto" : "Errore"}: {req.error || "riprova ad avviare la ricerca."}
         </p>
       )}
 
@@ -1302,17 +1302,17 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
                   ))}
                 </tbody>
               </table>
-              <button onClick={() => onImport(md)} style={{ ...btnSmall, background: "var(--pd-ok)" }}>âœ“ Importa nella scheda</button>
+              <button onClick={() => onImport(md)} style={{ ...btnSmall, background: "var(--pd-ok)" }}>✓ Importa nella scheda</button>
             </>
           ) : (
             // Veicoli / immobili: mostra il conteggio e il pulsante per importarli nella scheda
             <div>
               <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: "0 0 8px" }}>
-                âœ“ Dati ricevuti{Array.isArray(md?.items) ? ` (${md.items.length} element${md.items.length === 1 ? "o" : "i"})` : ""}.
+                ✓ Dati ricevuti{Array.isArray(md?.items) ? ` (${md.items.length} element${md.items.length === 1 ? "o" : "i"})` : ""}.
               </p>
               {Array.isArray(md?.items) && md.items.length > 0 && onImportItems && (req.source === "veicoli" || req.source === "immobili") && (
                 <button onClick={async () => { await onImportItems(req.source, md.items); }} style={{ ...btnSmall, background: "var(--pd-ok)" }}>
-                  âœ“ Importa {md.items.length} nella scheda
+                  ✓ Importa {md.items.length} nella scheda
                 </button>
               )}
               {Array.isArray(md?.items) && md.items.length === 0 && (
@@ -1326,7 +1326,7 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
       {/* Pannello diagnostico */}
       {req?.raw_response != null && (
         <details open={showRaw} onToggle={e => setShowRaw(e.target.open)} style={{ marginTop: 12 }}>
-          <summary style={sumStyle}>ðŸ”§ Risposta grezza (diagnostica)</summary>
+          <summary style={sumStyle}>⚙️ Risposta grezza (diagnostica)</summary>
           <pre style={{ background: "var(--pd-surface-2)", border: "1px solid var(--pd-border)", borderRadius: 6, padding: 10, fontSize: 11, fontFamily: "monospace", maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {typeof req.raw_response === "string" ? req.raw_response : JSON.stringify(req.raw_response, null, 2)}
           </pre>

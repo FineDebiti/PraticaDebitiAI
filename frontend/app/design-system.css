@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    DossierLex - Stitch Institutional Heritage design system
    Fonte visiva: stitch_analisi_debitoria_ed_econometrica/institutional_heritage
    ============================================================ */
@@ -121,6 +121,13 @@ button, input, select, textarea { font: inherit; letter-spacing: 0; }
 .app-nav__item:hover { background: rgba(219, 230, 210, .10); color: #fff; text-decoration: none; }
 .app-nav__item--active { background: var(--pd-accent-soft); color: #716045; font-weight: 700; }
 .app-nav__bottom { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(178, 189, 170, .18); }
+.app-nav__context {
+  margin: 16px 8px 0; padding: 12px 14px; border-radius: 8px;
+  background: rgba(219, 230, 210, .08); border: 1px solid rgba(178, 189, 170, .12);
+}
+.app-nav__context-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #8a9482; margin-bottom: 6px; }
+.app-nav__context-value { display: block; font-size: 14px; font-weight: 700; color: var(--pd-accent-soft); }
+.app-nav__context-name { display: block; font-size: 12px; color: #b2bdaa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-main { min-width: 0; min-height: 100vh; display: flex; flex-direction: column; }
 .app-topbar {
   position: sticky; top: 0; z-index: 15; height: 64px;

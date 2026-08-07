@@ -4,6 +4,14 @@ export async function listCases() {
   const r = await fetch(`${BASE}/api/cases`, { cache: "no-store" });
   return r.json();
 }
+export async function checkHealth() {
+  try {
+    const r = await fetch(`${BASE}/api/health`, { cache: "no-store" });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
 export async function createCase(payload) {
   const r = await fetch(`${BASE}/api/cases`, {
     method: "POST", headers: { "Content-Type": "application/json" },

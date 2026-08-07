@@ -65,6 +65,8 @@ def _chain() -> list:
 
 def _available_providers() -> list:
     """[(nome, provider)] nell'ordine della catena, solo quelli con chiave configurata."""
+    if settings.llm_provider == "stub":
+        return []
     out = []
     for name in _chain():
         prov = REGISTRY.get(name)
