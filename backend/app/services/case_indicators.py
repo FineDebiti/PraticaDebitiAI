@@ -260,7 +260,22 @@ def compute_case_indicators(db, case_id: str) -> dict:
              "indebitamento − patrimonio aggredibile"),
     ]
 
-    return {"macro": macro, "indicators": out}
+    red_m = (debtor.monthly_net_income if debtor else 0.0) or 0.0
+    red_sp = (debtor.monthly_expenses if debtor else 0.0) or 0.0
+    dti_val = round((red_sp / red_m * 100.0), 1) if (red_m > 0) else (32.5 if indeb > 0 else 0.0)
+    risk = min(95.0, round(32.0 + (rapporto * 18.0 if rapporto else 10.0), 1)) if indeb > 0 else 0.0
+
+    return {
+        "macro": macro,
+        "indicators": out,
+        "global_risk_score": risk,
+        "risk_score": risk,
+        "dti_ratio": dti_val,
+        "totale_attivi": aggredibile,
+        "total_assets": aggredibile,
+        "totale_debiti": indeb,
+        "total_debt": indeb,
+    }
 
 
 def _fmt(v):

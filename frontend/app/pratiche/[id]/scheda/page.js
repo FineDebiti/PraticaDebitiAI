@@ -61,12 +61,12 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
     setUploadedByScope(prev => ({ ...prev, [scope]: [...(prev[scope] || []), docId] }));
   }
   function showIncomeToast() {
-    setIncomeToast("Dati reddito aggiornati dal documento â€” verifica e salva");
+    setIncomeToast("Dati reddito aggiornati dal documento — verifica e salva");
     setTimeout(() => setIncomeToast(""), 7000);
   }
 
   // polling documenti SEMPRE attivo (anche fuori dalla tab Documenti): aggiorna i
-  // conteggi e, quando un documento Ã¨ elaborato, ricarica la scheda (dati estratti).
+  // conteggi e, quando un documento è elaborato, ricarica la scheda (dati estratti).
   useEffect(() => {
     let stop = false;
     async function tick() {
@@ -107,7 +107,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
   }
   useEffect(() => { load(); }, [id]);
   useEffect(() => { relatedCases(id).then(setRelated).catch(() => {}); }, [id]);
-  // indicatori: ricaricati ogni volta che si apre la tab (riflettono i dati piÃ¹ recenti)
+  // indicatori: ricaricati ogni volta che si apre la tab (riflettono i dati più recenti)
   useEffect(() => { if (["indicatori", "econometria", "report"].includes(activeTab)) getIndicators(id).then(setIndic).catch(() => {}); }, [id, activeTab]);
 
   // correzioni: storico + helper per aprire la modale e ricaricare dopo il salvataggio
@@ -124,12 +124,12 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
   async function save() {
     await saveDebtor(id, d);
     setDirty(false);
-    setSaved("Scheda salvata âœ“");
+    setSaved("Scheda salvata ✓");
     setTimeout(() => setSaved(""), 2500);
     load();
   }
 
-  // P1.1 â€” protezione contro la perdita di modifiche non salvate
+  // P1.1 — protezione contro la perdita di modifiche non salvate
   const [dirty, setDirty] = useState(false);
   useEffect(() => {
     function warn(e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } }
@@ -186,8 +186,8 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
   const isSocioAz = companies.some(c => (c.members || []).some(m => m.is_client));
   const isGaranteClient = ["garante", "coobbligato"].includes(d.client_type);
   const titolare = isAzienda
-    ? (clienteCompanies[0]?.name || d.last_name || "â€”")
-    : (`${d.first_name || ""} ${d.last_name || ""}`.trim() || "â€”");
+    ? (clienteCompanies[0]?.name || d.last_name || "—")
+    : (`${d.first_name || ""} ${d.last_name || ""}`.trim() || "—");
 
   const TABS = [
     { key: "riepilogo", label: "Hub analitico" },
@@ -216,15 +216,15 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
         @media (max-width: 700px) { .tabbar { flex-wrap: nowrap; overflow-x: auto; } }
       `}</style>
 
-      <Link href="/" style={{ color: "var(--pd-accent)" }}>â† Tutte le pratiche</Link>
-      <h1 style={{ color: "var(--pd-primary)" }}>Scheda cliente <span style={{ fontSize: 15, color: "var(--pd-text-muted)", fontWeight: "normal" }}>â€” {titolare}</span></h1>
+      <Link href="/" style={{ color: "var(--pd-accent)" }}>← Tutte le pratiche</Link>
+      <h1 style={{ color: "var(--pd-primary)" }}>Scheda cliente <span style={{ fontSize: 15, color: "var(--pd-text-muted)", fontWeight: "normal" }}>— {titolare}</span></h1>
 
       <RelatedBanner caseId={id} related={related} />
 
       {incomeToast && (
         <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 60, background: "var(--pd-ok)", color: "var(--pd-surface)",
           padding: "12px 16px", borderRadius: 8, boxShadow: "var(--pd-shadow-md)", fontSize: 14, fontWeight: 600, maxWidth: 340 }}>
-          âœ“ {incomeToast}
+          ✓ {incomeToast}
         </div>
       )}
 
@@ -249,7 +249,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16 }}>
           <SummaryCard title="Cliente">
             <div style={{ fontSize: 16, fontWeight: "bold", color: "var(--pd-primary)" }}>{titolare}</div>
-            <div style={{ fontSize: 13, color: "var(--pd-text)" }}>{isAzienda ? "P.IVA/CF: " : "CF: "}{(isAzienda ? (clienteCompanies[0]?.vat || clienteCompanies[0]?.tax_code || d.tax_code) : d.tax_code) || "â€”"}</div>
+            <div style={{ fontSize: 13, color: "var(--pd-text)" }}>{isAzienda ? "P.IVA/CF: " : "CF: "}{(isAzienda ? (clienteCompanies[0]?.vat || clienteCompanies[0]?.tax_code || d.tax_code) : d.tax_code) || "—"}</div>
             <div style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Tipo: {d.client_type}</div>
           </SummaryCard>
           <SummaryCard title="Patrimonio" onGo={() => goTab("patrimonio")}>
@@ -269,15 +269,15 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
               <SLine k="Esposizione totale" v={eurFull(cr.total_exposure)} />
               <SLine k="Garanzie prestate" v={eurFull(cr.total_guarantees)} />
               <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                <CrBadge on={cr.has_sofferenze} okText="No sofferenze" alertText="âš  Sofferenze" tone="danger" />
-                <CrBadge on={cr.has_criticita} okText="No criticitÃ " alertText="âš  CriticitÃ " tone="warning" />
+                <CrBadge on={cr.has_sofferenze} okText="No sofferenze" alertText="⚠️ Sofferenze" tone="danger" />
+                <CrBadge on={cr.has_criticita} okText="No criticitÃ " alertText="⚠️ CriticitÃ " tone="warning" />
               </div>
             </SummaryCard>
           )}
           <SummaryCard title="Aziende" onGo={() => goTab("aziende")}>
             <SLine k="Aziende collegate" v={nAz} />
-            {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>âš  Il cliente Ã¨ socio o titolare di cariche</div>}
-            {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>âš  Il cliente Ã¨ garante/coobbligato</div>}
+            {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>⚠️ Il cliente è socio o titolare di cariche</div>}
+            {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>⚠️ Il cliente è garante/coobbligato</div>}
           </SummaryCard>
           <SummaryCard title="Documenti" onGo={() => goTab("documenti")}>
             <SLine k="Caricati" v={nDoc} />
@@ -366,10 +366,10 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
               onApplyMonthly={(v) => set("monthly_net_income", v)}
               onApplyAnnual={(v) => set("annual_income", v)} />
             <Grid>
-              <F label="Reddito mensile netto (â‚¬)"><Money v={d.monthly_net_income} on={v => set("monthly_net_income", v)} /></F>
-              <F label="Reddito annuo (â‚¬)"><Money v={d.annual_income} on={v => set("annual_income", v)} /></F>
-              <F label="Spese mensili (â‚¬)"><Money v={d.monthly_expenses} on={v => set("monthly_expenses", v)} /></F>
-              <F label="Affitto / mutuo (â‚¬)"><Money v={d.rent_or_mortgage} on={v => set("rent_or_mortgage", v)} /></F>
+              <F label="Reddito mensile netto (€)"><Money v={d.monthly_net_income} on={v => set("monthly_net_income", v)} /></F>
+              <F label="Reddito annuo (€)"><Money v={d.annual_income} on={v => set("annual_income", v)} /></F>
+              <F label="Spese mensili (€)"><Money v={d.monthly_expenses} on={v => set("monthly_expenses", v)} /></F>
+              <F label="Affitto / mutuo (€)"><Money v={d.rent_or_mortgage} on={v => set("rent_or_mortgage", v)} /></F>
               <F label="Fonti di reddito" wide>
                 <textarea value={d.income_sources ?? ""} onChange={e => set("income_sources", e.target.value)}
                   rows={Math.min(6, Math.max(2, (d.income_sources || "").split("\n").length))}
@@ -804,7 +804,7 @@ function CompanyEditor({ caseId, initial, defaultOpen, isDraft, onSaved, onDelet
     const res = c.id ? await updateCompany(caseId, c.id, payload) : await createCompany(caseId, payload);
     setBusy(false);
     if (res && res.error) { setMsg(res.error); return; }
-    setMsg("Salvato âœ“"); setTimeout(() => setMsg(""), 2000);
+    setMsg("Salvato ✓"); setTimeout(() => setMsg(""), 2000);
     if (onSaved) onSaved();
   }
   async function del() {
@@ -819,10 +819,10 @@ function CompanyEditor({ caseId, initial, defaultOpen, isDraft, onSaved, onDelet
       <div onClick={() => setOpen(o => !o)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: open ? "1px solid var(--pd-border)" : "none" }}>
         <div>
           <strong style={{ color: "var(--pd-primary)", fontSize: 16 }}>{title}</strong>
-          {c.vat ? <span style={{ color: "var(--pd-text-muted)", fontSize: 13 }}> Â· P.IVA {c.vat}</span> : null}
-          {c.status ? <span style={{ color: "var(--pd-text-muted)", fontSize: 13 }}> Â· {c.status}</span> : null}
+          {c.vat ? <span style={{ color: "var(--pd-text-muted)", fontSize: 13 }}> · P.IVA {c.vat}</span> : null}
+          {c.status ? <span style={{ color: "var(--pd-text-muted)", fontSize: 13 }}> · {c.status}</span> : null}
         </div>
-        <span style={{ color: "var(--pd-text-faint)" }}>{open ? "â–² comprimi" : "â–¼ espandi"}</span>
+        <span style={{ color: "var(--pd-text-faint)" }}>{open ? "▲ comprimi" : "▼ espandi"}</span>
       </div>
       {open && (
         <div style={{ padding: 16 }}>
@@ -841,13 +841,13 @@ function CompanyEditor({ caseId, initial, defaultOpen, isDraft, onSaved, onDelet
             <F label="Sede legale" wide><I v={c.legal_address} on={v => set("legal_address", v)} /></F>
             <F label="PEC"><I v={c.pec} on={v => set("pec", v)} /></F>
             <F label="Data costituzione"><I v={c.constitution_date} on={v => set("constitution_date", v)} /></F>
-            <F label="Capitale sociale (â‚¬)"><Money v={c.capital} on={v => set("capital", v)} /></F>
+            <F label="Capitale sociale (€)"><Money v={c.capital} on={v => set("capital", v)} /></F>
           </Grid>
 
           <h3 style={{ color: "var(--pd-text)", fontSize: 15, margin: "16px 0 8px" }}>Bilancio</h3>
           <Grid>
-            <F label="Fatturato (â‚¬)"><Money v={c.fatturato} on={v => set("fatturato", v)} /></F>
-            <F label="Patrimonio netto (â‚¬)"><Money v={c.patrimonio_netto} on={v => set("patrimonio_netto", v)} /></F>
+            <F label="Fatturato (€)"><Money v={c.fatturato} on={v => set("fatturato", v)} /></F>
+            <F label="Patrimonio netto (€)"><Money v={c.patrimonio_netto} on={v => set("patrimonio_netto", v)} /></F>
             <F label="Dipendenti"><I type="number" v={c.dipendenti} on={v => set("dipendenti", +v)} /></F>
             <F label="Anno bilancio"><I v={c.anno_bilancio} on={v => set("anno_bilancio", v)} /></F>
           </Grid>
@@ -862,7 +862,7 @@ function CompanyEditor({ caseId, initial, defaultOpen, isDraft, onSaved, onDelet
               <input placeholder="Codice fiscale" value={m.tax_code || ""} onChange={e => setSocio(i, "tax_code", e.target.value)} style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
               <input placeholder="Cariche (es. amministratore)" value={m.roles || ""} onChange={e => setSocio(i, "roles", e.target.value)} style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
               <input type="number" placeholder="Quota %" value={m.quota_percent || 0} onChange={e => setSocio(i, "quota_percent", +e.target.value)} style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
-              <a onClick={() => delSocio(i)} style={{ ...del, padding: "0 6px" }} title="Rimuovi socio">âœ•</a>
+              <a onClick={() => delSocio(i)} style={{ ...del, padding: "0 6px" }} title="Rimuovi socio">✕</a>
             </div>
           ))}
           <button type="button" onClick={addSocio} style={btnSmall}>+ aggiungi socio</button>
@@ -897,10 +897,10 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
         { key: "address", label: "Indirizzo", kind: "str", value: r.address },
         { key: "ownership_share", label: "Quota (es. 1/2)", kind: "str", value: r.ownership_share },
         { key: "ownership_right", label: "Diritto (es. ProprietÃ )", kind: "str", value: r.ownership_right },
-        { key: "surface_mq", label: "Superficie mÂ²", kind: "num", value: r.surface_mq },
-        { key: "cadastral_income", label: "Rendita catastale â‚¬", kind: "num", value: r.cadastral_income },
-        { key: "cadastral_value", label: "Valore catastale â‚¬ (vuoto = ricalcolato)", kind: "num", value: r.cadastral_value },
-        { key: "commercial_value", label: "Valore commerciale â‚¬", kind: "num", value: r.commercial_value },
+        { key: "surface_mq", label: "Superficie m²", kind: "num", value: r.surface_mq },
+        { key: "cadastral_income", label: "Rendita catastale €", kind: "num", value: r.cadastral_income },
+        { key: "cadastral_value", label: "Valore catastale € (vuoto = ricalcolato)", kind: "num", value: r.cadastral_value },
+        { key: "commercial_value", label: "Valore commerciale €", kind: "num", value: r.commercial_value },
         { key: "is_primary_residence", label: "Prima casa", kind: "bool", value: r.is_primary_residence },
         { key: "has_mortgage", label: "Ipoteca presente", kind: "bool", value: r.has_mortgage },
       ],
@@ -914,13 +914,13 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
         { key: "make_model", label: "Marca/Modello", kind: "str", value: v.make_model },
         { key: "plate", label: "Targa", kind: "str", value: v.plate },
         { key: "year", label: "Anno", kind: "str", value: v.year },
-        { key: "estimated_value", label: "Valore stimato â‚¬", kind: "num", value: v.estimated_value },
+        { key: "estimated_value", label: "Valore stimato €", kind: "num", value: v.estimated_value },
       ],
     });
   }
 
   return (
-    <Section title={`Patrimonio â€” valore stimato totale: ${eurFull(totale)}`}>
+    <Section title={`Patrimonio — valore stimato totale: ${eurFull(totale)}`}>
       {/* IMMOBILI */}
       <h3 style={{ color: "var(--pd-text)", margin: "4px 0 8px" }}>Immobili</h3>
       <div style={{ overflowX: "auto", marginBottom: 8 }}>
@@ -933,13 +933,13 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
         <tbody>
           {(card.real_estates || []).map(r => (
             <tr key={r.id} style={{ borderTop: "1px solid var(--pd-border)" }}>
-              <td style={td}>{r.kind || "â€”"}</td>
-              <td style={td}>{r.cadastral_data || "â€”"}</td>
-              <td style={td}>{r.address || "â€”"}</td>
-              <td style={td}>{[r.ownership_share, r.ownership_right].filter(Boolean).join(" ") || "â€”"}</td>
-              <td style={tdNum}>{r.surface_mq ? r.surface_mq.toLocaleString("it-IT") + " mÂ²" : "â€”"}</td>
-              <td style={tdNum}>{r.cadastral_income ? eurFull(r.cadastral_income) : "â€”"}</td>
-              <td style={tdNum}>{r.cadastral_value ? eurFull(r.cadastral_value) : "â€”"}</td>
+              <td style={td}>{r.kind || "—"}</td>
+              <td style={td}>{r.cadastral_data || "—"}</td>
+              <td style={td}>{r.address || "—"}</td>
+              <td style={td}>{[r.ownership_share, r.ownership_right].filter(Boolean).join(" ") || "—"}</td>
+              <td style={tdNum}>{r.surface_mq ? r.surface_mq.toLocaleString("it-IT") + " m²" : "—"}</td>
+              <td style={tdNum}>{r.cadastral_income ? eurFull(r.cadastral_income) : "—"}</td>
+              <td style={tdNum}>{r.cadastral_value ? eurFull(r.cadastral_value) : "—"}</td>
               <td style={tdNum}>{r.commercial_value ? eurFull(r.commercial_value) : <span style={{ color: "var(--pd-warn)" }}>da stimare</span>}</td>
               <td style={{ ...td, textAlign: "center" }}>
                 <input type="checkbox" checked={!!r.is_primary_residence}
@@ -949,7 +949,7 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   {corr && <EditedBadge corr={corr} entityId={r.id} />}
                   {corr && <CorreggiBtn onClick={() => correggiImm(r)} label="âœï¸" />}
-                  <a onClick={async () => { if (window.confirm(`Eliminare l'immobile "${r.kind || r.address || ""}"? L'azione Ã¨ irreversibile.`)) { await delRealEstate(caseId, r.id); reload(); } }} style={del}>elimina</a>
+                  <a onClick={async () => { if (window.confirm(`Eliminare l'immobile "${r.kind || r.address || ""}"? L'azione è irreversibile.`)) { await delRealEstate(caseId, r.id); reload(); } }} style={del}>elimina</a>
                 </div>
               </td>
             </tr>
@@ -969,13 +969,13 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
       </table>
       </div>
       <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "0 0 8px" }}>
-        â„¹ Solo una abitazione dovrebbe essere segnata come prima casa (incide sul valore catastale: Ã—110 prima casa, Ã—120 altrimenti).
+        ℹ Solo una abitazione dovrebbe essere segnata come prima casa (incide sul valore catastale: Ã—110 prima casa, Ã—120 altrimenti).
       </p>
       <details style={{ marginTop: 4 }}><summary style={sumStyle}>+ aggiungi manualmente</summary>
         <div style={addRow}>
           <input placeholder="Tipo (es. appartamento)" value={re.kind} onChange={e => setRe({ ...re, kind: e.target.value })} style={inp} />
           <input placeholder="Indirizzo" value={re.address} onChange={e => setRe({ ...re, address: e.target.value })} style={inp} />
-          <Money v={re.estimated_value} on={v => setRe({ ...re, estimated_value: v })} placeholder="Valore â‚¬" style={{ width: 120 }} />
+          <Money v={re.estimated_value} on={v => setRe({ ...re, estimated_value: v })} placeholder="Valore €" style={{ width: 120 }} />
           <button onClick={async () => { await addRealEstate(caseId, re); setRe({ kind: "", address: "", estimated_value: 0 }); reload(); }} style={btnSmall}>Aggiungi</button>
         </div>
       </details>
@@ -992,7 +992,7 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   {corr && <EditedBadge corr={corr} entityId={v.id} />}
                   {corr && <CorreggiBtn onClick={() => correggiVeic(v)} label="âœï¸" />}
-                  <a onClick={async () => { if (window.confirm(`Eliminare il veicolo "${v.make_model || v.plate || ""}"? L'azione Ã¨ irreversibile.`)) { await delVehicle(caseId, v.id); reload(); } }} style={del}>elimina</a>
+                  <a onClick={async () => { if (window.confirm(`Eliminare il veicolo "${v.make_model || v.plate || ""}"? L'azione è irreversibile.`)) { await delVehicle(caseId, v.id); reload(); } }} style={del}>elimina</a>
                 </div>
               </td>
             </tr>
@@ -1005,7 +1005,7 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
           <input placeholder="Tipo" value={ve.kind} onChange={e => setVe({ ...ve, kind: e.target.value })} style={{ ...inp, width: 90 }} />
           <input placeholder="Modello" value={ve.make_model} onChange={e => setVe({ ...ve, make_model: e.target.value })} style={inp} />
           <input placeholder="Targa" value={ve.plate} onChange={e => setVe({ ...ve, plate: e.target.value })} style={{ ...inp, width: 110 }} />
-          <Money v={ve.estimated_value} on={v => setVe({ ...ve, estimated_value: v })} placeholder="Valore â‚¬" style={{ width: 120 }} />
+          <Money v={ve.estimated_value} on={v => setVe({ ...ve, estimated_value: v })} placeholder="Valore €" style={{ width: 120 }} />
           <button onClick={async () => { await addVehicle(caseId, ve); setVe({ kind: "auto", make_model: "", plate: "", estimated_value: 0 }); reload(); }} style={btnSmall}>Aggiungi</button>
         </div>
       </details>
@@ -1081,10 +1081,10 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
       {d && (
         <div style={{ marginTop: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-            <strong style={{ color: "var(--pd-primary)", fontSize: 15 }}>{d.denominazione || "â€”"}</strong>
+            <strong style={{ color: "var(--pd-primary)", fontSize: 15 }}>{d.denominazione || "—"}</strong>
             {d.stato_attivita && (
               <span style={{ background: cessata ? "var(--pd-danger)" : "var(--pd-ok)", color: "var(--pd-surface)", fontSize: 12, fontWeight: "bold", padding: "2px 8px", borderRadius: 10 }}>
-                {cessata ? "âš  " : ""}{d.stato_attivita}
+                {cessata ? "⚠️ " : ""}{d.stato_attivita}
               </span>
             )}
           </div>
@@ -1400,12 +1400,12 @@ function CompanyCard({ c, caseId, onChange, corr }) {
   return (
     <div style={{ border: "1px solid var(--pd-info-bg)", borderRadius: 8, padding: 14, marginBottom: 12, background: "var(--pd-surface)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <strong style={{ color: "var(--pd-primary)", fontSize: 16 }}>{c.name || "â€”"}</strong>
+        <strong style={{ color: "var(--pd-primary)", fontSize: 16 }}>{c.name || "—"}</strong>
         <StatusBadge status={c.status} />
         {caseId && onChange && (
           <button type="button" onClick={promote} style={{ ...btnSmall, marginLeft: "auto", padding: "5px 10px" }}
             title="Sposta questa azienda tra le imprese del cliente (diventa editabile)">
-            â˜… Ãˆ l'azienda del cliente
+            ★ Ãˆ l'azienda del cliente
           </button>
         )}
       </div>
@@ -1419,22 +1419,22 @@ function CompanyCard({ c, caseId, onChange, corr }) {
         {c.legal_address && <span><b>Sede:</b> {c.legal_address}</span>}
         {c.pec && <span><b>PEC:</b> <a href={`mailto:${c.pec}`} style={{ color: "var(--pd-accent)" }}>{c.pec}</a></span>}
         {c.ateco && <span><b>ATECO:</b> {c.ateco}</span>}
-        {c.capital ? <span><b>Capitale:</b> â‚¬ {c.capital.toLocaleString("it-IT")}</span> : null}
+        {c.capital ? <span><b>Capitale:</b> € {c.capital.toLocaleString("it-IT")}</span> : null}
         {c.constitution_date && <span><b>Costituita:</b> {c.constitution_date}</span>}
       </div>
 
       {(c.fatturato || c.dipendenti || c.patrimonio_netto) ? (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 18px", marginTop: 6, fontSize: 13, color: "var(--pd-text)" }}>
           <b style={{ color: "var(--pd-text)" }}>Bilancio{c.anno_bilancio ? ` ${c.anno_bilancio}` : ""}:</b>
-          {c.fatturato ? <span>Fatturato â‚¬ {c.fatturato.toLocaleString("it-IT")}</span> : null}
-          {c.patrimonio_netto ? <span>Patrimonio netto â‚¬ {c.patrimonio_netto.toLocaleString("it-IT")}</span> : null}
+          {c.fatturato ? <span>Fatturato € {c.fatturato.toLocaleString("it-IT")}</span> : null}
+          {c.patrimonio_netto ? <span>Patrimonio netto € {c.patrimonio_netto.toLocaleString("it-IT")}</span> : null}
           {c.dipendenti ? <span>Dipendenti {c.dipendenti}</span> : null}
         </div>
       ) : null}
 
       {c.company_type === "persone" && (
         <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "8px 10px", margin: "10px 0", fontSize: 13, color: "var(--pd-warn)" }}>
-          âš  SocietÃ  di persone: i soci possono rispondere dei debiti anche con il patrimonio personale.
+          ⚠️ SocietÃ  di persone: i soci possono rispondere dei debiti anche con il patrimonio personale.
         </div>
       )}
 
@@ -1442,19 +1442,19 @@ function CompanyCard({ c, caseId, onChange, corr }) {
         <div style={{ overflowX: "auto", marginTop: 10 }}>
           <table style={{ ...tbl, minWidth: 520, marginBottom: 0, tableLayout: "auto" }}>
             <thead><tr style={trh}>
-              <th style={th}>Nome</th><th style={th}>Cariche</th><th style={tdNum}>Quota â‚¬</th><th style={tdNum}>Quota %</th>
+              <th style={th}>Nome</th><th style={th}>Cariche</th><th style={tdNum}>Quota €</th><th style={tdNum}>Quota %</th>
             </tr></thead>
             <tbody>
               {members.map(m => (
                 <tr key={m.id} style={{ borderTop: "1px solid var(--pd-border)", background: m.is_client ? "var(--pd-info-bg)" : "var(--pd-surface)" }}>
                   <td style={td}>
-                    {m.name || "â€”"}
+                    {m.name || "—"}
                     {m.is_client && <span style={tag}>Cliente</span>}
                     {m.is_legal_rep && <span style={{ ...tag, background: "var(--pd-text-muted)" }}>rappr. legale</span>}
                   </td>
-                  <td style={td}>{m.roles || "â€”"}</td>
-                  <td style={tdNum}>{m.quota_value ? eurFull(m.quota_value) : "â€”"}</td>
-                  <td style={tdNum}>{m.quota_percent ? m.quota_percent.toLocaleString("it-IT") + "%" : "â€”"}</td>
+                  <td style={td}>{m.roles || "—"}</td>
+                  <td style={tdNum}>{m.quota_value ? eurFull(m.quota_value) : "—"}</td>
+                  <td style={tdNum}>{m.quota_percent ? m.quota_percent.toLocaleString("it-IT") + "%" : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -1479,21 +1479,21 @@ const IND_GROUPS = [
 ];
 
 function fmtNum(v) { return v == null ? "n.s." : Number(v).toLocaleString("it-IT", { maximumFractionDigits: 2 }); }
-// Formato valuta UNICO in tutta l'app: â‚¬ con separatore migliaia e 2 decimali.
-function eurFull(v) { return "â‚¬ " + (Number(v) || 0).toLocaleString("it-IT", { useGrouping: true, minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+// Formato valuta UNICO in tutta l'app: € con separatore migliaia e 2 decimali.
+function eurFull(v) { return "€ " + (Number(v) || 0).toLocaleString("it-IT", { useGrouping: true, minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtIndicator(ind) {
   if (ind.value_cur == null) return "n.s.";
   if (ind.fmt === "pct") return Number(ind.value_cur).toLocaleString("it-IT", { maximumFractionDigits: 1 }) + "%";
-  if (ind.fmt === "eur") return "â‚¬ " + Number(ind.value_cur).toLocaleString("it-IT", { maximumFractionDigits: 0 });
+  if (ind.fmt === "eur") return "€ " + Number(ind.value_cur).toLocaleString("it-IT", { maximumFractionDigits: 0 });
   return Number(ind.value_cur).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtIndicatorPrev(ind) {
   if (ind.value_prev == null) return "n.s.";
   if (ind.fmt === "pct") return Number(ind.value_prev).toLocaleString("it-IT", { maximumFractionDigits: 1 }) + "%";
-  if (ind.fmt === "eur") return "â‚¬ " + Number(ind.value_prev).toLocaleString("it-IT", { maximumFractionDigits: 0 });
+  if (ind.fmt === "eur") return "€ " + Number(ind.value_prev).toLocaleString("it-IT", { maximumFractionDigits: 0 });
   return Number(ind.value_prev).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function trendArrow(t) { return t === "up" ? "â†‘" : t === "down" ? "â†“" : t === "flat" ? "â†’" : ""; }
+function trendArrow(t) { return t === "up" ? "←‘" : t === "down" ? "←“" : t === "flat" ? "→" : ""; }
 function statusDot(s) {
   const c = { green: "var(--pd-ok)", amber: "var(--pd-warn)", red: "var(--pd-danger)" }[s] || "var(--pd-text-faint)";
   return <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: c }} />;
@@ -1506,10 +1506,10 @@ function MetricCard({ label, blk }) {
   return (
     <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 12 }}>
       <div style={{ fontSize: 11, color: "var(--pd-text-muted)", textTransform: "uppercase", letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: "bold", color: "var(--pd-primary)" }}>{cur == null ? "n.s." : "â‚¬ " + Number(cur).toLocaleString("it-IT", { maximumFractionDigits: 0 })}</div>
+      <div style={{ fontSize: 18, fontWeight: "bold", color: "var(--pd-primary)" }}>{cur == null ? "n.s." : "€ " + Number(cur).toLocaleString("it-IT", { maximumFractionDigits: 0 })}</div>
       {varPct != null && (
         <div style={{ fontSize: 12, color: varPct >= 0 ? "var(--pd-ok)" : "var(--pd-danger)" }}>
-          {varPct >= 0 ? "â†‘" : "â†“"} {Math.abs(varPct).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% vs anno prec.
+          {varPct >= 0 ? "←‘" : "←“"} {Math.abs(varPct).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% vs anno prec.
         </div>
       )}
     </div>
@@ -1536,8 +1536,8 @@ function EditedBadge({ corr, entityId }) {
         <div style={{ position: "absolute", zIndex: 30, top: "120%", left: 0, background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 10, width: 290, boxShadow: "var(--pd-shadow-md)" }}>
           {list.map(e => (
             <div key={e.id} style={{ fontSize: 12, borderTop: "1px solid var(--pd-border)", padding: "4px 0" }}>
-              <b>{e.field}</b>: <span style={{ color: "var(--pd-danger)", textDecoration: "line-through" }}>{e.old_value}</span> â†’ <span style={{ color: "var(--pd-ok)" }}>{e.new_value}</span>
-              <div style={{ color: "var(--pd-text-faint)" }}>{(e.created_at || "").slice(0, 10)}{e.reason ? " Â· " + e.reason : ""}</div>
+              <b>{e.field}</b>: <span style={{ color: "var(--pd-danger)", textDecoration: "line-through" }}>{e.old_value}</span> → <span style={{ color: "var(--pd-ok)" }}>{e.new_value}</span>
+              <div style={{ color: "var(--pd-text-faint)" }}>{(e.created_at || "").slice(0, 10)}{e.reason ? " · " + e.reason : ""}</div>
             </div>
           ))}
         </div>
@@ -1576,7 +1576,7 @@ function CorrezioneModal({ caseId, correction, onClose, onSaved }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 50, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 16px", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--pd-surface)", borderRadius: 10, padding: 20, width: 460, maxWidth: "100%" }}>
-        <h3 style={{ color: "var(--pd-primary)", marginTop: 0 }}>âœï¸ Correggi â€” {correction.title}</h3>
+        <h3 style={{ color: "var(--pd-primary)", marginTop: 0 }}>âœï¸ Correggi — {correction.title}</h3>
         <p style={{ fontSize: 12, color: "var(--pd-text-muted)", marginTop: 0 }}>
           Il valore originale resta tracciato; la correzione viene registrata e le regole a valle (indici, quadrature) ricalcolate.
         </p>
@@ -1585,7 +1585,7 @@ function CorrezioneModal({ caseId, correction, onClose, onSaved }) {
             <label style={{ display: "block", fontSize: 12, color: "var(--pd-text-muted)", marginBottom: 3 }}>{f.label}</label>
             {f.kind === "bool" ? (
               <select value={vals[f.key] ? "1" : "0"} onChange={e => setVals(v => ({ ...v, [f.key]: e.target.value === "1" }))} style={inp}>
-                <option value="1">SÃ¬</option><option value="0">No</option>
+                <option value="1">Sì</option><option value="0">No</option>
               </select>
             ) : f.kind === "num" ? (
               <Money v={vals[f.key]} on={val => setVals(v => ({ ...v, [f.key]: val }))} style={{ padding: "7px 9px" }} />
@@ -1651,7 +1651,7 @@ function IndicatorCell({ it, goTab, big }) {
       )}
       {it.source_tab && (
         <a onClick={() => goTab(it.source_tab)} style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "var(--pd-accent)" }}>
-          â†’ vedi in {SECTION_LABEL[it.source_tab] || "sezione"}
+          → vedi in {SECTION_LABEL[it.source_tab] || "sezione"}
         </a>
       )}
     </div>
@@ -1697,16 +1697,16 @@ function IndicatoriCruscotto({ data, goTab }) {
 }
 
 // Badge esito cross-check (due modelli sullo stesso documento ad alta posta).
-// verde = concordi Â· giallo = discrepanza (verifica manuale) Â· grigio = un solo modello.
+// verde = concordi · giallo = discrepanza (verifica manuale) · grigio = un solo modello.
 function CrossCheckBadge({ status, payload, provider, model }) {
   const pl = payload || {};
   if (status === "verified") {
     return <span className="pd-badge pd-badge--ok" title={`${pl.provider_a || ""} vs ${pl.provider_b || ""}`}>
-      âœ“ Verificato da 2 modelli</span>;
+      ✓ Verificato da 2 modelli</span>;
   }
   if (status === "discrepancy") {
     return <span className="pd-badge pd-badge--warn" title="Gli importi chiave divergono tra i due modelli">
-      âš  Verifica manuale</span>;
+      ⚠️ Verifica manuale</span>;
   }
   // not_run / vuoto: mostra solo la provenienza, senza allarmare.
   if (provider) {
@@ -1725,7 +1725,7 @@ function CrossCheckDiscrepancies({ payload }) {
   return (
     <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "10px 12px", margin: "8px 0" }}>
       <div style={{ fontWeight: 600, color: "var(--pd-warn)", fontSize: 13, marginBottom: 6 }}>
-        âš  I due modelli non concordano su {disc.length} valore/i â€” controllo umano richiesto
+        ⚠️ I due modelli non concordano su {disc.length} valore/i — controllo umano richiesto
       </div>
       <table style={{ ...tbl, marginBottom: 0 }}>
         <thead><tr style={trh}>
@@ -1735,14 +1735,14 @@ function CrossCheckDiscrepancies({ payload }) {
           {disc.map((d, i) => (
             <tr key={i} style={{ borderTop: "1px solid var(--pd-border-strong)" }}>
               <td style={td}>{d.field}</td>
-              <td style={tdNum}>{d.value_a == null ? "â€”" : String(d.value_a)}</td>
-              <td style={tdNum}>{d.value_b == null ? "â€”" : String(d.value_b)}</td>
+              <td style={tdNum}>{d.value_a == null ? "—" : String(d.value_a)}</td>
+              <td style={tdNum}>{d.value_b == null ? "—" : String(d.value_b)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p style={{ fontSize: 11, color: "var(--pd-warn)", margin: "6px 0 0" }}>
-        Nessun valore Ã¨ stato scelto automaticamente: verifica sul documento originale.
+        Nessun valore è stato scelto automaticamente: verifica sul documento originale.
       </p>
     </div>
   );
@@ -1786,7 +1786,7 @@ function BilancioAnalysis({ statement, corr }) {
     <div style={{ marginTop: 14, borderTop: "2px solid var(--pd-primary)", paddingTop: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
         <h3 style={{ color: "var(--pd-primary)", fontSize: 16, margin: 0 }}>
-          ðŸ“Š Analisi di bilancio {anno ? <span style={{ fontWeight: "normal", color: "var(--pd-text-muted)", fontSize: 13 }}>Â· chiuso al {anno} {statement.statement_type ? `(${statement.statement_type})` : ""}</span> : null}
+          ðŸ“Š Analisi di bilancio {anno ? <span style={{ fontWeight: "normal", color: "var(--pd-text-muted)", fontSize: 13 }}>· chiuso al {anno} {statement.statement_type ? `(${statement.statement_type})` : ""}</span> : null}
         </h3>
         <CrossCheckBadge status={statement.crosscheck_status} payload={statement.crosscheck_payload}
           provider={statement.llm_provider} model={statement.llm_model} />
@@ -1819,10 +1819,10 @@ function BilancioAnalysis({ statement, corr }) {
                   return (
                     <tr key={k} style={{ borderTop: "1px solid var(--pd-border)", background: isPriv ? "var(--pd-warn-bg)" : "var(--pd-surface)" }}>
                       <td style={td}>{lab}{isPriv ? " ðŸ”’" : ""}</td>
-                      <td style={tdNum}>â‚¬ {fmtNum(v.importo)}</td>
-                      <td style={tdNum}>{v.entro != null ? "â‚¬ " + fmtNum(v.entro) : "â€”"}</td>
-                      <td style={tdNum}>{v.oltre != null ? "â‚¬ " + fmtNum(v.oltre) : "â€”"}</td>
-                      <td style={tdNum}>{priv ? "â‚¬ " + fmtNum(priv) : "â€”"}</td>
+                      <td style={tdNum}>€ {fmtNum(v.importo)}</td>
+                      <td style={tdNum}>{v.entro != null ? "€ " + fmtNum(v.entro) : "—"}</td>
+                      <td style={tdNum}>{v.oltre != null ? "€ " + fmtNum(v.oltre) : "—"}</td>
+                      <td style={tdNum}>{priv ? "€ " + fmtNum(priv) : "—"}</td>
                     </tr>
                   );
                 })}
@@ -1866,7 +1866,7 @@ function BilancioAnalysis({ statement, corr }) {
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 4 }}>
           <span>{statusDot("green")} buono</span><span>{statusDot("amber")} attenzione</span><span>{statusDot("red")} critico</span><span>n.s. = non significativo</span>
         </div>
-        <div style={{ color: "var(--pd-text-muted)" }}>Soglie standard universali â€” la lettura per il settore {statement.ateco || "(n/d)"} puÃ² variare.</div>
+        <div style={{ color: "var(--pd-text-muted)" }}>Soglie standard universali — la lettura per il settore {statement.ateco || "(n/d)"} può variare.</div>
       </div>
     </div>
   );
@@ -1884,7 +1884,7 @@ const AER_CAT_LABELS = {
   locale: "Tributi locali / sanzioni", bollo: "Bollo auto (Regione)",
   camerale: "Diritto camerale", misto: "Multiente", altro: "Altro",
 };
-const eurAer = (v) => "â‚¬ " + (Number(v) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eurAer = (v) => "€ " + (Number(v) || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function AerUploadButton({ caseId, label, ownerKind, entityId, reload }) {
   const [busy, setBusy] = useState(false);
@@ -1916,11 +1916,11 @@ function SituazioneAER({ caseId, card, isAzienda, clienteCompanies, reload, corr
       <ToolsBar>
         {!isAzienda && (
           <AerUploadButton caseId={caseId} ownerKind="person" entityId=""
-            label="ðŸ“Ž AeR â€” Estratto di ruolo del cliente (persona)" reload={reload} />
+            label="ðŸ“Ž AeR — Estratto di ruolo del cliente (persona)" reload={reload} />
         )}
         {clienteCompanies.map(c => (
           <AerUploadButton key={c.id} caseId={caseId} ownerKind="company" entityId={c.id}
-            label={`ðŸ“Ž AeR â€” Estratto di ruolo azienda: ${c.name || c.vat || c.tax_code || ""}`} reload={reload} />
+            label={`ðŸ“Ž AeR — Estratto di ruolo azienda: ${c.name || c.vat || c.tax_code || ""}`} reload={reload} />
         ))}
         {isAzienda && clienteCompanies.length === 0 && (
           <p style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Crea prima l'azienda nella tab "Aziende" per attribuirle l'estratto di ruolo.</p>
@@ -1971,11 +1971,11 @@ function AerStatement({ caseId, st, card, reload, corr }) {
   }
 
   return (
-    <Section title={`Situazione debitoria AER â€” ${ownerName}`}>
+    <Section title={`Situazione debitoria AER — ${ownerName}`}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
         <span style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>
           {st.owner_kind === "company" ? "Azienda" : "Persona"}
-          {st.codice_fiscale ? ` Â· CF/P.IVA doc: ${st.codice_fiscale}` : ""}
+          {st.codice_fiscale ? ` · CF/P.IVA doc: ${st.codice_fiscale}` : ""}
         </span>
         <span style={{ fontSize: 12, padding: "2px 9px", borderRadius: 10, background: st.extraction_method === "ai" ? "var(--pd-warn-bg)" : "var(--pd-surface-2)", color: st.extraction_method === "ai" ? "var(--pd-warn)" : "var(--pd-primary)", border: "1px solid var(--pd-border-strong)" }}>
           {st.extraction_method === "ai" ? "estratto via AI (fallback)" : "estratto via parser tabellare"}
@@ -1985,12 +1985,12 @@ function AerStatement({ caseId, st, card, reload, corr }) {
 
       {st.cf_mismatch && (
         <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 13, color: "var(--pd-warn)" }}>
-          âš  Il codice fiscale in testata del documento non corrisponde a quello della scheda. Verifica l'attribuzione.
+          ⚠️ Il codice fiscale in testata del documento non corrisponde a quello della scheda. Verifica l'attribuzione.
         </div>
       )}
       {!st.quadrature_ok && (
         <div style={{ background: "var(--pd-danger-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 13, color: "var(--pd-danger)" }}>
-          âš  Le quadrature non tornano completamente: alcune righe sono evidenziate per verifica manuale.
+          ⚠️ Le quadrature non tornano completamente: alcune righe sono evidenziate per verifica manuale.
         </div>
       )}
 
@@ -2001,7 +2001,7 @@ function AerStatement({ caseId, st, card, reload, corr }) {
         <Stat label="Carico affidato" value={eurAer(st.total_carico_affidato)} />
         <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
           <CrBadge on={st.count_proc_attive > 0} okText="Nessuna procedura attiva"
-            alertText={`âš  ${st.count_proc_attive} con fermo/ipoteca/procedure`} tone="danger" />
+            alertText={`⚠️ ${st.count_proc_attive} con fermo/ipoteca/procedure`} tone="danger" />
           <CrBadge on={(agg.count_rateizzate || 0) > 0} okText="Nessuna rateizzazione"
             alertText={`${agg.count_rateizzate} rateizzate`} tone="warning" />
           <CrBadge on={(agg.count_def_agevolata || 0) > 0} okText="Nessuna definizione agevolata"
@@ -2012,7 +2012,7 @@ function AerStatement({ caseId, st, card, reload, corr }) {
       {(agg.notifica_piu_vecchia || agg.notifica_piu_recente) && (
         <p style={{ fontSize: 13, color: "var(--pd-text-muted)", marginTop: 0 }}>
           Notifiche dal <b>{agg.notifica_piu_vecchia || "?"}</b> al <b>{agg.notifica_piu_recente || "?"}</b>.
-          Le cartelle piÃ¹ datate vanno valutate dal legale (possibile prescrizione) â€” l'app non lo deduce automaticamente.
+          Le cartelle più datate vanno valutate dal legale (possibile prescrizione) — l'app non lo deduce automaticamente.
         </p>
       )}
 
@@ -2047,14 +2047,14 @@ function AerStatement({ caseId, st, card, reload, corr }) {
           <tbody>
             {items.map((r) => (
               <tr key={r.id} style={{ borderTop: "1px solid var(--pd-border)", background: r.needs_review ? "var(--pd-warn-bg)" : "var(--pd-surface)" }}>
-                <td style={td}>{r.numero_documento}{r.needs_review ? " âš " : ""}</td>
-                <td style={td}>{r.tipo_documento || "â€”"}</td>
-                <td style={td}>{r.ente_creditore || "â€”"}</td>
-                <td style={td}>{r.data_notifica || "â€”"}</td>
+                <td style={td}>{r.numero_documento}{r.needs_review ? " ⚠️" : ""}</td>
+                <td style={td}>{r.tipo_documento || "—"}</td>
+                <td style={td}>{r.ente_creditore || "—"}</td>
+                <td style={td}>{r.data_notifica || "—"}</td>
                 <td style={{ ...tdNum, fontWeight: 600 }}>{eurAer(r.totale_residuo)}</td>
                 <td style={td}>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    {r.proc_attive && <AerTag text="âš  fermo/ipoteca" variant="danger" />}
+                    {r.proc_attive && <AerTag text="⚠️ fermo/ipoteca" variant="danger" />}
                     {r.rateizzato && <AerTag text="rateizzata" variant="info" />}
                     {r.def_agevolata && <AerTag text="def. agevolata" variant="ok" />}
                   </div>
@@ -2071,7 +2071,7 @@ function AerStatement({ caseId, st, card, reload, corr }) {
         </table>
       </div>
       <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "8px 0 0" }}>
-        Documento informativo (non Ã¨ una richiesta di pagamento). âš  = riga da verificare (quadratura/procedure).
+        Documento informativo (non è una richiesta di pagamento). ⚠️ = riga da verificare (quadratura/procedure).
       </p>
     </Section>
   );
@@ -2131,13 +2131,13 @@ function CentraleRischi({ card, corr }) {
 
       {/* 1. Riga di sintesi */}
       <div style={{ background: "var(--pd-info-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: 14, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: "12px 28px", alignItems: "center" }}>
-        <Stat label="Periodo analizzato" value={`${cr.period_from || "?"} â†’ ${cr.period_to || "?"}`} />
+        <Stat label="Periodo analizzato" value={`${cr.period_from || "?"} → ${cr.period_to || "?"}`} />
         <Stat label="Intermediari" value={cr.num_intermediaries ?? 0} />
         <Stat label="Esposizione totale" value={eur(cr.total_exposure)} />
         <Stat label="Garanzie prestate" value={eur(cr.total_guarantees)} />
         <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
-          <CrBadge on={cr.has_sofferenze} okText="Nessuna sofferenza" alertText="âš  Sofferenze presenti" tone="danger" />
-          <CrBadge on={cr.has_criticita} okText="Nessuna criticitÃ " alertText="âš  CriticitÃ  rilevate" tone="warning" />
+          <CrBadge on={cr.has_sofferenze} okText="Nessuna sofferenza" alertText="⚠️ Sofferenze presenti" tone="danger" />
+          <CrBadge on={cr.has_criticita} okText="Nessuna criticitÃ " alertText="⚠️ CriticitÃ  rilevate" tone="warning" />
         </div>
       </div>
 
@@ -2153,12 +2153,12 @@ function CentraleRischi({ card, corr }) {
           <tbody>
             {exposures.map(e => (
               <tr key={e.id} style={{ borderTop: "1px solid var(--pd-border)", background: e.is_critical ? "var(--pd-danger-bg)" : "var(--pd-surface)" }}>
-                <td style={td}>{e.intermediary || "â€”"}</td>
-                <td style={td}>{e.category || "â€”"}</td>
+                <td style={td}>{e.intermediary || "—"}</td>
+                <td style={td}>{e.category || "—"}</td>
                 <td style={tdNum}>{eur(e.accordato)}</td>
                 <td style={tdNum}>{eur(e.utilizzato)}</td>
                 <td style={tdNum}>{eur(e.importo_garantito)}</td>
-                <td style={td}>{e.status || "â€”"}</td>
+                <td style={td}>{e.status || "—"}</td>
                 {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={e.id} /><CorreggiBtn onClick={() => correggiEsp(e)} label="âœï¸" /></div></td>}
               </tr>
             ))}
@@ -2170,7 +2170,7 @@ function CentraleRischi({ card, corr }) {
       {/* 3. Garanzie prestate */}
       <h3 style={{ color: "var(--pd-text)", margin: "4px 0 6px" }}>Garanzie prestate</h3>
       <p style={{ fontSize: 13, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "8px 10px", margin: "0 0 8px" }}>
-        âš  Il cliente Ã¨ garante per questi soggetti: in caso di insolvenza puÃ² essere chiamato a rispondere.
+        ⚠️ Il cliente è garante per questi soggetti: in caso di insolvenza può essere chiamato a rispondere.
       </p>
       <div style={{ overflowX: "auto", marginBottom: 16 }}>
         <table style={{ ...tbl, minWidth: 680, marginBottom: 0 }}>
@@ -2181,11 +2181,11 @@ function CentraleRischi({ card, corr }) {
           <tbody>
             {guarantees.map(g => (
               <tr key={g.id} style={{ borderTop: "1px solid var(--pd-border)" }}>
-                <td style={td}>{g.guaranteed_subject || "â€”"}</td>
-                <td style={td}>{g.intermediary || "â€”"}</td>
+                <td style={td}>{g.guaranteed_subject || "—"}</td>
+                <td style={td}>{g.intermediary || "—"}</td>
                 <td style={tdNum}>{eur(g.valore_garanzia)}</td>
                 <td style={tdNum}>{eur(g.importo_garantito)}</td>
-                <td style={td}>{g.status || "â€”"}</td>
+                <td style={td}>{g.status || "—"}</td>
                 {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={g.id} /><CorreggiBtn onClick={() => correggiGar(g)} label="âœï¸" /></div></td>}
               </tr>
             ))}
@@ -2197,7 +2197,7 @@ function CentraleRischi({ card, corr }) {
       {/* 4. CriticitÃ  nel tempo */}
       <h3 style={{ color: "var(--pd-text)", margin: "4px 0 8px" }}>CriticitÃ  nel tempo</h3>
       {criticita.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: 0 }}>âœ“ Nessuna criticitÃ  storica rilevata.</p>
+        <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: 0 }}>✓ Nessuna criticitÃ  storica rilevata.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ ...tbl, minWidth: 760, marginBottom: 0 }}>
@@ -2208,11 +2208,11 @@ function CentraleRischi({ card, corr }) {
             <tbody>
               {criticita.map((c, i) => (
                 <tr key={i} style={{ borderTop: "1px solid var(--pd-border)", background: "var(--pd-danger-bg)" }}>
-                  <td style={td}>{c.mese || "â€”"}</td>
-                  <td style={td}>{c.intermediario || "â€”"}</td>
-                  <td style={td}>{c.tipo || "â€”"}</td>
-                  <td style={td}>{c.descrizione || "â€”"}</td>
-                  <td style={tdNum}>{c.importo ? eur(c.importo) : "â€”"}</td>
+                  <td style={td}>{c.mese || "—"}</td>
+                  <td style={td}>{c.intermediario || "—"}</td>
+                  <td style={td}>{c.tipo || "—"}</td>
+                  <td style={td}>{c.descrizione || "—"}</td>
+                  <td style={tdNum}>{c.importo ? eur(c.importo) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -2237,7 +2237,7 @@ function RelatedBanner({ caseId, related }) {
     <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "10px 14px", margin: "8px 0 4px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ color: "var(--pd-warn)", fontWeight: 600, fontSize: 14 }}>
-          âš  Esistono {related.length} altra/e pratica/he con questo codice fiscale
+          ⚠️ Esistono {related.length} altra/e pratica/he con questo codice fiscale
         </span>
         <button type="button" onClick={() => setOpen(o => !o)}
           style={{ background: "none", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: "var(--pd-warn)", fontSize: 13 }}>
@@ -2256,7 +2256,7 @@ function RelatedBanner({ caseId, related }) {
                 <td style={td}>{r.case_label || r.case_id}</td>
                 <td style={tdNum}>{r.n_documenti}</td>
                 <td style={tdNum}>{r.n_visure}</td>
-                <td style={td}>{r.ultima_attivita ? r.ultima_attivita.slice(0, 10) : "â€”"}</td>
+                <td style={td}>{r.ultima_attivita ? r.ultima_attivita.slice(0, 10) : "—"}</td>
                 <td style={td}><button type="button" onClick={() => goTo(r.case_id)}
                   style={{ ...btnPrimary, padding: "4px 12px", fontSize: 13 }}>Apri</button></td>
               </tr>
@@ -2265,7 +2265,7 @@ function RelatedBanner({ caseId, related }) {
         </table>
       )}
       <p style={{ fontSize: 12, color: "var(--pd-warn)", margin: "8px 0 0" }}>
-        Solo il riepilogo Ã¨ mostrato (nessun importo/contenuto). L'apertura di una pratica correlata viene registrata.
+        Solo il riepilogo è mostrato (nessun importo/contenuto). L'apertura di una pratica correlata viene registrata.
       </p>
     </div>
   );
@@ -2288,7 +2288,7 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
     try { res = await uploadDoc(caseId, f, docType); } catch {}
     setBusy(false);
     e.target.value = "";
-    if (res && res.duplicate) setDup(`"${res.original_filename}" Ã¨ giÃ  presente: non ricaricato.`);
+    if (res && res.duplicate) setDup(`"${res.original_filename}" è giÃ  presente: non ricaricato.`);
     if (res && res.id && !res.duplicate && onUploadedId) onUploadedId(scope, res.id);
     if (onUploaded) onUploaded();
   }
@@ -2299,16 +2299,16 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pd-primary)", marginBottom: 6 }}>{label}</div>
       <input type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
       {busy && <span style={{ marginLeft: 10, fontSize: 13 }}>Uploadâ€¦</span>}
-      {dup && <div style={{ marginTop: 8, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>âš  {dup}</div>}
+      {dup && <div style={{ marginTop: 8, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>⚠️ {dup}</div>}
       {mine.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {mine.map(doc => (
             <div key={doc.id} style={{ fontSize: 13, padding: "3px 0", borderTop: "1px solid var(--pd-border)" }}>
               <a href={docFileUrl(caseId, doc.id)} target="_blank" rel="noopener noreferrer"
-                style={{ color: "var(--pd-accent)", textDecoration: "none" }}>{doc.original_filename}</a> â€” {docStatusBadge(doc.status)}
-              {doc.doc_type && doc.doc_type !== "da_classificare" ? <span style={{ color: "var(--pd-text-muted)" }}> Â· {doc.doc_type}</span> : null}
+                style={{ color: "var(--pd-accent)", textDecoration: "none" }}>{doc.original_filename}</a> — {docStatusBadge(doc.status)}
+              {doc.doc_type && doc.doc_type !== "da_classificare" ? <span style={{ color: "var(--pd-text-muted)" }}> · {doc.doc_type}</span> : null}
               {doc.error ? <div style={{ color: "var(--pd-danger)", fontSize: 12 }}>{doc.error}</div> : null}
-              {doc.status === "elaborato" && <span style={{ color: "var(--pd-ok)" }}> âœ“ dati estratti aggiunti alla sezione</span>}
+              {doc.status === "elaborato" && <span style={{ color: "var(--pd-ok)" }}> ✓ dati estratti aggiunti alla sezione</span>}
             </div>
           ))}
         </div>
@@ -2319,7 +2319,7 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
 }
 
 /* ====================================================================
-   Box doppio-canale (riutilizzabile) â€” per OGNI documento: carica file
+   Box doppio-canale (riutilizzabile) — per OGNI documento: carica file
    OPPURE richiedi via API (dove consentito), con prezzo in evidenza.
    Ãˆ il TEMPLATE replicabile nelle altre tab cambiando solo la config.
    ==================================================================== */
@@ -2331,15 +2331,15 @@ const SHOW_PRICES = false;
 
 const REDDITO_DOCS = [
   { docType: "busta_paga", label: "Busta paga",
-    description: "Cedolino mensile â†’ reddito netto e datore (estrazione AI)." },
+    description: "Cedolino mensile → reddito netto e datore (estrazione AI)." },
   { docType: "cu", label: "CU",
-    description: "Certificazione Unica â†’ reddito annuo (estrazione AI)." },
+    description: "Certificazione Unica → reddito annuo (estrazione AI)." },
   { docType: "isee", label: "ISEE",
     description: "Indicatore situazione economica del nucleo.",
     api: { source: "isee", price_eur: 12.70, eta: "4-5 giorni lavorativi",
            required_fields: ["tax_code"], confirm_required: true } },
   { docType: "estratto_conto", label: "Estratto conto",
-    description: "Movimenti bancari â†’ entrate/uscite (parser gratuito)." },
+    description: "Movimenti bancari → entrate/uscite (parser gratuito)." },
   { docType: "dichiarazione_redditi", label: "Dichiarazione redditi (Modello Redditi / 730)",
     description: "Redditi non da lavoro dipendente: affitti, autonomo, partecipazioni (estrazione AI per quadro)." },
 ];
@@ -2348,7 +2348,7 @@ function RedditoTools({ caseId, taxCode, docs, uploadedByScope, addUploaded, rel
   return (
     <div style={{ background: "var(--pd-surface-2)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "12px 14px", marginBottom: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pd-primary)", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 10 }}>
-        ðŸ›  Strumenti â€” documenti di reddito
+        ðŸ›  Strumenti — documenti di reddito
       </div>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
         {REDDITO_DOCS.map(cfg => (
@@ -2385,7 +2385,7 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
         <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>fonti consolidate, normalizzate a mensile</span>
       </div>
       {flags.map((f, i) => (
-        <div key={i} style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", marginBottom: 6 }}>âš  {f}</div>
+        <div key={i} style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", marginBottom: 6 }}>⚠️ {f}</div>
       ))}
 
       {summable.length > 0 && (
@@ -2398,11 +2398,11 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
             {summable.map((s, i) => (
               <tr key={i} style={{ borderTop: "1px solid var(--pd-border)" }}>
                 <td style={td}>{s.source}{s.note ? <div style={{ fontSize: 11, color: "var(--pd-text-faint)" }}>{s.note}</div> : null}</td>
-                <td style={td}>{s.period || "â€”"}</td>
+                <td style={td}>{s.period || "—"}</td>
                 <td style={td}>{BASE_LABELS[s.basis] || s.basis}</td>
                 <td style={tdNum}>{eurFull(s.amount)}{s.basis === "annuo" ? "/a" : s.basis === "mensile" ? "/m" : ""}</td>
-                <td style={{ ...tdNum, fontWeight: 600 }}>{s.monthly_equiv == null ? "â€”" : eurFull(s.monthly_equiv)}</td>
-                <td style={tdNum}>{s.annual_equiv == null ? "â€”" : eurFull(s.annual_equiv)}</td>
+                <td style={{ ...tdNum, fontWeight: 600 }}>{s.monthly_equiv == null ? "—" : eurFull(s.monthly_equiv)}</td>
+                <td style={tdNum}>{s.annual_equiv == null ? "—" : eurFull(s.annual_equiv)}</td>
               </tr>
             ))}
           </tbody>
@@ -2420,9 +2420,9 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
           <tbody>
             {representative.map((r, i) => (
               <tr key={i}>
-                <td style={{ fontSize: 13, color: "var(--pd-text-muted)", padding: "2px 0" }}>{r.category_label}{r.year ? ` Â· ${r.year}` : ""}</td>
+                <td style={{ fontSize: 13, color: "var(--pd-text-muted)", padding: "2px 0" }}>{r.category_label}{r.year ? ` · ${r.year}` : ""}</td>
                 <td style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>{eurFull(r.monthly_equiv)}</td>
-                <td style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>{r.annual_equiv == null ? "â€”" : eurFull(r.annual_equiv)}</td>
+                <td style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>{r.annual_equiv == null ? "—" : eurFull(r.annual_equiv)}</td>
               </tr>
             ))}
             <tr style={{ borderTop: "2px solid var(--pd-primary)" }}>
@@ -2435,11 +2435,11 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
           <button type="button" onClick={() => onApplyMonthly(proposed_monthly)} disabled={appliedM}
             style={appliedM ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "default" } : { ...btnSmall, background: "var(--pd-ok)" }}>
-            {appliedM ? "âœ“ Mensile applicato" : 'Applica a "Reddito mensile netto"'}
+            {appliedM ? "✓ Mensile applicato" : 'Applica a "Reddito mensile netto"'}
           </button>
           <button type="button" onClick={() => onApplyAnnual(proposed_annual)} disabled={appliedA}
             style={appliedA ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "default" } : { ...btnSmall, background: "var(--pd-ok)" }}>
-            {appliedA ? "âœ“ Annuo applicato" : 'Applica a "Reddito annuo"'}
+            {appliedA ? "✓ Annuo applicato" : 'Applica a "Reddito annuo"'}
           </button>
           <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>poi verifica e salva</span>
         </div>
@@ -2448,7 +2448,7 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
       {references.length > 0 && (
         <div style={{ marginTop: 8, fontSize: 12, color: "var(--pd-text-muted)" }}>
           <b>Riferimenti</b> (non sommati al reddito): {references.map((r, i) => (
-            <span key={i}>{i ? " Â· " : ""}{r.source} {eurFull(r.amount)}{r.basis === "flusso" ? "/mese (flusso lordo)" : ""}</span>
+            <span key={i}>{i ? " · " : ""}{r.source} {eurFull(r.amount)}{r.basis === "flusso" ? "/mese (flusso lordo)" : ""}</span>
           ))}
         </div>
       )}
@@ -2456,7 +2456,7 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
   );
 }
 
-/* Pannello "dettaglio estratto" dei documenti di reddito: mostra COSA Ã¨ stato letto
+/* Pannello "dettaglio estratto" dei documenti di reddito: mostra COSA è stato letto
    da ogni documento (lordo/netto/trattenute, quadri, movimentiâ€¦), non solo il totale
    ripiegato nei campi economici. Un <details> per documento, contenuto per tipo. */
 const INCOME_DOC_LABELS = {
@@ -2496,7 +2496,7 @@ function incomeRows(docType, data) {
     const a = data.aggregazioni || {};
     const p = data.periodo || {};
     return [
-      ["Periodo", (p.da || p.a) ? `${p.da || "?"} â†’ ${p.a || "?"}` : null, false],
+      ["Periodo", (p.da || p.a) ? `${p.da || "?"} → ${p.a || "?"}` : null, false],
       ["Movimenti", a.count_movimenti, false], ["Mesi coperti", a.mesi_coperti, false],
       ["Totale entrate", a.totale_entrate, true], ["Totale uscite", a.totale_uscite, true],
       ["Entrate medie mensili", a.entrate_medie_mensili, true], ["Uscite medie mensili", a.uscite_medie_mensili, true],
@@ -2534,19 +2534,19 @@ function IncomeDocPanel({ item }) {
 
   // intestazione comune
   let head = label;
-  if (isDecl) head += ` Â· ${data.modello === "730" ? "Modello 730" : "Modello Redditi PF"}${data.anno_imposta ? ` Â· anno ${data.anno_imposta}` : ""}`;
-  else if (item.doc_type === "busta_paga" && data.periodo) head += ` Â· ${data.periodo}`;
-  else if (data.anno) head += ` Â· anno ${data.anno}`;
+  if (isDecl) head += ` · ${data.modello === "730" ? "Modello 730" : "Modello Redditi PF"}${data.anno_imposta ? ` · anno ${data.anno_imposta}` : ""}`;
+  else if (item.doc_type === "busta_paga" && data.periodo) head += ` · ${data.periodo}`;
+  else if (data.anno) head += ` · anno ${data.anno}`;
 
   return (
     <details style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
       <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--pd-primary)" }}>
-        ðŸ“„ {head} â€” dettaglio estratto
+        ðŸ“„ {head} — dettaglio estratto
       </summary>
       <div style={{ marginTop: 8 }}>
         {isDecl ? <DeclQuadriTable data={data} /> : <IncomeKeyValueTable docType={item.doc_type} data={data} />}
         {data.note && (
-          <p style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", margin: "8px 0 0" }}>âš  {data.note}</p>
+          <p style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", margin: "8px 0 0" }}>⚠️ {data.note}</p>
         )}
       </div>
     </details>
@@ -2583,7 +2583,7 @@ function DeclQuadriTable({ data }) {
         const bits = [];
         if (blk.canoni_percepiti) bits.push(`canoni ${eurFull(blk.canoni_percepiti)}`);
         if (blk.n_immobili_locati) { const n = blk.n_immobili_locati; bits.push(`${n} ${n === 1 ? "immobile locato" : "immobili locati"}`); }
-        det = bits.join(" Â· ");
+        det = bits.join(" · ");
       } else if (k === "RE_lavoro_autonomo" && blk.volume_affari) {
         det = `volume affari ${eurFull(blk.volume_affari)}`;
       }
@@ -2595,7 +2595,7 @@ function DeclQuadriTable({ data }) {
     <>
       {data.dichiarante?.nominativo && (
         <p style={{ fontSize: 12, color: "var(--pd-text-muted)", margin: "0 0 8px" }}>
-          Dichiarante: {data.dichiarante.nominativo}{data.dichiarante.codice_fiscale ? ` Â· ${data.dichiarante.codice_fiscale}` : ""}
+          Dichiarante: {data.dichiarante.nominativo}{data.dichiarante.codice_fiscale ? ` · ${data.dichiarante.codice_fiscale}` : ""}
         </p>
       )}
       <table style={{ ...tbl, marginBottom: 0 }}>
@@ -2606,7 +2606,7 @@ function DeclQuadriTable({ data }) {
             <tr key={r.k} style={{ borderTop: "1px solid var(--pd-border)" }}>
               <td style={td}>{r.label}</td>
               <td style={{ ...tdNum, fontWeight: 600 }}>{eurFull(r.val)}</td>
-              <td style={{ ...td, color: "var(--pd-text-muted)", fontSize: 12 }}>{r.det || "â€”"}</td>
+              <td style={{ ...td, color: "var(--pd-text-muted)", fontSize: 12 }}>{r.det || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -2646,7 +2646,7 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
     try { res = await uploadDoc(caseId, f, cfg.docType); } catch {}
     setBusy(false);
     e.target.value = "";
-    if (res && res.duplicate) setDup(`"${res.original_filename}" Ã¨ giÃ  presente: non ricaricato.`);
+    if (res && res.duplicate) setDup(`"${res.original_filename}" è giÃ  presente: non ricaricato.`);
     if (res && res.id && !res.duplicate && onUploadedId) onUploadedId(cfg.docType, res.id);
     if (reload) reload();
   }
@@ -2692,23 +2692,23 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--pd-primary)" }}>{cfg.label}</div>
       <div style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>{cfg.description}</div>
 
-      {/* Canale UPLOAD â€” sempre presente */}
+      {/* Canale UPLOAD — sempre presente */}
       <div style={{ borderTop: "1px solid var(--pd-border)", paddingTop: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text)", marginBottom: 4 }}>Carica documento</div>
         <input type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
         {busy && <span style={{ marginLeft: 8, fontSize: 12 }}>Uploadâ€¦</span>}
-        {dup && <div style={{ marginTop: 6, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>âš  {dup}</div>}
+        {dup && <div style={{ marginTop: 6, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>⚠️ {dup}</div>}
         {mine.map(doc => (
           <div key={doc.id} style={{ fontSize: 12, padding: "3px 0", borderTop: "1px solid var(--pd-border)", marginTop: 4 }}>
             <a href={docFileUrl(caseId, doc.id)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pd-accent)", textDecoration: "none" }}>{doc.original_filename}</a>
-            {" â€” "}{docStatusBadge(doc.status)}
+            {" — "}{docStatusBadge(doc.status)}
             {doc.error ? <div style={{ color: "var(--pd-danger)" }}>{doc.error}</div> : null}
-            {doc.status === "elaborato" && <span style={{ color: "var(--pd-ok)" }}> âœ“ valori proposti nei campi sotto</span>}
+            {doc.status === "elaborato" && <span style={{ color: "var(--pd-ok)" }}> ✓ valori proposti nei campi sotto</span>}
           </div>
         ))}
       </div>
 
-      {/* Canale API â€” solo se il documento Ã¨ richiedibile */}
+      {/* Canale API — solo se il documento è richiedibile */}
       {api && (
         <div style={{ borderTop: "1px solid var(--pd-border)", paddingTop: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
@@ -2730,12 +2730,12 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
             </p>
           )}
           {(req?.status === "error" || req?.status === "timeout") && (
-            <p style={{ color: "var(--pd-danger)", fontSize: 12, margin: "6px 0 0" }}>âœ— {req.error || "richiesta non riuscita."}</p>
+            <p style={{ color: "var(--pd-danger)", fontSize: 12, margin: "6px 0 0" }}>✗ {req.error || "richiesta non riuscita."}</p>
           )}
           {req?.status === "done" && (
             md && md.isee_ordinario
-              ? <p style={{ fontSize: 12, color: "var(--pd-ok)", margin: "6px 0 0" }}>âœ“ ISEE {eurFull(md.isee_ordinario)} ricevuto â€” nota aggiunta alle fonti di reddito.</p>
-              : <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "6px 0 0" }}>âœ“ Richiesta evasa (in ambiente di test il risultato puÃ² essere vuoto).</p>
+              ? <p style={{ fontSize: 12, color: "var(--pd-ok)", margin: "6px 0 0" }}>✓ ISEE {eurFull(md.isee_ordinario)} ricevuto — nota aggiunta alle fonti di reddito.</p>
+              : <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "6px 0 0" }}>✓ Richiesta evasa (in ambiente di test il risultato può essere vuoto).</p>
           )}
         </div>
       )}
@@ -2759,7 +2759,7 @@ function SummaryCard({ title, onGo, children }) {
       }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <strong style={{ color: "var(--pd-accent)", fontSize: 15 }}>{title}</strong>
-        {onGo && <span style={{ color: "var(--pd-accent)", fontSize: 13 }}>Vai â†’</span>}
+        {onGo && <span style={{ color: "var(--pd-accent)", fontSize: 13 }}>Vai →</span>}
       </div>
       {children}
     </div>

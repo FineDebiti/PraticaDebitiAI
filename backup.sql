@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict dtkatah4OYe7kbvr03Uh7K7CgRd1agYx5Mff3Kd2fc8M7EVjzcXdoaRtMNXQPmg
+\restrict S6SoUFrxT2qyd2mOEHRf21RWWcOcipxAhdXlmw7gss1ir2MRwXpjkTYd8Ieep9v
 
 -- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 16.14 (Debian 16.14-1.pgdg13+1)
@@ -618,7 +618,7 @@ COPY public.debt_positions (id, case_id, creditor_name, debt_type, original_amou
 
 COPY public.debtors (id, case_id, first_name, last_name, tax_code, birth_date, birth_place, residence, domicile, phone, email, pec, marital_status, profession, employer, client_type, household_composition, dependents, monthly_net_income, annual_income, income_sources, monthly_expenses, rent_or_mortgage, bank_accounts, has_ongoing_garnishment, has_salary_assignment, has_payment_delegation, notes, updated_at) FROM stdin;
 5627a765025841d3ae20f87cbfd7b6cf	b36eaa6a912040c8b3754117a69b7147		Planeta S.r.l.	03541280963											societa		0	0	0		0	0		f	f	f		2026-08-07 17:43:31.708452
-4ccc3f39008247dbbd221f5522492779	cf823fad972147be8d7a91f4b5f0561f	Alessandro	Traietti	TRTLSN65H01H501I											privato		0	3208.33	38500	[Dichiarazione redditi] complessivo € 0,00/anno · Mod. Redditi PF\n[CU] reddito complessivo € 0,00	950	0		f	f	f		2026-08-07 18:58:16.724876
+4ccc3f39008247dbbd221f5522492779	cf823fad972147be8d7a91f4b5f0561f	Alessandro	Traietti	TRTLSN65H01H501I											privato		0	3208.33	0		950	0		f	f	f		2026-08-07 19:36:33.461705
 \.
 
 
@@ -1206,5 +1206,5 @@ ALTER TABLE ONLY public.vehicles
 -- PostgreSQL database dump complete
 --
 
-\unrestrict dtkatah4OYe7kbvr03Uh7K7CgRd1agYx5Mff3Kd2fc8M7EVjzcXdoaRtMNXQPmg
+\unrestrict S6SoUFrxT2qyd2mOEHRf21RWWcOcipxAhdXlmw7gss1ir2MRwXpjkTYd8Ieep9v
 

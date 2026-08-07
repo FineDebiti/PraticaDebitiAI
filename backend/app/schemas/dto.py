@@ -104,6 +104,13 @@ class IndicatorItemOut(BaseModel):
 class CaseIndicatorsOut(BaseModel):
     macro: List[IndicatorItemOut] = []
     indicators: List[IndicatorItemOut] = []
+    global_risk_score: Optional[float] = 0.0
+    risk_score: Optional[float] = 0.0
+    dti_ratio: Optional[float] = 0.0
+    totale_attivi: Optional[float] = 0.0
+    total_assets: Optional[float] = 0.0
+    totale_debiti: Optional[float] = 0.0
+    total_debt: Optional[float] = 0.0
 
 
 class FieldEditOut(BaseModel):
