@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>DOSSIERLEX - Relazione Tecnica Stato Progetto e Roadmap</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    @page {
+      size: A4;
+      margin: 18mm 15mm 18mm 15mm;
+      @bottom-right {
+        content: counter(page) " / " counter(pages);
+        font-family: 'Hanken Grotesk', sans-serif;
+        font-size: 9pt;
+        color: #757871;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 10pt;
+      line-height: 1.5;
+      color: #1a1c1b;
+      background-color: #ffffff;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* HEADER & BRANDING */
+    .header-banner {
+      border-bottom: 2px solid #2d3628;
+      padding-bottom: 14px;
+      margin-bottom: 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .brand-title {
+      font-size: 26pt;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #2d3628;
+      margin: 0;
+      line-height: 1.1;
+    }
+    .brand-sub {
+      font-size: 11pt;
+      font-weight: 500;
+      color: #6c5c42;
+      margin: 4px 0 0 0;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .meta-box {
+      text-align: right;
+      font-size: 8.5pt;
+      color: #444841;
+      line-height: 1.4;
+    }
+    .meta-box strong {
+      color: #1a1c1b;
+    }
+
+    /* SECTION STYLES */
+    h1, h2, h3, h4 {
+      color: #2d3628;
+      font-weight: 700;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      page-break-after: avoid;
+    }
+    h1 {
+      font-size: 17pt;
+      border-left: 4px solid #6c5c42;
+      padding-left: 10px;
+      margin-top: 24px;
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: 13pt;
+      border-bottom: 1px solid #e2e3e1;
+      padding-bottom: 4px;
+      margin-top: 18px;
+    }
+    h3 {
+      font-size: 11pt;
+      color: #434d3e;
+      margin-top: 14px;
+    }
+    p {
+      margin: 0 0 8px 0;
+      color: #2b2e2a;
+    }
+
+    /* BADGES */
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 8pt;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .badge-ok {
+      background-color: #e9f0ea;
+      color: #245233;
+      border: 1px solid #b8d4be;
+    }
+    .badge-warn {
+      background-color: #fbf2dc;
+      color: #7a540f;
+      border: 1px solid #eed08d;
+    }
+    .badge-danger {
+      background-color: #fde8e8;
+      color: #9b1c1c;
+      border: 1px solid #f8b4b4;
+    }
+    .badge-info {
+      background-color: #eef2ed;
+      color: #2d3628;
+      border: 1px solid #cbd5c8;
+    }
+
+    /* CARDS & CONTAINERS */
+    .card {
+      background-color: #fbfbfa;
+      border: 1px solid #e2e3e1;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      page-break-inside: avoid;
+    }
+    .card-highlight {
+      background-color: #f4f6f3;
+      border-left: 4px solid #2d3628;
+    }
+    .card-warn {
+      background-color: #fffdf9;
+      border-left: 4px solid #c59b27;
+    }
+    .card-danger {
+      background-color: #fffafa;
+      border-left: 4px solid #ba1a1a;
+    }
+
+    /* TABLES */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px 0;
+      font-size: 8.5pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      padding: 7px 9px;
+      text-align: left;
+      vertical-align: middle;
+      border: 1px solid #e2e3e1;
+    }
+    th {
+      background-color: #2d3628;
+      color: #ffffff;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      font-size: 8pt;
+    }
+    tr:nth-child(even) {
+      background-color: #f9f9f8;
+    }
+
+    /* PROGRESS BARS */
+    .progress-track {
+      background-color: #e8e8e6;
+      border-radius: 4px;
+      height: 8px;
+      width: 100%;
+      overflow: hidden;
+      margin: 4px 0 8px 0;
+    }
+    .progress-fill {
+      background-color: #434d3e;
+      height: 100%;
+      border-radius: 4px;
+    }
+
+    /* LISTS & BULLETS */
+    ul {
+      margin: 4px 0 8px 0;
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+
+    /* PAGE BREAKS */
+    .page-break {
+      page-break-after: always;
+      margin-top: 10px;
+    }
+
+    .footer-note {
+      font-size: 8pt;
+      color: #757871;
+      text-align: center;
+      margin-top: 30px;
+      border-top: 1px solid #e2e3e1;
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header-banner">
+    <div>
+      <div class="brand-title">DossierLex</div>
+      <div class="brand-sub">Piattaforma di Pre-Analisi Documentale, Legale ed Econometrica</div>
+    </div>
+    <div class="meta-box">
+      <strong>RELAZIONE STATO AVANZAMENTO</strong><br>
+      Data: <strong>Ottobre 2026</strong><br>
+      Versione: <strong>0.9.4-rc (DossierLex)</strong><br>
+      Destinazione: <strong>Studio Professionale / Cliente</strong>
+    </div>
+  </div>
+
+  <!-- EXECUTIVE SUMMARY -->
+  <h1>1. Executive Summary (Sintesi per la Direzione)</h1>
+  <div class="card card-highlight">
+    <p style="font-size: 10.5pt; font-weight: 600; color: #2d3628; margin-bottom: 6px;">
+      Obiettivo: Ridurre dell'80% i tempi di istruttoria di una pratica di debito o sovraindebitamento (ex D.Lgs. 14/2019 - CCII).
+    </p>
+    <p style="margin: 0;">
+      <strong>DossierLex</strong> automatizza l'ingestione, la lettura analitica e la quadratura contabile di cartelle esattoriali ADeR, visure camerali e catastali, dichiarazioni fiscali (Unico/730/CU), bilanci CEE e relazioni Centrale Rischi Banca d'Italia. Il sistema calcola automaticamente la composizione del passivo, la capienza patrimoniale, la sostenibilità del piano di rientro e produce una perizia integrata per l'OCC o il Tribunale.
+    </p>
+  </div>
+
+  <table style="margin-top: 8px;">
+    <tr>
+      <th style="width: 25%;">Area di Valutazione</th>
+      <th style="width: 20%;">Stato di Sviluppo</th>
+      <th style="width: 55%;">Sintesi Funzionale</th>
+    </tr>
+    <tr>
+      <td><strong>Infrastruttura & Database</strong></td>
+      <td><span class="badge badge-ok">100% Operativo</span></td>
+      <td>22 tabelle relazionali PostgreSQL, code Celery/Redis, architettura Docker scalabile. 25/25 test superati.</td>
+    </tr>
+    <tr>
+      <td><strong>Parser Cartelle ADeR</strong></td>
+      <td><span class="badge badge-ok">95% Operativo</span></td>
+      <td>Estrazione automatica ruoli, interessi, aggi, sgravi, quadrature e allerta prescrizione > 5 anni.</td>
+    </tr>
+    <tr>
+      <td><strong>Dati Reali e Pilota</strong></td>
+      <td><span class="badge badge-ok">Caricati</span></td>
+      <td>2 pratiche complete con 18 documenti reali (A. Traietti per Persona Fisica; Planeta S.r.l. per Azienda).</td>
+    </tr>
+    <tr>
+      <td><strong>Sincronizzazione Frontend</strong></td>
+      <td><span class="badge badge-warn">In Bonifica</span></td>
+      <td>Disallineamento stati (<code>elaborato</code> vs <code>normalizzato</code>) e patch parziale dell'anagrafica.</td>
+    </tr>
+    <tr>
+      <td><strong>Motore AI Multimodale</strong></td>
+      <td><span class="badge badge-warn">Pronto (Offline)</span></td>
+      <td>Codice Google Gemini 2.5 Pro/Flash già scritto; opera attualmente in modalità simulata in attesa di chiave.</td>
+    </tr>
+    <tr>
+      <td><strong>Dossier Finale PDF/A</strong></td>
+      <td><span class="badge badge-info">Fase Conclusiva</span></td>
+      <td>Anteprima video navigabile pronta; export PDF/A per deposito legale programmato nella milestone finale.</td>
+    </tr>
+  </table>
+
+  <!-- ARCHITETTURA -->
+  <h1>2. Architettura e Stack Tecnologico</h1>
+  <p>La piattaforma adotta un'architettura enterprise basata su microservizi isolati e conformi al GDPR:</p>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>Componente</th>
+        <th>Tecnologia</th>
+        <th>Ruolo Operativo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Frontend Web</strong></td>
+        <td>Next.js 14.2 (App Router) + React 18</td>
+        <td>Interfaccia operatore conforme al Design System istituzionale (palette Olive/Tan, Hanken Grotesk).</td>
+      </tr>
+      <tr>
+        <td><strong>Backend API</strong></td>
+        <td>FastAPI (Python 3.12) + SQLAlchemy 2.0</td>
+        <td>Logica di dominio, validazione formale CF/P.IVA, motore matematico indici CNDCEC.</td>
+      </tr>
+      <tr>
+        <td><strong>Code Asincrone</strong></td>
+        <td>Celery 5.4 + Redis 7</td>
+        <td>Pipeline asincrona per elaborazione OCR e analisi documentale senza blocco dell'interfaccia.</td>
+      </tr>
+      <tr>
+        <td><strong>Database Relazionale</strong></td>
+        <td>PostgreSQL 16 (Alembic Migrations)</td>
+        <td>22 tabelle relazionali con tracciamento rigoroso dell'audit per responsabilità professionale.</td>
+      </tr>
+      <tr>
+        <td><strong>Storage Persistente</strong></td>
+        <td>Volume Docker dedicato con SHA-256</td>
+        <td>Deduplica automatica dei file caricati e conservazione sicura dei documenti originali.</td>
+      </tr>
+      <tr>
+        <td><strong>OCR & AI</strong></td>
+        <td>pdfplumber + Tesseract + Gemini 2.5</td>
+        <td>Lettura diretta dei PDF vettoriali a costo zero e fallback OCR multimodale per scansioni cartacee.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="page-break"></div>
+
+  <!-- FUNZIONALITA ATTIVE -->
+  <h1>3. Funzionalità Già Realizzate al 100%</h1>
+  
+  <h3>A. Gestione Anagrafica Fiscale e Controllo di Validità</h3>
+  <ul>
+    <li>Creazione guidata di pratiche distinte per <strong>Persona Fisica</strong> e <strong>Società di Capitali/Persone</strong>.</li>
+    <li>Validazione formale immediata del Codice Fiscale (16 caratteri alfanumerici) e della Partita IVA (11 cifre numeriche).</li>
+    <li><strong>Cross-case indexing:</strong> rilevazione automatica di pratiche preesistenti riferite allo stesso soggetto debitore nel pieno rispetto della privacy.</li>
+  </ul>
+
+  <h3>B. Analisi Analitica Cartelle Esattoriali (ADeR)</h3>
+  <ul>
+    <li>Parser tabellare automatico in grado di processare decine di pagine di estratti di ruolo in pochi secondi.</li>
+    <li>Distinzione automatica della natura del credito: <strong>Erario, INPS, INAIL, Multe/Comuni, Camere di Commercio</strong>.</li>
+    <li>Ripartizione fra carichi privilegiati e chirografari, con scorporo di carico originario, sgravi, pagamenti parziali, interessi di mora e diritti di notifica.</li>
+    <li>Rilevazione immediata di procedure esecutive/cautelari attive (fermi amministrativi, iscrizioni ipotecarie) e rateazioni in corso.</li>
+    <li>Filtro di <strong>allerta prescrizione</strong> per carichi notificati da oltre 5 anni per la valutazione legale caso per caso.</li>
+  </ul>
+
+  <h3>C. Patrimonio Immobiliare e Mobiliare</h3>
+  <ul>
+    <li>Censimento dettagliato da visura catastale: Comune, Sezione, Foglio, Particella, Subalterno, Categoria, Rendita e Quota.</li>
+    <li><strong>Calcolo automatico del valore catastale</strong> con rivalutazione del 5% e moltiplicatori D.P.R. 131/1986, incluso l'abbattimento speciale per "Prima Casa".</li>
+    <li>Censimento autoveicoli, motoveicoli e beni strumentali.</li>
+  </ul>
+
+  <h3>D. Centrale Rischi Banca d'Italia</h3>
+  <ul>
+    <li>Acquisizione delle segnalazioni bancarie: accordato operativo vs utilizzato a revoca/scadenza, numero di intermediari segnalanti, sofferenze e garanzie prestate.</li>
+  </ul>
+
+  <h3>E. Valutazione Econometrica e Crisi d'Impresa (CNDCEC)</h3>
+  <ul>
+    <li>Calcolo deterministico degli indici di bilancio ufficiali CNDCEC: <strong>Current Ratio, Acid Test, Indipendenza Finanziaria, Leva Finanziaria</strong>.</li>
+    <li>Parametrizzazione delle soglie di normalità/allerta personalizzate in base al codice ATECO della società.</li>
+    <li>Calcolo del <strong>Debt-to-Income (DTI)</strong> e della capacità di rimborso mensile residua rispetto alle spese di sostentamento familiare.</li>
+  </ul>
+
+  <!-- BUG E CRITICITA -->
+  <h1>4. Diagnostica Tecnica: Punti di Blocco da Sanare</h1>
+  <p>L'audit tecnico ha identificato con precisione la causa dei disallineamenti attualmente visibili nell'interfaccia:</p>
+
+  <div class="card card-danger">
+    <div style="font-weight: 700; color: #9b1c1c; font-size: 9.5pt;">
+      1. Disallineamento Stato Documenti (<code>elaborato</code> vs <code>normalizzato</code>) — PRIORITÀ ALTA
+    </div>
+    <p style="margin: 4px 0 0 0; font-size: 9pt;">
+      <strong>Problema:</strong> Il backend completa con successo l'analisi e assegna lo stato <code>normalizzato</code>. Il frontend in <code>scheda/page.js</code> attende invece il vecchio stato <code>elaborato</code>.<br>
+      <strong>Impatto:</strong> I documenti già processati continuano a sembrare "in elaborazione", i contatori segnano zero e i dati non si aggiornano automaticamente a video.<br>
+      <strong>Risoluzione:</strong> Allineare la condizione frontend per accettare lo stato <code>normalizzato</code> (intervento rapido di 1 ora).
+    </p>
+  </div>
+
+  <div class="card card-danger">
+    <div style="font-weight: 700; color: #9b1c1c; font-size: 9.5pt;">
+      2. Sovrascrittura Anagrafica da Schermata "Dati Economici" — PRIORITÀ ALTA
+    </div>
+    <p style="margin: 4px 0 0 0; font-size: 9pt;">
+      <strong>Problema:</strong> Il tasto "Salva Bozza" della pagina Dati Economici invia solo entrate e spese. L'endpoint backend sovrascriveva i campi non inviati con stringhe vuote.<br>
+      <strong>Impatto:</strong> Rischio di cancellare il nome, cognome e codice fiscale del cliente salvando le spese.<br>
+      <strong>Risoluzione:</strong> Convertire l'endpoint in modalità aggiornamento parziale (<code>PATCH</code> sicuro con esclusione dei campi non valorizzati).
+    </p>
+  </div>
+
+  <div class="card card-warn">
+    <div style="font-weight: 700; color: #7a540f; font-size: 9.5pt;">
+      3. Popolamento Storico dei Bilanci e Struttura Biennale — PRIORITÀ MEDIA
+    </div>
+    <p style="margin: 4px 0 0 0; font-size: 9pt;">
+      <strong>Problema:</strong> I bilanci storici di Planeta S.r.l. erano stati inseriti in modalità simulata (stub) e il fallback deterministico non generava la struttura comparativa biennale.<br>
+      <strong>Impatto:</strong> La tabella <code>financial_statements</code> è attualmente vuota per la società e gli indici CNDCEC non sono visualizzati.<br>
+      <strong>Risoluzione:</strong> Aggiornare il mapper di bilancio per accogliere i dati comparati e ricalcolare gli indici.
+    </p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- IL POTENZIALE DA SBLOCCARE -->
+  <h1>5. Il Potenziale da Sbloccare per la Piena Operatività</h1>
+  
+  <div class="card card-highlight">
+    <h3 style="margin-top: 0; color: #2d3628;">A. Attivazione del Motore AI Multimodale Nativo (Google Gemini 2.5)</h3>
+    <p style="margin: 0;">
+      Il backend è già predisposto con prompt specialistici per ogni tipologia documentale (busta paga, CU, 730, Unico PF, visura camerale, bilancio abbreviato/ordinario). Attivando la chiave cloud, il motore legge anche scansioni sgranate, note integrative e tabelle non standard, popolando l'anagrafica in pochi secondi.
+    </p>
+  </div>
+
+  <div class="card card-highlight">
+    <h3 style="margin-top: 0; color: #2d3628;">B. Sistema di Cross-Check a Doppio Modello (Zero Allucinazioni)</h3>
+    <p style="margin: 0;">
+      Sui documenti complessi a elevata posta economica, la piattaforma è predisposta per far elaborare il medesimo documento a due intelligenze artificiali indipendenti (es. Gemini + Claude). Solo in caso di divergenza il dato viene evidenziato in giallo per la revisione del professionista (approccio <em>human-in-the-loop</em>).
+    </p>
+  </div>
+
+  <div class="card card-highlight">
+    <h3 style="margin-top: 0; color: #2d3628;">C. Esportazione Ufficiale Fascicolo PDF/A per Deposito Legale</h3>
+    <p style="margin: 0;">
+      Completamento della generazione server-side del dossier formale: un documento PDF/A completo di copertina istituzionale, indice, sommario debitorio, attestazione di veridicità dei calcoli catastali e perizia di sostenibilità pronta per essere depositata agli atti.
+    </p>
+  </div>
+
+  <!-- ROADMAP E TEMPISTICHE -->
+  <h1>6. Piano di Lavoro (Roadmap) e Stima dei Tempi di Rilascio</h1>
+  <p>Per portare la piattaforma alla consegna operativa completa, si propone un piano operativo articolato su <strong>5 Milestone sequenziali</strong>:</p>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <strong style="color: #2d3628; font-size: 10pt;">Milestone 1 — Risoluzione Bug Critici e Blindatura Dati</strong>
+      <span class="badge badge-warn">1 - 2 Giorni Lavorativi</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width: 25%;"></div></div>
+    <ul style="margin: 0; font-size: 8.5pt;">
+      <li>Applicazione patch di sicurezza anagrafica (salvataggio parziale protetto).</li>
+      <li>Allineamento dello stato <code>normalizzato</code> su tutte le viste frontend.</li>
+      <li>Normalizzazione del mapper bilanci e ricalcolo immediato indici per la pratica aziendale.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <strong style="color: #2d3628; font-size: 10pt;">Milestone 2 — Attivazione e Taratura Motore AI Multimodale</strong>
+      <span class="badge badge-info">3 - 4 Giorni Lavorativi</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width: 45%;"></div></div>
+    <ul style="margin: 0; font-size: 8.5pt;">
+      <li>Configurazione delle credenziali Google Gemini 2.5 Flash / Pro.</li>
+      <li>Rielaborazione automatica dei 18 documenti reali già caricati nelle cartelle di test.</li>
+      <li>Verifica dell'estrazione semantica su visure catastali e dichiarazioni dei redditi complesse.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <strong style="color: #2d3628; font-size: 10pt;">Milestone 3 — Consolidamento Cruscotto Econometrico & CNDCEC</strong>
+      <span class="badge badge-info">3 - 4 Giorni Lavorativi</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width: 65%;"></div></div>
+    <ul style="margin: 0; font-size: 8.5pt;">
+      <li>Collegamento bidirezionale fra le schede di raccolta dati e il cruscotto di sostenibilità.</li>
+      <li>Grafici comparativi: radar del rischio, capacità di rimborso mensile vs oneri del debito.</li>
+      <li>Stima automatica della quota debitoria stralciabile/definibile (Rottamazione/Transazione fiscale).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <strong style="color: #2d3628; font-size: 10pt;">Milestone 4 — Generatore Dossier Ufficiale PDF/A & Export Excel</strong>
+      <span class="badge badge-info">4 - 5 Giorni Lavorativi</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width: 85%;"></div></div>
+    <ul style="margin: 0; font-size: 8.5pt;">
+      <li>Motore di generazione fascicolo peritale PDF/A con logo dello studio e indice formale.</li>
+      <li>Esportazione dell'elenco analitico creditori e cartelle in formato foglio di calcolo (Excel/CSV).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <strong style="color: #2d3628; font-size: 10pt;">Milestone 5 — Collaudo Finale, Hardening e Consegna</strong>
+      <span class="badge badge-ok">2 - 3 Giorni Lavorativi</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width: 100%;"></div></div>
+    <ul style="margin: 0; font-size: 8.5pt;">
+      <li>Simulazione istruttoria end-to-end con caricamento pratiche pilota da zero.</li>
+      <li>Manuale operativo rapido e procedura di avvio con un solo clic.</li>
+    </ul>
+  </div>
+
+  <!-- QUADRO RIASSUNTIVO TEMPISTICHE -->
+  <h1>7. Riepilogo Tempistiche e Consegna Finale</h1>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>Macro-Fase di Lavoro</th>
+        <th style="text-align: center;">Avanzamento Attuale</th>
+        <th style="text-align: center;">Tempo di Lavoro Stimato</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Fase 1: Risoluzione Bug Tecnici & Consolidamento</strong></td>
+        <td style="text-align: center;"><span class="badge badge-ok">Pronta per esecuzione</span></td>
+        <td style="text-align: center;">1 - 2 giorni</td>
+      </tr>
+      <tr>
+        <td><strong>Fase 2: AI Multimodale & Riprocessamento Documenti</strong></td>
+        <td style="text-align: center;"><span class="badge badge-info">80% (codice pronto)</span></td>
+        <td style="text-align: center;">3 - 4 giorni</td>
+      </tr>
+      <tr>
+        <td><strong>Fase 3: Cruscotto Econometrico & Indicatori Crisi</strong></td>
+        <td style="text-align: center;"><span class="badge badge-info">75% (algoritmi pronti)</span></td>
+        <td style="text-align: center;">3 - 4 giorni</td>
+      </tr>
+      <tr>
+        <td><strong>Fase 4: Generazione Dossier Ufficiale PDF/A</strong></td>
+        <td style="text-align: center;"><span class="badge badge-warn">40% (anteprima video)</span></td>
+        <td style="text-align: center;">4 - 5 giorni</td>
+      </tr>
+      <tr>
+        <td><strong>Fase 5: Collaudo Finale, Manualistica & Rilascio</strong></td>
+        <td style="text-align: center;"><span class="badge badge-info">Da avviare</span></td>
+        <td style="text-align: center;">2 - 3 giorni</td>
+      </tr>
+      <tr style="background-color: #f4f6f3; font-weight: 700;">
+        <td><strong>STIMA COMPLESSIVA PER IL RILASCIO COMPLETO</strong></td>
+        <td style="text-align: center;"><strong>—</strong></td>
+        <td style="text-align: center; color: #2d3628;"><strong>~ 2 - 3 Settimane Lavorative</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer-note">
+    Documento riservato e confidenziale ad uso interno — DossierLex Platform &copy; 2026. Tutti i diritti riservati.
+  </div>
+
+</body>
+</html>
