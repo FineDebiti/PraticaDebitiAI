@@ -159,79 +159,109 @@ def _parse_ocr_text_deterministic(text: str, doc_type: str, client_cf: str) -> D
                 out["reddito_mensile"] = round(ann / 12.0, 2)
             except ValueError:
                 pass
-        if "reddito_annuo" not in out:
-            out["reddito_annuo"] = 38500.0
-            out["reddito_mensile"] = 3208.33
 
     elif doc_type == "visura_catastale":
-        out["immobili"] = [{
-            "indirizzo": "Via della Pace, Grosseto (GR)",
-            "foglio": "142",
-            "particella": "850",
-            "subalterno": "12",
-            "categoria": "A/2",
-            "rendita_catastale": 784.00,
-            "superficie_mq": 115.0,
-            "quota_soggetto": "100%",
-            "diritto_soggetto": "Proprietà"
-        }]
+        immobili = []
+        for m in re.finditer(r'(?:foglio|fg\.?)\s*(\d+).*?(?:particella|part\.?|mappale|p\.lla)\s*(\d+|[A-Z0-9]+)', text, re.I):
+            immobili.append({
+                "indirizzo": "",
+                "foglio": m.group(1),
+                "particella": m.group(2),
+                "subalterno": "",
+                "categoria": "",
+                "rendita_catastale": 0.0,
+                "superficie_mq": 0.0,
+                "quota_soggetto": "100%",
+                "diritto_soggetto": "Proprietà"
+            })
+        out["immobili"] = immobili
 
     elif doc_type == "centrale_rischi":
-        if "planeta" in text_lower:
-            out["esposizione_attuale"] = {
-                "totale_accordato": 450000.0,
-                "totale_utilizzato": 380000.0,
-                "sofferenze": 0.0,
-                "numero_intermediari": 3
-            }
-        else:
-            out["esposizione_attuale"] = {
-                "totale_accordato": 120000.0,
-                "totale_utilizzato": 85000.0,
-                "sofferenze": 0.0,
-                "numero_intermediari": 2
-            }
+        m_acc = re.search(r'(?:totale\s+accordato|accordato)[^\d]*([\d\.,]+)', text, re.I)
+        m_ut = re.search(r'(?:totale\s+utilizzato|utilizzato)[^\d]*([\d\.,]+)', text, re.I)
+        m_soff = re.search(r'sofferenze[^\d]*([\d\.,]+)', text, re.I)
+        m_int = re.search(r'(?:numero\s+intermediari|intermediari|segnalanti)[^\d]*(\d+)', text, re.I)
+
+        def _pnum_simple(match):
+            if not match:
+                return 0.0
+            try:
+                return float(match.group(1).replace(".", "").replace(",", "."))
+            except ValueError:
+                return 0.0
+
+        accordato = _pnum_simple(m_acc)
+        utilizzato = _pnum_simple(m_ut)
+        sofferenze = _pnum_simple(m_soff)
+        num_int = int(m_int.group(1)) if m_int else (1 if (accordato or utilizzato) else 0)
+
+        out["esposizione_attuale"] = {
+            "totale_accordato": accordato,
+            "totale_utilizzato": utilizzato,
+            "sofferenze": sofferenze,
+            "numero_intermediari": num_int
+        }
 
     elif doc_type == "visura_camerale":
-        if "planeta" in text_lower or client_cf == "03541280963":
+        piva_match = re.search(r'(?:partita\s+iva|p\.?\s*i\.?|p\.?\s*iva)[^\d]*(\d{11})', text, re.I)
+        cf_match = re.search(r'(?:codice\s+fiscale|c\.?\s*f\.?)[^\d]*([a-z0-9]{11,16})', text, re.I)
+        rea_match = re.search(r'(?:n\.?\s*rea|rea)[^\d]*([A-Z]{2}\s*\d+|\d+)', text, re.I)
+        denom_match = re.search(r'(?:denominazione|ragione\s+sociale)[^\w\n]*([A-Z0-9\s\.\'\,\-]+(?:S\.?R\.?L\.?|S\.?P\.?A\.?|S\.?N\.?C\.?|S\.?A\.?S\.?|SOCIET[AÀ]))', text, re.I)
+        sede_match = re.search(r'(?:sede\s+legale|sede\s+in)[^\w\n]*([^\n]+)', text, re.I)
+        cap_match = re.search(r'(?:capitale\s+sociale|capitale\s+conferimenti)[^\d]*([\d\.,]+)', text, re.I)
+
+        def _pnum_simple2(match):
+            if not match:
+                return 0.0
+            try:
+                return float(match.group(1).replace(".", "").replace(",", "."))
+            except ValueError:
+                return 0.0
+
+        piva = piva_match.group(1) if piva_match else ""
+        cf = cf_match.group(1).upper() if cf_match else piva
+        denom = denom_match.group(1).strip() if denom_match else ""
+        sede = sede_match.group(1).strip() if sede_match else ""
+        cap = _pnum_simple2(cap_match)
+
+        if denom or piva or cf:
             out["impresa"] = {
-                "denominazione": "Planeta S.r.l.",
-                "forma_giuridica": "S.R.L.",
+                "denominazione": denom or "Impresa",
+                "forma_giuridica": "S.R.L." if "s.r.l" in text_lower else "",
                 "tipo_societa": "capitale",
-                "codice_fiscale": "03541280963",
-                "partita_iva": "03541280963",
-                "numero_rea": "308770",
-                "cciaa": "RE",
-                "sede_legale": "Via Ferruccio Ferrari 2, Reggio Emilia (RE)",
+                "codice_fiscale": cf or client_cf,
+                "partita_iva": piva,
+                "numero_rea": rea_match.group(1).strip() if rea_match else "",
+                "cciaa": "",
+                "sede_legale": sede,
                 "stato_attivita": "ATTIVA",
-                "capitale_conferimenti": 10000.0
+                "capitale_conferimenti": cap
             }
-            out["soci"] = [
-                {"denominazione": "Socio Maggioranza", "codice_fiscale": "03541280963", "quota_percentuale": 100.0, "e_cliente": True}
-            ]
+            out["soci"] = []
 
     elif doc_type == "bilancio":
         m_anno = re.search(r'(?:31-12-|esercizio\s+)(202\d)', text, re.I)
-        anno = int(m_anno.group(1)) if m_anno else (2025 if "2025" in text else (2024 if "2024" in text else 2023))
+        anno = int(m_anno.group(1)) if m_anno else 2024
         out["doc_type"] = "bilancio"
 
-        denominazione = "Planeta S.r.l." if "planeta" in text_lower else "Azienda"
         piva_match = re.search(r'(?:partita\s+iva|p\.?\s*i\.?|p\.?\s*iva)[^\d]*(\d{11})', text, re.I)
         cf_match = re.search(r'(?:codice\s+fiscale|c\.?\s*f\.?)[^\d]*([a-z0-9]{11,16})', text, re.I)
         ateco_match = re.search(r'ateco[^\d]*(\d{6})', text, re.I)
+        denom_match = re.search(r'([A-Z0-9\s\.\'\,\-]+(?:S\.?R\.?L\.?|S\.?P\.?A\.?|S\.?N\.?C\.?|S\.?A\.?S\.?))', text[:400], re.I)
 
-        piva = piva_match.group(1) if piva_match else ("02735590354" if "planeta" in text_lower else "")
+        piva = piva_match.group(1) if piva_match else ""
         cf = cf_match.group(1).upper() if cf_match else piva
-        ateco = ateco_match.group(1) if ateco_match else "711210"
+        denom = denom_match.group(1).strip() if denom_match else ""
+        ateco = ateco_match.group(1) if ateco_match else ""
 
         out["azienda"] = {
-            "denominazione": denominazione,
+            "denominazione": denom,
             "partita_iva": piva,
             "codice_fiscale": cf,
-            "forma_giuridica": "SOCIETA' A RESPONSABILITA' LIMITATA",
+            "forma_giuridica": "",
             "ateco": ateco,
-            "sede": "Via Ferruccio Ferrari 2, Reggio Emilia (RE)",
-            "capitale_sociale": 10000.0,
+            "sede": "",
+            "capitale_sociale": 0.0,
         }
         out["esercizio"] = {
             "data_chiusura": f"31/12/{anno}",
@@ -269,114 +299,33 @@ def _parse_ocr_text_deterministic(text: str, doc_type: str, client_cf: str) -> D
         ut_per = _extract_pair(r'21\)\s*Utile\s+\(perdita\)\s+dell[\'\’]esercizio\s+([\d\.]+)\s+([\d\.]+)')
         on_fin = _extract_pair(r'Totale\s+interessi\s+e\s+altri\s+oneri\s+finanziari\s+([\d\.]+)\s+([\d\.]+)')
 
-        if anno == 2025:
-            sp_defaults = {
-                "totale_attivo": {"corrente": 3192054.0, "precedente": 3945462.0},
-                "totale_immobilizzazioni": {"corrente": 832054.0, "precedente": 603304.0},
-                "totale_attivo_circolante": {"corrente": 2360000.0, "precedente": 3317180.0},
-                "disponibilita_liquide": {"corrente": 1200000.0, "precedente": 1231497.0},
-                "rimanenze": {"corrente": 0.0, "precedente": 0.0},
-                "patrimonio_netto": {"corrente": 1398655.40, "precedente": 1431510.0},
-                "debiti_totali": {"corrente": 1684634.83, "precedente": 2421854.0},
-                "debiti_entro": {"corrente": 1357454.54, "precedente": 2085683.0},
-                "debiti_oltre": {"corrente": 327180.29, "precedente": 234841.0},
-            }
-            ce_defaults = {
-                "ricavi_vendite": {"corrente": 4100000.0, "precedente": 3865780.0},
-                "valore_produzione": {"corrente": 4250000.0, "precedente": 4085461.0},
-                "differenza_valore_costi": {"corrente": 710000.0, "precedente": 727435.0},
-                "oneri_finanziari": {"corrente": 580000.0, "precedente": 617796.0},
-                "utile_perdita": {"corrente": 38000.0, "precedente": 33443.0},
-            }
-            deb_defaults = {
-                "tributari": {"importo": 590742.48, "entro": 590742.48, "oltre": 0.0, "di_cui_privilegi": 590742.48},
-                "previdenziali": {"importo": 39204.73, "entro": 39204.73, "oltre": 0.0, "di_cui_privilegi": 39204.73},
-                "banche": {"importo": 327180.29, "entro": 0.0, "oltre": 327180.29, "di_cui_ipoteche": 0.0},
-                "fornitori": {"importo": 727507.33, "entro": 727507.33, "oltre": 0.0},
-            }
-        elif anno == 2024:
-            sp_defaults = {
-                "totale_attivo": tot_att or {"corrente": 3945462.0, "precedente": 7220985.0},
-                "totale_immobilizzazioni": tot_imm or {"corrente": 603304.0, "precedente": 256743.0},
-                "totale_attivo_circolante": tot_cir or {"corrente": 3317180.0, "precedente": 6964242.0},
-                "disponibilita_liquide": disp_l or {"corrente": 1231497.0, "precedente": 1625113.0},
-                "rimanenze": {"corrente": 0.0, "precedente": 0.0},
-                "patrimonio_netto": pn or {"corrente": 1431510.0, "precedente": 1398067.0},
-                "debiti_totali": tot_d or {"corrente": 2421854.0, "precedente": 5764395.0},
-                "debiti_entro": deb_e or {"corrente": 2085683.0, "precedente": 5339129.0},
-                "debiti_oltre": deb_o or {"corrente": 234841.0, "precedente": 142553.0},
-            }
-            ce_defaults = {
-                "ricavi_vendite": ric_v or {"corrente": 3865780.0, "precedente": 6225666.0},
-                "valore_produzione": val_p or {"corrente": 4085461.0, "precedente": 6233280.0},
-                "differenza_valore_costi": dif_vc or {"corrente": 727435.0, "precedente": 600252.0},
-                "oneri_finanziari": on_fin or {"corrente": 617796.0, "precedente": 456417.0},
-                "utile_perdita": ut_per or {"corrente": 33443.0, "precedente": 77536.0},
-            }
-            deb_defaults = {
-                "tributari": {"importo": 310000.0, "entro": 310000.0, "oltre": 0.0, "di_cui_privilegi": 310000.0},
-                "previdenziali": {"importo": 45000.0, "entro": 45000.0, "oltre": 0.0, "di_cui_privilegi": 45000.0},
-                "banche": {"importo": 550000.0, "entro": 315159.0, "oltre": 234841.0},
-                "fornitori": {"importo": 1450000.0, "entro": 1450000.0, "oltre": 0.0},
-            }
-        else:
-            sp_defaults = {
-                "totale_attivo": tot_att or {"corrente": 7220985.0, "precedente": 4713870.0},
-                "totale_immobilizzazioni": tot_imm or {"corrente": 256743.0, "precedente": 139961.0},
-                "totale_attivo_circolante": tot_cir or {"corrente": 6964242.0, "precedente": 4572014.0},
-                "disponibilita_liquide": disp_l or {"corrente": 1625113.0, "precedente": 386728.0},
-                "rimanenze": {"corrente": 0.0, "precedente": 0.0},
-                "patrimonio_netto": pn or {"corrente": 1398067.0, "precedente": 1320533.0},
-                "debiti_totali": tot_d or {"corrente": 5764395.0, "precedente": 3347880.0},
-                "debiti_entro": deb_e or {"corrente": 5339129.0, "precedente": 3315330.0},
-                "debiti_oltre": deb_o or {"corrente": 142553.0, "precedente": 32550.0},
-            }
-            ce_defaults = {
-                "ricavi_vendite": ric_v or {"corrente": 6225666.0, "precedente": 6289952.0},
-                "valore_produzione": val_p or {"corrente": 6233280.0, "precedente": 6304214.0},
-                "differenza_valore_costi": dif_vc or {"corrente": 600252.0, "precedente": 1527010.0},
-                "oneri_finanziari": on_fin or {"corrente": 456417.0, "precedente": 312000.0},
-                "utile_perdita": ut_per or {"corrente": 77536.0, "precedente": 1059262.0},
-            }
-            deb_defaults = {
-                "tributari": {"importo": 420000.0, "entro": 420000.0, "oltre": 0.0, "di_cui_privilegi": 420000.0},
-                "previdenziali": {"importo": 62000.0, "entro": 62000.0, "oltre": 0.0, "di_cui_privilegi": 62000.0},
-                "banche": {"importo": 850000.0, "entro": 707447.0, "oltre": 142553.0},
-                "fornitori": {"importo": 3800000.0, "entro": 3800000.0, "oltre": 0.0},
-            }
-
         out["stato_patrimoniale"] = {
-            "totale_attivo": tot_att or sp_defaults["totale_attivo"],
-            "totale_immobilizzazioni": tot_imm or sp_defaults["totale_immobilizzazioni"],
-            "totale_attivo_circolante": tot_cir or sp_defaults["totale_attivo_circolante"],
-            "disponibilita_liquide": disp_l or sp_defaults["disponibilita_liquide"],
-            "rimanenze": sp_defaults["rimanenze"],
-            "patrimonio_netto": pn or sp_defaults["patrimonio_netto"],
-            "debiti_totali": tot_d or sp_defaults["debiti_totali"],
-            "debiti_entro": deb_e or sp_defaults["debiti_entro"],
-            "debiti_oltre": deb_o or sp_defaults["debiti_oltre"],
+            "totale_attivo": tot_att or {"corrente": 0.0, "precedente": 0.0},
+            "totale_immobilizzazioni": tot_imm or {"corrente": 0.0, "precedente": 0.0},
+            "totale_attivo_circolante": tot_cir or {"corrente": 0.0, "precedente": 0.0},
+            "disponibilita_liquide": disp_l or {"corrente": 0.0, "precedente": 0.0},
+            "rimanenze": {"corrente": 0.0, "precedente": 0.0},
+            "patrimonio_netto": pn or {"corrente": 0.0, "precedente": 0.0},
+            "debiti_totali": tot_d or {"corrente": 0.0, "precedente": 0.0},
+            "debiti_entro": deb_e or {"corrente": 0.0, "precedente": 0.0},
+            "debiti_oltre": deb_o or {"corrente": 0.0, "precedente": 0.0},
         }
         out["conto_economico"] = {
-            "ricavi_vendite": ric_v or ce_defaults["ricavi_vendite"],
-            "valore_produzione": val_p or ce_defaults["valore_produzione"],
-            "differenza_valore_costi": dif_vc or ce_defaults["differenza_valore_costi"],
-            "oneri_finanziari": on_fin or ce_defaults["oneri_finanziari"],
-            "utile_perdita": ut_per or ce_defaults["utile_perdita"],
+            "ricavi_vendite": ric_v or {"corrente": 0.0, "precedente": 0.0},
+            "valore_produzione": val_p or {"corrente": 0.0, "precedente": 0.0},
+            "differenza_valore_costi": dif_vc or {"corrente": 0.0, "precedente": 0.0},
+            "oneri_finanziari": on_fin or {"corrente": 0.0, "precedente": 0.0},
+            "utile_perdita": ut_per or {"corrente": 0.0, "precedente": 0.0},
         }
-        out["debiti_per_natura"] = deb_defaults
+        out["debiti_per_natura"] = {
+            "tributari": {"importo": 0.0, "entro": 0.0, "oltre": 0.0, "di_cui_privilegi": 0.0},
+            "previdenziali": {"importo": 0.0, "entro": 0.0, "oltre": 0.0, "di_cui_privilegi": 0.0},
+            "banche": {"importo": 0.0, "entro": 0.0, "oltre": 0.0, "di_cui_ipoteche": 0.0},
+            "fornitori": {"importo": 0.0, "entro": 0.0, "oltre": 0.0},
+        }
 
     elif doc_type == "cartella_aer":
-        out["credit_positions"] = [
-            {
-                "creditor": "Agenzia delle Entrate Riscossione",
-                "debt_type": "cartella_esattoriale",
-                "original_amount": 45000.0,
-                "residual_amount": 32000.0,
-                "overdue_amount": 32000.0,
-                "monthly_installment": 450.0,
-                "status": "in_carico"
-            }
-        ]
+        out["credit_positions"] = []
 
     return out
 
