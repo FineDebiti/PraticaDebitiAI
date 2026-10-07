@@ -40,8 +40,6 @@ services:
     restart: unless-stopped
     env_file: .env.local
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_started
     ports:
