@@ -77,7 +77,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
         let processed = false, incomeUpdated = false;
         for (const doc of cs.documents) {
           const before = docStatusRef.current[doc.id];
-          if (before && before !== "elaborato" && doc.status === "elaborato") {
+          if (before && !["elaborato", "normalizzato"].includes(before) && ["elaborato", "normalizzato"].includes(doc.status)) {
             processed = true;
             if (INCOME_DOC_TYPES.includes(doc.doc_type)) incomeUpdated = true;
           }
@@ -124,7 +124,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
   async function save() {
     await saveDebtor(id, d);
     setDirty(false);
-    setSaved("Scheda salvata ✓");
+    setSaved("Scheda salvata");
     setTimeout(() => setSaved(""), 2500);
     load();
   }
@@ -182,7 +182,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
   const nPatr = (card.real_estates || []).length + (card.vehicles || []).length;
   const nAz = companies.length + (needSeed ? 1 : 0);
   const nDoc = docs.length;
-  const nDocOk = docs.filter(x => x.status === "elaborato").length;
+  const nDocOk = docs.filter(x => ["elaborato", "normalizzato"].includes(x.status)).length;
   const isSocioAz = companies.some(c => (c.members || []).some(m => m.is_client));
   const isGaranteClient = ["garante", "coobbligato"].includes(d.client_type);
   const titolare = isAzienda
@@ -216,7 +216,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
         @media (max-width: 700px) { .tabbar { flex-wrap: nowrap; overflow-x: auto; } }
       `}</style>
 
-      <Link href="/" style={{ color: "var(--pd-accent)" }}>← Tutte le pratiche</Link>
+      <Link href="/" style={{ color: "var(--pd-accent)" }}>← Tutte le pratiche</Link>
       <h1 style={{ color: "var(--pd-primary)" }}>Scheda cliente <span style={{ fontSize: 15, color: "var(--pd-text-muted)", fontWeight: "normal" }}>— {titolare}</span></h1>
 
       <RelatedBanner caseId={id} related={related} />
@@ -224,7 +224,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
       {incomeToast && (
         <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 60, background: "var(--pd-ok)", color: "var(--pd-surface)",
           padding: "12px 16px", borderRadius: 8, boxShadow: "var(--pd-shadow-md)", fontSize: 14, fontWeight: 600, maxWidth: 340 }}>
-          ✓ {incomeToast}
+          {incomeToast}
         </div>
       )}
 
@@ -269,15 +269,15 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
               <SLine k="Esposizione totale" v={eurFull(cr.total_exposure)} />
               <SLine k="Garanzie prestate" v={eurFull(cr.total_guarantees)} />
               <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                <CrBadge on={cr.has_sofferenze} okText="No sofferenze" alertText="⚠️ Sofferenze" tone="danger" />
-                <CrBadge on={cr.has_criticita} okText="No criticitÃ " alertText="⚠️ CriticitÃ " tone="warning" />
+                <CrBadge on={cr.has_sofferenze} okText="No sofferenze" alertText="Sofferenze" tone="danger" />
+                <CrBadge on={cr.has_criticita} okText="No criticità" alertText="Criticità rilevate" tone="warning" />
               </div>
             </SummaryCard>
           )}
           <SummaryCard title="Aziende" onGo={() => goTab("aziende")}>
             <SLine k="Aziende collegate" v={nAz} />
-            {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>⚠️ Il cliente è socio o titolare di cariche</div>}
-            {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>⚠️ Il cliente è garante/coobbligato</div>}
+            {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è socio o titolare di cariche</div>}
+            {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è garante/coobbligato</div>}
           </SummaryCard>
           <SummaryCard title="Documenti" onGo={() => goTab("documenti")}>
             <SLine k="Caricati" v={nDoc} />
@@ -395,7 +395,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
           <div style={{ position: "sticky", bottom: 0, background: "rgba(245,246,248,0.96)", borderTop: "1px solid var(--pd-border)",
             display: "flex", alignItems: "center", gap: 14, padding: "12px 0", margin: "16px 0 0", zIndex: 5 }}>
             <button onClick={save} style={btnPrimary}>Salva scheda</button>
-            {dirty && <span style={{ color: "var(--pd-warn)", fontWeight: 600, fontSize: 13 }}>â— Modifiche non salvate</span>}
+            {dirty && <span style={{ color: "var(--pd-warn)", fontWeight: 600, fontSize: 13 }}>Modifiche non salvate</span>}
             <span style={{ color: "var(--pd-ok)", fontWeight: "bold" }}>{saved}</span>
           </div>
         </>
@@ -804,7 +804,7 @@ function CompanyEditor({ caseId, initial, defaultOpen, isDraft, onSaved, onDelet
     const res = c.id ? await updateCompany(caseId, c.id, payload) : await createCompany(caseId, payload);
     setBusy(false);
     if (res && res.error) { setMsg(res.error); return; }
-    setMsg("Salvato ✓"); setTimeout(() => setMsg(""), 2000);
+    setMsg("Salvato"); setTimeout(() => setMsg(""), 2000);
     if (onSaved) onSaved();
   }
   async function del() {
@@ -831,10 +831,10 @@ function CompanyEditor({ caseId, initial, defaultOpen, isDraft, onSaved, onDelet
             <F label="Partita IVA"><I v={c.vat} on={v => set("vat", v)} /></F>
             <F label="Codice fiscale"><I v={c.tax_code} on={v => set("tax_code", v)} /></F>
             <F label="Forma giuridica"><I v={c.legal_form} on={v => set("legal_form", v)} /></F>
-            <F label="Tipo societÃ ">
+            <F label="Tipo società">
               <Sel v={c.company_type || "capitali"} on={v => set("company_type", v)} opts={["capitali", "persone", "altro"]} />
             </F>
-            <F label="Stato attivitÃ "><I v={c.status} on={v => set("status", v)} /></F>
+            <F label="Stato attività"><I v={c.status} on={v => set("status", v)} /></F>
             <F label="Codice ATECO" wide><I v={c.ateco} on={v => set("ateco", v)} /></F>
             <F label="REA"><I v={c.rea} on={v => set("rea", v)} /></F>
             <F label="CCIAA"><I v={c.cciaa} on={v => set("cciaa", v)} /></F>
@@ -862,14 +862,14 @@ function CompanyEditor({ caseId, initial, defaultOpen, isDraft, onSaved, onDelet
               <input placeholder="Codice fiscale" value={m.tax_code || ""} onChange={e => setSocio(i, "tax_code", e.target.value)} style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
               <input placeholder="Cariche (es. amministratore)" value={m.roles || ""} onChange={e => setSocio(i, "roles", e.target.value)} style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
               <input type="number" placeholder="Quota %" value={m.quota_percent || 0} onChange={e => setSocio(i, "quota_percent", +e.target.value)} style={{ ...inp, width: "100%", boxSizing: "border-box" }} />
-              <a onClick={() => delSocio(i)} style={{ ...del, padding: "0 6px" }} title="Rimuovi socio">✕</a>
+              <a onClick={() => delSocio(i)} style={{ ...del, padding: "0 6px" }} title="Rimuovi socio">&times;</a>
             </div>
           ))}
           <button type="button" onClick={addSocio} style={btnSmall}>+ aggiungi socio</button>
 
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 18 }}>
             <button onClick={save} disabled={busy} style={busy ? { ...btnPrimary, background: "var(--pd-border-strong)" } : btnPrimary}>
-              {busy ? "Salvataggioâ€¦" : "Salva azienda"}
+              {busy ? "Salvataggio..." : "Salva azienda"}
             </button>
             <a onClick={del} style={{ ...del, fontSize: 14 }}>Elimina</a>
             <span style={{ color: "var(--pd-ok)", fontWeight: "bold" }}>{msg}</span>
@@ -896,7 +896,7 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
         { key: "cadastral_data", label: "Dati catastali", kind: "str", value: r.cadastral_data },
         { key: "address", label: "Indirizzo", kind: "str", value: r.address },
         { key: "ownership_share", label: "Quota (es. 1/2)", kind: "str", value: r.ownership_share },
-        { key: "ownership_right", label: "Diritto (es. ProprietÃ )", kind: "str", value: r.ownership_right },
+        { key: "ownership_right", label: "Diritto (es. Proprietà)", kind: "str", value: r.ownership_right },
         { key: "surface_mq", label: "Superficie m²", kind: "num", value: r.surface_mq },
         { key: "cadastral_income", label: "Rendita catastale €", kind: "num", value: r.cadastral_income },
         { key: "cadastral_value", label: "Valore catastale € (vuoto = ricalcolato)", kind: "num", value: r.cadastral_value },
@@ -948,7 +948,7 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
               <td style={td}>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   {corr && <EditedBadge corr={corr} entityId={r.id} />}
-                  {corr && <CorreggiBtn onClick={() => correggiImm(r)} label="âœï¸" />}
+                  {corr && <CorreggiBtn onClick={() => correggiImm(r)} label="Modifica" />}
                   <a onClick={async () => { if (window.confirm(`Eliminare l'immobile "${r.kind || r.address || ""}"? L'azione è irreversibile.`)) { await delRealEstate(caseId, r.id); reload(); } }} style={del}>elimina</a>
                 </div>
               </td>
@@ -969,7 +969,7 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
       </table>
       </div>
       <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "0 0 8px" }}>
-        ℹ Solo una abitazione dovrebbe essere segnata come prima casa (incide sul valore catastale: Ã—110 prima casa, Ã—120 altrimenti).
+        Nota: solo una abitazione dovrebbe essere segnata come prima casa (incide sul valore catastale: ×110 prima casa, ×120 altrimenti).
       </p>
       <details style={{ marginTop: 4 }}><summary style={sumStyle}>+ aggiungi manualmente</summary>
         <div style={addRow}>
@@ -991,7 +991,7 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
               <td style={td}>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   {corr && <EditedBadge corr={corr} entityId={v.id} />}
-                  {corr && <CorreggiBtn onClick={() => correggiVeic(v)} label="âœï¸" />}
+                  {corr && <CorreggiBtn onClick={() => correggiVeic(v)} label="Modifica" />}
                   <a onClick={async () => { if (window.confirm(`Eliminare il veicolo "${v.make_model || v.plate || ""}"? L'azione è irreversibile.`)) { await delVehicle(caseId, v.id); reload(); } }} style={del}>elimina</a>
                 </div>
               </td>
@@ -1072,7 +1072,7 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
         <input value={ident} onChange={e => { setIdent(e.target.value); setMsg(""); }}
           placeholder="Partita IVA o Codice Fiscale" style={{ ...inp, minWidth: 200 }} />
         <button onClick={run} disabled={busy} style={busy ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "not-allowed" } : btnSmall}>
-          {busy ? "Recupero datiâ€¦" : "Completa dati aziendali"}
+          {busy ? "Recupero dati..." : "Completa dati aziendali"}
         </button>
       </div>
 
@@ -1084,7 +1084,7 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
             <strong style={{ color: "var(--pd-primary)", fontSize: 15 }}>{d.denominazione || "—"}</strong>
             {d.stato_attivita && (
               <span style={{ background: cessata ? "var(--pd-danger)" : "var(--pd-ok)", color: "var(--pd-surface)", fontSize: 12, fontWeight: "bold", padding: "2px 8px", borderRadius: 10 }}>
-                {cessata ? "⚠️ " : ""}{d.stato_attivita}
+                {cessata ? "[Cessata] " : ""}{d.stato_attivita}
               </span>
             )}
           </div>
@@ -1138,7 +1138,7 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
 
           <button onClick={doImport} disabled={importing || imported}
             style={importing || imported ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "default" } : { ...btnSmall, background: "var(--pd-ok)" }}>
-            {imported ? "✓ Importata" : importing ? "Salvataggio…" : "✓ Importa nella scheda"}
+            {imported ? "Importata" : importing ? "Salvataggio..." : "Importa nella scheda"}
           </button>
           <p style={{ fontSize: 12, color: "var(--pd-text-muted)", margin: "6px 0 0" }}>
             {imported ? "Azienda salvata: la trovi nella sezione \"Aziende\" qui sotto." : "Verrà salvata come azienda del cliente nella sezione \"Aziende\"."}
@@ -1146,7 +1146,7 @@ function CompletaDatiAzienda({ caseId, taxCode, onImported }) {
 
           {d._raw != null && (
             <details open={showRaw} onToggle={e => setShowRaw(e.target.open)} style={{ marginTop: 10 }}>
-              <summary style={sumStyle}>⚙️ Risposta completa (diagnostica)</summary>
+              <summary style={sumStyle}>Risposta completa (diagnostica)</summary>
               <pre style={{ background: "var(--pd-surface-2)", border: "1px solid var(--pd-border)", borderRadius: 6, padding: 10, fontSize: 11, fontFamily: "monospace", maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {JSON.stringify(d._raw, null, 2)}
               </pre>
@@ -1302,17 +1302,17 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
                   ))}
                 </tbody>
               </table>
-              <button onClick={() => onImport(md)} style={{ ...btnSmall, background: "var(--pd-ok)" }}>✓ Importa nella scheda</button>
+              <button onClick={() => onImport(md)} style={{ ...btnSmall, background: "var(--pd-ok)" }}>Importa nella scheda</button>
             </>
           ) : (
             // Veicoli / immobili: mostra il conteggio e il pulsante per importarli nella scheda
             <div>
               <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: "0 0 8px" }}>
-                ✓ Dati ricevuti{Array.isArray(md?.items) ? ` (${md.items.length} element${md.items.length === 1 ? "o" : "i"})` : ""}.
+                Dati ricevuti{Array.isArray(md?.items) ? ` (${md.items.length} element${md.items.length === 1 ? "o" : "i"})` : ""}.
               </p>
               {Array.isArray(md?.items) && md.items.length > 0 && onImportItems && (req.source === "veicoli" || req.source === "immobili") && (
                 <button onClick={async () => { await onImportItems(req.source, md.items); }} style={{ ...btnSmall, background: "var(--pd-ok)" }}>
-                  ✓ Importa {md.items.length} nella scheda
+                  Importa {md.items.length} nella scheda
                 </button>
               )}
               {Array.isArray(md?.items) && md.items.length === 0 && (
@@ -1326,7 +1326,7 @@ function OpenapiSearch({ caseId, taxCode, onImport, onImportItems, scope = "all"
       {/* Pannello diagnostico */}
       {req?.raw_response != null && (
         <details open={showRaw} onToggle={e => setShowRaw(e.target.open)} style={{ marginTop: 12 }}>
-          <summary style={sumStyle}>⚙️ Risposta grezza (diagnostica)</summary>
+          <summary style={sumStyle}>Risposta grezza (diagnostica)</summary>
           <pre style={{ background: "var(--pd-surface-2)", border: "1px solid var(--pd-border)", borderRadius: 6, padding: 10, fontSize: 11, fontFamily: "monospace", maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {typeof req.raw_response === "string" ? req.raw_response : JSON.stringify(req.raw_response, null, 2)}
           </pre>
@@ -1405,7 +1405,7 @@ function CompanyCard({ c, caseId, onChange, corr }) {
         {caseId && onChange && (
           <button type="button" onClick={promote} style={{ ...btnSmall, marginLeft: "auto", padding: "5px 10px" }}
             title="Sposta questa azienda tra le imprese del cliente (diventa editabile)">
-            ★ Ãˆ l'azienda del cliente
+            Azienda del cliente
           </button>
         )}
       </div>
@@ -1434,7 +1434,7 @@ function CompanyCard({ c, caseId, onChange, corr }) {
 
       {c.company_type === "persone" && (
         <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "8px 10px", margin: "10px 0", fontSize: 13, color: "var(--pd-warn)" }}>
-          ⚠️ SocietÃ  di persone: i soci possono rispondere dei debiti anche con il patrimonio personale.
+          Attenzione: società di persone: i soci possono rispondere dei debiti anche con il patrimonio personale.
         </div>
       )}
 
@@ -1474,8 +1474,8 @@ function CompanyCard({ c, caseId, onChange, corr }) {
 
 // ---------- Analisi di bilancio ----------
 const IND_GROUPS = [
-  ["liquidita", "LiquiditÃ "], ["struttura", "Struttura / soliditÃ "],
-  ["redditivita", "RedditivitÃ "], ["debito", "SostenibilitÃ  del debito"],
+  ["liquidita", "Liquidità"], ["struttura", "Struttura / solidità"],
+  ["redditivita", "Redditività"], ["debito", "Sostenibilità del debito"],
 ];
 
 function fmtNum(v) { return v == null ? "n.s." : Number(v).toLocaleString("it-IT", { maximumFractionDigits: 2 }); }
@@ -1493,7 +1493,7 @@ function fmtIndicatorPrev(ind) {
   if (ind.fmt === "eur") return "€ " + Number(ind.value_prev).toLocaleString("it-IT", { maximumFractionDigits: 0 });
   return Number(ind.value_prev).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function trendArrow(t) { return t === "up" ? "←‘" : t === "down" ? "←“" : t === "flat" ? "→" : ""; }
+function trendArrow(t) { return t === "up" ? "↑" : t === "down" ? "↓" : t === "flat" ? "→" : ""; }
 function statusDot(s) {
   const c = { green: "var(--pd-ok)", amber: "var(--pd-warn)", red: "var(--pd-danger)" }[s] || "var(--pd-text-faint)";
   return <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: c }} />;
@@ -1509,7 +1509,7 @@ function MetricCard({ label, blk }) {
       <div style={{ fontSize: 18, fontWeight: "bold", color: "var(--pd-primary)" }}>{cur == null ? "n.s." : "€ " + Number(cur).toLocaleString("it-IT", { maximumFractionDigits: 0 })}</div>
       {varPct != null && (
         <div style={{ fontSize: 12, color: varPct >= 0 ? "var(--pd-ok)" : "var(--pd-danger)" }}>
-          {varPct >= 0 ? "←‘" : "←“"} {Math.abs(varPct).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% vs anno prec.
+          {varPct >= 0 ? "↑" : "↓"} {Math.abs(varPct).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% vs anno prec.
         </div>
       )}
     </div>
@@ -1517,7 +1517,7 @@ function MetricCard({ label, blk }) {
 }
 
 // ---------- Correzione tracciata (modale + badge + pulsante) ----------
-function CorreggiBtn({ onClick, label = "âœï¸ Correggi" }) {
+function CorreggiBtn({ onClick, label = "Modifica" }) {
   return <button type="button" onClick={onClick}
     style={{ background: "none", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "2px 9px", cursor: "pointer", color: "var(--pd-primary)", fontSize: 12, whiteSpace: "nowrap" }}>{label}</button>;
 }
@@ -1530,7 +1530,7 @@ function EditedBadge({ corr, entityId }) {
   return (
     <span style={{ position: "relative", display: "inline-block" }}>
       <span onClick={() => setShow(s => !s)} title="Vedi correzioni" className="pd-badge pd-badge--info" style={{ cursor: "pointer" }}>
-        âœï¸ corretto ({list.length})
+        Modificato ({list.length})
       </span>
       {show && (
         <div style={{ position: "absolute", zIndex: 30, top: "120%", left: 0, background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 10, width: 290, boxShadow: "var(--pd-shadow-md)" }}>
@@ -1576,7 +1576,7 @@ function CorrezioneModal({ caseId, correction, onClose, onSaved }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 50, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 16px", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--pd-surface)", borderRadius: 10, padding: 20, width: 460, maxWidth: "100%" }}>
-        <h3 style={{ color: "var(--pd-primary)", marginTop: 0 }}>âœï¸ Correggi — {correction.title}</h3>
+        <h3 style={{ color: "var(--pd-primary)", marginTop: 0 }}>Modifica — {correction.title}</h3>
         <p style={{ fontSize: 12, color: "var(--pd-text-muted)", marginTop: 0 }}>
           Il valore originale resta tracciato; la correzione viene registrata e le regole a valle (indici, quadrature) ricalcolate.
         </p>
@@ -1602,7 +1602,7 @@ function CorrezioneModal({ caseId, correction, onClose, onSaved }) {
         {err && <div style={{ color: "var(--pd-danger)", fontSize: 13, marginBottom: 8 }}>{err}</div>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} style={{ padding: "8px 16px", background: "var(--pd-border)", border: "none", borderRadius: 6, cursor: "pointer" }}>Annulla</button>
-          <button type="button" onClick={save} disabled={busy} style={btnPrimary}>{busy ? "Salvataggioâ€¦" : "Salva correzione"}</button>
+          <button type="button" onClick={save} disabled={busy} style={btnPrimary}>{busy ? "Salvataggio..." : "Salva correzione"}</button>
         </div>
       </div>
     </div>
@@ -1614,7 +1614,7 @@ const SECTION_LABEL = { riepilogo: "Riepilogo", aer: "Debiti AER", patrimonio: "
   banca: "Posizione bancaria", anagrafica: "Anagrafica", aziende: "Aziende" };
 const AREA_LABELS = [
   ["indebitamento", "Indebitamento"], ["patrimonio", "Patrimonio e capienza"],
-  ["banca", "Posizione bancaria"], ["reddito", "Reddito e sostenibilitÃ "],
+  ["banca", "Posizione bancaria"], ["reddito", "Reddito e sostenibilità"],
   ["impresa", "Impresa"], ["trasversale", "Trasversale / statistica"],
 ];
 
@@ -1659,7 +1659,7 @@ function IndicatorCell({ it, goTab, big }) {
 }
 
 function IndicatoriCruscotto({ data, goTab }) {
-  if (!data) return <p style={{ color: "var(--pd-text-muted)" }}>Caricamento indicatoriâ€¦</p>;
+  if (!data) return <p style={{ color: "var(--pd-text-muted)" }}>Caricamento indicatori...</p>;
   const byArea = {};
   (data.indicators || []).forEach(i => (byArea[i.area] = byArea[i.area] || []).push(i));
   return (
@@ -1702,11 +1702,11 @@ function CrossCheckBadge({ status, payload, provider, model }) {
   const pl = payload || {};
   if (status === "verified") {
     return <span className="pd-badge pd-badge--ok" title={`${pl.provider_a || ""} vs ${pl.provider_b || ""}`}>
-      ✓ Verificato da 2 modelli</span>;
+      Verificato da 2 modelli</span>;
   }
   if (status === "discrepancy") {
     return <span className="pd-badge pd-badge--warn" title="Gli importi chiave divergono tra i due modelli">
-      ⚠️ Verifica manuale</span>;
+      Verifica manuale</span>;
   }
   // not_run / vuoto: mostra solo la provenienza, senza allarmare.
   if (provider) {
@@ -1725,7 +1725,7 @@ function CrossCheckDiscrepancies({ payload }) {
   return (
     <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "10px 12px", margin: "8px 0" }}>
       <div style={{ fontWeight: 600, color: "var(--pd-warn)", fontSize: 13, marginBottom: 6 }}>
-        ⚠️ I due modelli non concordano su {disc.length} valore/i — controllo umano richiesto
+        Discrepanza: i due modelli non concordano su {disc.length} valore/i — controllo umano richiesto
       </div>
       <table style={{ ...tbl, marginBottom: 0 }}>
         <thead><tr style={trh}>
@@ -1786,12 +1786,12 @@ function BilancioAnalysis({ statement, corr }) {
     <div style={{ marginTop: 14, borderTop: "2px solid var(--pd-primary)", paddingTop: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
         <h3 style={{ color: "var(--pd-primary)", fontSize: 16, margin: 0 }}>
-          ðŸ“Š Analisi di bilancio {anno ? <span style={{ fontWeight: "normal", color: "var(--pd-text-muted)", fontSize: 13 }}>· chiuso al {anno} {statement.statement_type ? `(${statement.statement_type})` : ""}</span> : null}
+          Analisi di bilancio {anno ? <span style={{ fontWeight: "normal", color: "var(--pd-text-muted)", fontSize: 13 }}>· chiuso al {anno} {statement.statement_type ? `(${statement.statement_type})` : ""}</span> : null}
         </h3>
         <CrossCheckBadge status={statement.crosscheck_status} payload={statement.crosscheck_payload}
           provider={statement.llm_provider} model={statement.llm_model} />
         {corr && <EditedBadge corr={corr} entityId={statement.id} />}
-        {corr && <span style={{ marginLeft: "auto" }}><CorreggiBtn onClick={correggiBilancio} label="âœï¸ Correggi voci" /></span>}
+        {corr && <span style={{ marginLeft: "auto" }}><CorreggiBtn onClick={correggiBilancio} label="Modifica voci" /></span>}
       </div>
       <CrossCheckDiscrepancies payload={statement.crosscheck_payload} />
 
@@ -1818,7 +1818,7 @@ function BilancioAnalysis({ statement, corr }) {
                   const isPriv = k === "tributari" || k === "previdenziali";
                   return (
                     <tr key={k} style={{ borderTop: "1px solid var(--pd-border)", background: isPriv ? "var(--pd-warn-bg)" : "var(--pd-surface)" }}>
-                      <td style={td}>{lab}{isPriv ? " ðŸ”’" : ""}</td>
+                      <td style={td}>{lab}{isPriv ? " (Privilegiato)" : ""}</td>
                       <td style={tdNum}>€ {fmtNum(v.importo)}</td>
                       <td style={tdNum}>{v.entro != null ? "€ " + fmtNum(v.entro) : "—"}</td>
                       <td style={tdNum}>{v.oltre != null ? "€ " + fmtNum(v.oltre) : "—"}</td>
@@ -1829,7 +1829,7 @@ function BilancioAnalysis({ statement, corr }) {
               </tbody>
             </table>
           </div>
-          <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "4px 0 0" }}>ðŸ”’ Erario e previdenza = debiti privilegiati (prioritÃ  nel concorso).</p>
+          <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "4px 0 0" }}>Erario e previdenza = debiti privilegiati (priorità nel concorso).</p>
         </div>
       )}
 
@@ -1900,7 +1900,7 @@ function AerUploadButton({ caseId, label, ownerKind, entityId, reload }) {
     <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 12, marginBottom: 12 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pd-primary)", marginBottom: 6 }}>{label}</div>
       <input type="file" onChange={onFile} disabled={busy} accept=".pdf" />
-      {busy && <span style={{ marginLeft: 10, fontSize: 13 }}>Elaborazioneâ€¦</span>}
+      {busy && <span style={{ marginLeft: 10, fontSize: 13 }}>Elaborazione...</span>}
       {err && <div style={{ color: "var(--pd-danger)", fontSize: 12, marginTop: 6 }}>{err}</div>}
       <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "6px 0 0" }}>
         Lettura locale della tabella (gratis). Nessun modello a pagamento, salvo PDF illeggibile.
@@ -1916,11 +1916,11 @@ function SituazioneAER({ caseId, card, isAzienda, clienteCompanies, reload, corr
       <ToolsBar>
         {!isAzienda && (
           <AerUploadButton caseId={caseId} ownerKind="person" entityId=""
-            label="ðŸ“Ž AeR — Estratto di ruolo del cliente (persona)" reload={reload} />
+            label="AeR — Estratto di ruolo del cliente (persona)" reload={reload} />
         )}
         {clienteCompanies.map(c => (
           <AerUploadButton key={c.id} caseId={caseId} ownerKind="company" entityId={c.id}
-            label={`ðŸ“Ž AeR — Estratto di ruolo azienda: ${c.name || c.vat || c.tax_code || ""}`} reload={reload} />
+            label={`AeR — Estratto di ruolo azienda: ${c.name || c.vat || c.tax_code || ""}`} reload={reload} />
         ))}
         {isAzienda && clienteCompanies.length === 0 && (
           <p style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Crea prima l'azienda nella tab "Aziende" per attribuirle l'estratto di ruolo.</p>
@@ -1944,7 +1944,7 @@ function AerStatement({ caseId, st, card, reload, corr }) {
         { key: "data_notifica", label: "Data notifica (AAAA-MM-GG)", kind: "str", value: r.data_notifica },
         { key: "carico_affidato", label: "Carico affidato (E)", kind: "num", value: r.carico_affidato },
         { key: "sgravio", label: "Sgravio (F)", kind: "num", value: r.sgravio },
-        { key: "gia_pagato", label: "GiÃ  pagato (G)", kind: "num", value: r.gia_pagato },
+        { key: "gia_pagato", label: "Già pagato (G)", kind: "num", value: r.gia_pagato },
         { key: "stralcio", label: "Stralcio/def. agevolata (H)", kind: "num", value: r.stralcio },
         { key: "residuo_carico", label: "Residuo carico (I)", kind: "num", value: r.residuo_carico },
         { key: "interessi_mora", label: "Interessi di mora (J)", kind: "num", value: r.interessi_mora },
@@ -1985,12 +1985,12 @@ function AerStatement({ caseId, st, card, reload, corr }) {
 
       {st.cf_mismatch && (
         <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 13, color: "var(--pd-warn)" }}>
-          ⚠️ Il codice fiscale in testata del documento non corrisponde a quello della scheda. Verifica l'attribuzione.
+          Attenzione: il codice fiscale in testata del documento non corrisponde a quello della scheda. Verifica l'attribuzione.
         </div>
       )}
       {!st.quadrature_ok && (
         <div style={{ background: "var(--pd-danger-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 13, color: "var(--pd-danger)" }}>
-          ⚠️ Le quadrature non tornano completamente: alcune righe sono evidenziate per verifica manuale.
+          Attenzione: le quadrature non tornano completamente: alcune righe sono evidenziate per verifica manuale.
         </div>
       )}
 
@@ -2001,7 +2001,7 @@ function AerStatement({ caseId, st, card, reload, corr }) {
         <Stat label="Carico affidato" value={eurAer(st.total_carico_affidato)} />
         <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
           <CrBadge on={st.count_proc_attive > 0} okText="Nessuna procedura attiva"
-            alertText={`⚠️ ${st.count_proc_attive} con fermo/ipoteca/procedure`} tone="danger" />
+            alertText={`${st.count_proc_attive} con fermo/ipoteca/procedure`} tone="danger" />
           <CrBadge on={(agg.count_rateizzate || 0) > 0} okText="Nessuna rateizzazione"
             alertText={`${agg.count_rateizzate} rateizzate`} tone="warning" />
           <CrBadge on={(agg.count_def_agevolata || 0) > 0} okText="Nessuna definizione agevolata"
@@ -2047,14 +2047,14 @@ function AerStatement({ caseId, st, card, reload, corr }) {
           <tbody>
             {items.map((r) => (
               <tr key={r.id} style={{ borderTop: "1px solid var(--pd-border)", background: r.needs_review ? "var(--pd-warn-bg)" : "var(--pd-surface)" }}>
-                <td style={td}>{r.numero_documento}{r.needs_review ? " ⚠️" : ""}</td>
+                <td style={td}>{r.numero_documento}{r.needs_review ? " [Da verificare]" : ""}</td>
                 <td style={td}>{r.tipo_documento || "—"}</td>
                 <td style={td}>{r.ente_creditore || "—"}</td>
                 <td style={td}>{r.data_notifica || "—"}</td>
                 <td style={{ ...tdNum, fontWeight: 600 }}>{eurAer(r.totale_residuo)}</td>
                 <td style={td}>
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                    {r.proc_attive && <AerTag text="⚠️ fermo/ipoteca" variant="danger" />}
+                    {r.proc_attive && <AerTag text="Fermo/ipoteca" variant="danger" />}
                     {r.rateizzato && <AerTag text="rateizzata" variant="info" />}
                     {r.def_agevolata && <AerTag text="def. agevolata" variant="ok" />}
                   </div>
@@ -2062,7 +2062,7 @@ function AerStatement({ caseId, st, card, reload, corr }) {
                 {corr && <td style={td}>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <EditedBadge corr={corr} entityId={r.id} />
-                    <CorreggiBtn onClick={() => correggiItem(r)} label="âœï¸" />
+                    <CorreggiBtn onClick={() => correggiItem(r)} label="Modifica" />
                   </div>
                 </td>}
               </tr>
@@ -2071,7 +2071,7 @@ function AerStatement({ caseId, st, card, reload, corr }) {
         </table>
       </div>
       <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "8px 0 0" }}>
-        Documento informativo (non è una richiesta di pagamento). ⚠️ = riga da verificare (quadratura/procedure).
+        Documento informativo (non è una richiesta di pagamento). [Da verificare] = riga da verificare (quadratura o procedure).
       </p>
     </Section>
   );
@@ -2082,7 +2082,7 @@ function AerTag({ text, variant }) {
 }
 
 /* Sezione Centrale Rischi (posizione bancaria Banca d'Italia): sintesi + esposizioni
-   per intermediario + garanzie prestate + criticitÃ  nel tempo. A piena larghezza. */
+   per intermediario + garanzie prestate + criticità nel tempo. A piena larghezza. */
 function CentraleRischi({ card, corr }) {
   const cr = card.credit_report;
   const exposures = card.credit_exposures || [];
@@ -2136,8 +2136,8 @@ function CentraleRischi({ card, corr }) {
         <Stat label="Esposizione totale" value={eur(cr.total_exposure)} />
         <Stat label="Garanzie prestate" value={eur(cr.total_guarantees)} />
         <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
-          <CrBadge on={cr.has_sofferenze} okText="Nessuna sofferenza" alertText="⚠️ Sofferenze presenti" tone="danger" />
-          <CrBadge on={cr.has_criticita} okText="Nessuna criticitÃ " alertText="⚠️ CriticitÃ  rilevate" tone="warning" />
+          <CrBadge on={cr.has_sofferenze} okText="Nessuna sofferenza" alertText="Sofferenze presenti" tone="danger" />
+          <CrBadge on={cr.has_criticita} okText="Nessuna criticità" alertText="Criticità rilevate" tone="warning" />
         </div>
       </div>
 
@@ -2159,7 +2159,7 @@ function CentraleRischi({ card, corr }) {
                 <td style={tdNum}>{eur(e.utilizzato)}</td>
                 <td style={tdNum}>{eur(e.importo_garantito)}</td>
                 <td style={td}>{e.status || "—"}</td>
-                {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={e.id} /><CorreggiBtn onClick={() => correggiEsp(e)} label="âœï¸" /></div></td>}
+                {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={e.id} /><CorreggiBtn onClick={() => correggiEsp(e)} label="Modifica" /></div></td>}
               </tr>
             ))}
             {exposures.length === 0 && <tr><td style={td} colSpan={corr ? 7 : 6}>Nessuna esposizione diretta rilevata.</td></tr>}
@@ -2170,7 +2170,7 @@ function CentraleRischi({ card, corr }) {
       {/* 3. Garanzie prestate */}
       <h3 style={{ color: "var(--pd-text)", margin: "4px 0 6px" }}>Garanzie prestate</h3>
       <p style={{ fontSize: 13, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "8px 10px", margin: "0 0 8px" }}>
-        ⚠️ Il cliente è garante per questi soggetti: in caso di insolvenza può essere chiamato a rispondere.
+        Attenzione: il cliente è garante per questi soggetti: in caso di insolvenza può essere chiamato a rispondere.
       </p>
       <div style={{ overflowX: "auto", marginBottom: 16 }}>
         <table style={{ ...tbl, minWidth: 680, marginBottom: 0 }}>
@@ -2186,7 +2186,7 @@ function CentraleRischi({ card, corr }) {
                 <td style={tdNum}>{eur(g.valore_garanzia)}</td>
                 <td style={tdNum}>{eur(g.importo_garantito)}</td>
                 <td style={td}>{g.status || "—"}</td>
-                {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={g.id} /><CorreggiBtn onClick={() => correggiGar(g)} label="âœï¸" /></div></td>}
+                {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={g.id} /><CorreggiBtn onClick={() => correggiGar(g)} label="Modifica" /></div></td>}
               </tr>
             ))}
             {guarantees.length === 0 && <tr><td style={td} colSpan={corr ? 6 : 5}>Nessuna garanzia prestata.</td></tr>}
@@ -2194,10 +2194,10 @@ function CentraleRischi({ card, corr }) {
         </table>
       </div>
 
-      {/* 4. CriticitÃ  nel tempo */}
-      <h3 style={{ color: "var(--pd-text)", margin: "4px 0 8px" }}>CriticitÃ  nel tempo</h3>
+      {/* 4. Criticità nel tempo */}
+      <h3 style={{ color: "var(--pd-text)", margin: "4px 0 8px" }}>Criticità nel tempo</h3>
       {criticita.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: 0 }}>✓ Nessuna criticitÃ  storica rilevata.</p>
+        <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: 0 }}>Nessuna criticità storica rilevata.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ ...tbl, minWidth: 760, marginBottom: 0 }}>
@@ -2237,7 +2237,7 @@ function RelatedBanner({ caseId, related }) {
     <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "10px 14px", margin: "8px 0 4px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ color: "var(--pd-warn)", fontWeight: 600, fontSize: 14 }}>
-          ⚠️ Esistono {related.length} altra/e pratica/he con questo codice fiscale
+          Attenzione: esistono {related.length} altra/e pratica/he con questo codice fiscale
         </span>
         <button type="button" onClick={() => setOpen(o => !o)}
           style={{ background: "none", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "3px 10px", cursor: "pointer", color: "var(--pd-warn)", fontSize: 13 }}>
@@ -2248,7 +2248,7 @@ function RelatedBanner({ caseId, related }) {
         <table style={{ ...tbl, marginTop: 10, marginBottom: 0, background: "var(--pd-surface)" }}>
           <thead><tr style={trh}>
             <th style={th}>Pratica</th><th style={tdNum}>Documenti</th><th style={tdNum}>Consultazioni</th>
-            <th style={th}>Ultima attivitÃ </th><th style={th}></th>
+            <th style={th}>Ultima attività</th><th style={th}></th>
           </tr></thead>
           <tbody>
             {related.map(r => (
@@ -2272,8 +2272,8 @@ function RelatedBanner({ caseId, related }) {
 }
 
 function docStatusBadge(s) {
-  const v = { caricato: "neutral", in_elaborazione: "warn", elaborato: "ok", errore: "danger" }[s] || "neutral";
-  const label = { caricato: "caricato", in_elaborazione: "in elaborazione", elaborato: "elaborato", errore: "errore" };
+  const v = { caricato: "neutral", in_elaborazione: "warn", elaborato: "ok", normalizzato: "ok", errore: "danger" }[s] || "neutral";
+  const label = { caricato: "caricato", in_elaborazione: "in elaborazione", elaborato: "elaborato", normalizzato: "elaborato", errore: "errore" };
   return <span className={`pd-badge pd-badge--${v}`}>{label[s] || s}</span>;
 }
 
@@ -2288,7 +2288,7 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
     try { res = await uploadDoc(caseId, f, docType); } catch {}
     setBusy(false);
     e.target.value = "";
-    if (res && res.duplicate) setDup(`"${res.original_filename}" è giÃ  presente: non ricaricato.`);
+    if (res && res.duplicate) setDup(`"${res.original_filename}" è già presente: non ricaricato.`);
     if (res && res.id && !res.duplicate && onUploadedId) onUploadedId(scope, res.id);
     if (onUploaded) onUploaded();
   }
@@ -2298,8 +2298,8 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
     <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 12, marginBottom: 12 }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pd-primary)", marginBottom: 6 }}>{label}</div>
       <input type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
-      {busy && <span style={{ marginLeft: 10, fontSize: 13 }}>Uploadâ€¦</span>}
-      {dup && <div style={{ marginTop: 8, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>⚠️ {dup}</div>}
+      {busy && <span style={{ marginLeft: 10, fontSize: 13 }}>Upload...</span>}
+      {dup && <div style={{ marginTop: 8, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>{dup}</div>}
       {mine.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {mine.map(doc => (
@@ -2308,7 +2308,7 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
                 style={{ color: "var(--pd-accent)", textDecoration: "none" }}>{doc.original_filename}</a> — {docStatusBadge(doc.status)}
               {doc.doc_type && doc.doc_type !== "da_classificare" ? <span style={{ color: "var(--pd-text-muted)" }}> · {doc.doc_type}</span> : null}
               {doc.error ? <div style={{ color: "var(--pd-danger)", fontSize: 12 }}>{doc.error}</div> : null}
-              {doc.status === "elaborato" && <span style={{ color: "var(--pd-ok)" }}> ✓ dati estratti aggiunti alla sezione</span>}
+              {["elaborato", "normalizzato"].includes(doc.status) && <span style={{ color: "var(--pd-ok)" }}> dati estratti aggiunti alla sezione</span>}
             </div>
           ))}
         </div>
@@ -2321,9 +2321,9 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
 /* ====================================================================
    Box doppio-canale (riutilizzabile) — per OGNI documento: carica file
    OPPURE richiedi via API (dove consentito), con prezzo in evidenza.
-   Ãˆ il TEMPLATE replicabile nelle altre tab cambiando solo la config.
+   È il TEMPLATE replicabile nelle altre tab cambiando solo la config.
    ==================================================================== */
-// Flag UI: mostra i prezzi delle richieste API. OFF finchÃ© non arriva il wallet
+// Flag UI: mostra i prezzi delle richieste API. OFF finché non arriva il wallet
 // prepagato (il pagamento passa ancora dal credito OpenAPI esterno -> il prezzo
 // in-app sarebbe transazionale senza azione). price_eur resta nei dati: si
 // riaccende cambiando questa sola costante. (Decisione Giuseppe, giu 2026.)
@@ -2348,7 +2348,7 @@ function RedditoTools({ caseId, taxCode, docs, uploadedByScope, addUploaded, rel
   return (
     <div style={{ background: "var(--pd-surface-2)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "12px 14px", marginBottom: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--pd-primary)", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 10 }}>
-        ðŸ›  Strumenti — documenti di reddito
+        Strumenti — documenti di reddito
       </div>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
         {REDDITO_DOCS.map(cfg => (
@@ -2371,7 +2371,7 @@ const BASE_LABELS = { mensile: "mensile", annuo: "annuo", indicatore: "indicator
 
 function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApplyMonthly, onApplyAnnual }) {
   const [sum, setSum] = useState(null);
-  const nReady = (docs || []).filter(x => INCOME_DOC_TYPES.includes(x.doc_type) && x.status === "elaborato").length;
+  const nReady = (docs || []).filter(x => INCOME_DOC_TYPES.includes(x.doc_type) && ["elaborato", "normalizzato"].includes(x.status)).length;
   useEffect(() => { getIncomeSummary(caseId).then(setSum).catch(() => {}); }, [caseId, nReady]);
   if (!sum || !sum.has_data) return null;
   const { summable, references, representative, proposed_monthly, proposed_annual, flags } = sum;
@@ -2385,14 +2385,14 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
         <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>fonti consolidate, normalizzate a mensile</span>
       </div>
       {flags.map((f, i) => (
-        <div key={i} style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", marginBottom: 6 }}>⚠️ {f}</div>
+        <div key={i} style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", marginBottom: 6 }}>{f}</div>
       ))}
 
       {summable.length > 0 && (
         <table style={{ ...tbl, marginBottom: 8 }}>
           <thead><tr style={trh}>
             <th style={th}>Fonte</th><th style={th}>Periodo</th><th style={th}>Base</th>
-            <th style={tdNum}>Importo</th><th style={tdNum}>â‰ˆ mensile</th><th style={tdNum}>â‰ˆ annuo</th>
+            <th style={tdNum}>Importo</th><th style={tdNum}>~ mensile</th><th style={tdNum}>~ annuo</th>
           </tr></thead>
           <tbody>
             {summable.map((s, i) => (
@@ -2435,11 +2435,11 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
           <button type="button" onClick={() => onApplyMonthly(proposed_monthly)} disabled={appliedM}
             style={appliedM ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "default" } : { ...btnSmall, background: "var(--pd-ok)" }}>
-            {appliedM ? "✓ Mensile applicato" : 'Applica a "Reddito mensile netto"'}
+            {appliedM ? "Mensile applicato" : 'Applica a "Reddito mensile netto"'}
           </button>
           <button type="button" onClick={() => onApplyAnnual(proposed_annual)} disabled={appliedA}
             style={appliedA ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "default" } : { ...btnSmall, background: "var(--pd-ok)" }}>
-            {appliedA ? "✓ Annuo applicato" : 'Applica a "Reddito annuo"'}
+            {appliedA ? "Annuo applicato" : 'Applica a "Reddito annuo"'}
           </button>
           <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>poi verifica e salva</span>
         </div>
@@ -2457,7 +2457,7 @@ function RiepilogoReddito({ caseId, docs, currentMonthly, currentAnnual, onApply
 }
 
 /* Pannello "dettaglio estratto" dei documenti di reddito: mostra COSA è stato letto
-   da ogni documento (lordo/netto/trattenute, quadri, movimentiâ€¦), non solo il totale
+   da ogni documento (lordo/netto/trattenute, quadri, movimenti...), non solo il totale
    ripiegato nei campi economici. Un <details> per documento, contenuto per tipo. */
 const INCOME_DOC_LABELS = {
   busta_paga: "Busta paga", cu: "CU (Certificazione Unica)", isee: "ISEE",
@@ -2509,7 +2509,7 @@ function incomeRows(docType, data) {
 function IncomeDocsDetail({ caseId, docs }) {
   const [items, setItems] = useState([]);
   // ricarica quando cambia il numero di documenti di reddito elaborati
-  const nReady = (docs || []).filter(x => INCOME_DOC_TYPES.includes(x.doc_type) && x.status === "elaborato").length;
+  const nReady = (docs || []).filter(x => INCOME_DOC_TYPES.includes(x.doc_type) && ["elaborato", "normalizzato"].includes(x.status)).length;
   useEffect(() => {
     getIncomeDocuments(caseId).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {});
   }, [caseId, nReady]);
@@ -2541,12 +2541,12 @@ function IncomeDocPanel({ item }) {
   return (
     <details style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
       <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--pd-primary)" }}>
-        ðŸ“„ {head} — dettaglio estratto
+        {head} — dettaglio estratto
       </summary>
       <div style={{ marginTop: 8 }}>
         {isDecl ? <DeclQuadriTable data={data} /> : <IncomeKeyValueTable docType={item.doc_type} data={data} />}
         {data.note && (
-          <p style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", margin: "8px 0 0" }}>⚠️ {data.note}</p>
+          <p style={{ fontSize: 12, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "6px 9px", margin: "8px 0 0" }}>{data.note}</p>
         )}
       </div>
     </details>
@@ -2646,7 +2646,7 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
     try { res = await uploadDoc(caseId, f, cfg.docType); } catch {}
     setBusy(false);
     e.target.value = "";
-    if (res && res.duplicate) setDup(`"${res.original_filename}" è giÃ  presente: non ricaricato.`);
+    if (res && res.duplicate) setDup(`"${res.original_filename}" è già presente: non ricaricato.`);
     if (res && res.id && !res.duplicate && onUploadedId) onUploadedId(cfg.docType, res.id);
     if (reload) reload();
   }
@@ -2696,14 +2696,14 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
       <div style={{ borderTop: "1px solid var(--pd-border)", paddingTop: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text)", marginBottom: 4 }}>Carica documento</div>
         <input type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
-        {busy && <span style={{ marginLeft: 8, fontSize: 12 }}>Uploadâ€¦</span>}
-        {dup && <div style={{ marginTop: 6, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>⚠️ {dup}</div>}
+        {busy && <span style={{ marginLeft: 8, fontSize: 12 }}>Upload...</span>}
+        {dup && <div style={{ marginTop: 6, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>{dup}</div>}
         {mine.map(doc => (
           <div key={doc.id} style={{ fontSize: 12, padding: "3px 0", borderTop: "1px solid var(--pd-border)", marginTop: 4 }}>
             <a href={docFileUrl(caseId, doc.id)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--pd-accent)", textDecoration: "none" }}>{doc.original_filename}</a>
             {" — "}{docStatusBadge(doc.status)}
             {doc.error ? <div style={{ color: "var(--pd-danger)" }}>{doc.error}</div> : null}
-            {doc.status === "elaborato" && <span style={{ color: "var(--pd-ok)" }}> ✓ valori proposti nei campi sotto</span>}
+            {["elaborato", "normalizzato"].includes(doc.status) && <span style={{ color: "var(--pd-ok)" }}> valori proposti nei campi sotto</span>}
           </div>
         ))}
       </div>
@@ -2720,22 +2720,22 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
             <input value={cf} onChange={e => setCf(e.target.value)} placeholder="Codice fiscale" style={{ ...inp, minWidth: 150 }} />
             <button onClick={richiedi} disabled={apiBusy || polling}
               style={apiBusy || polling ? { ...btnSmall, background: "var(--pd-border-strong)", cursor: "not-allowed" } : btnSmall}>
-              {apiBusy ? "Avvioâ€¦" : "Richiedi"}
+              {apiBusy ? "Avvio..." : "Richiedi"}
             </button>
           </div>
           {apiMsg && <p style={{ color: "var(--pd-danger)", fontSize: 12, margin: "6px 0 0" }}>{apiMsg}</p>}
           {req?.status === "pending" && (
             <p style={{ color: "var(--pd-warn)", fontSize: 12, margin: "6px 0 0" }}>
-              â³ Richiesta in corsoâ€¦{req.sandbox ? " (ambiente di test)" : ""}
+              Richiesta in corso...{req.sandbox ? " (ambiente di test)" : ""}
             </p>
           )}
           {(req?.status === "error" || req?.status === "timeout") && (
-            <p style={{ color: "var(--pd-danger)", fontSize: 12, margin: "6px 0 0" }}>✗ {req.error || "richiesta non riuscita."}</p>
+            <p style={{ color: "var(--pd-danger)", fontSize: 12, margin: "6px 0 0" }}>{req.error || "Richiesta non riuscita."}</p>
           )}
           {req?.status === "done" && (
             md && md.isee_ordinario
-              ? <p style={{ fontSize: 12, color: "var(--pd-ok)", margin: "6px 0 0" }}>✓ ISEE {eurFull(md.isee_ordinario)} ricevuto — nota aggiunta alle fonti di reddito.</p>
-              : <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "6px 0 0" }}>✓ Richiesta evasa (in ambiente di test il risultato può essere vuoto).</p>
+              ? <p style={{ fontSize: 12, color: "var(--pd-ok)", margin: "6px 0 0" }}>ISEE {eurFull(md.isee_ordinario)} ricevuto — nota aggiunta alle fonti di reddito.</p>
+              : <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "6px 0 0" }}>Richiesta evasa (in ambiente di test il risultato può essere vuoto).</p>
           )}
         </div>
       )}
@@ -2808,9 +2808,9 @@ function Money({ v, on, style, placeholder }) {
 }
 // etichette leggibili per i valori enum (il valore resta quello del backend)
 const SEL_LABELS = {
-  privato: "Privato", ditta_individuale: "Ditta individuale", societa: "SocietÃ ",
+  privato: "Privato", ditta_individuale: "Ditta individuale", societa: "Società",
   garante: "Garante", coobbligato: "Coobbligato",
-  capitali: "SocietÃ  di capitali", persone: "SocietÃ  di persone", altro: "Altro",
+  capitali: "Società di capitali", persone: "Società di persone", altro: "Altro",
 };
 function Sel({ v, on, opts }) {
   return <select value={v} onChange={e => on(e.target.value)} style={{ ...inp, width: "100%", boxSizing: "border-box" }}>

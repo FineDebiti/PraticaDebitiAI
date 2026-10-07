@@ -61,10 +61,10 @@ function MetricCard({ label, blk }) {
 function CrossCheckBadge({ status, payload, provider, model }) {
   const pl = payload || {};
   if (status === "verified") {
-    return <span className="pd-badge pd-badge--ok" title={`${pl.provider_a || ""} vs ${pl.provider_b || ""}`}>✓ Verificato da 2 modelli</span>;
+    return <span className="pd-badge pd-badge--ok" title={`${pl.provider_a || ""} vs ${pl.provider_b || ""}`}>Verificato da 2 modelli</span>;
   }
   if (status === "discrepancy") {
-    return <span className="pd-badge pd-badge--warn" title="Gli importi chiave divergono tra i due modelli">⚠ Verifica manuale</span>;
+    return <span className="pd-badge pd-badge--warn" title="Gli importi chiave divergono tra i due modelli">Verifica manuale</span>;
   }
   if (provider) {
     return <span className="pd-badge pd-badge--neutral" style={{ fontWeight: "normal" }}>estratto con {provider}{model ? ` (${model})` : ""}</span>;
@@ -80,7 +80,7 @@ function CrossCheckDiscrepancies({ payload }) {
   const lb = pl.provider_b || "Modello B";
   return (
     <div style={{ background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "10px 12px", margin: "8px 0" }}>
-      <div style={{ fontWeight: 600, color: "var(--pd-warn)", fontSize: 13, marginBottom: 6 }}>⚠ I due modelli non concordano su {disc.length} valore/i — controllo umano richiesto</div>
+      <div style={{ fontWeight: 600, color: "var(--pd-warn)", fontSize: 13, marginBottom: 6 }}>Discrepanza: i due modelli non concordano su {disc.length} valore/i — controllo umano richiesto</div>
       <table className="pd-table" style={{ marginBottom: 0 }}>
         <thead><tr><th>Voce</th><th className="pd-num">{la}</th><th className="pd-num">{lb}</th></tr></thead>
         <tbody>

@@ -104,7 +104,7 @@ def map_vehicles(raw):
             ruolo = cget(v, "DescrizioneRuolo", "Descrizione Ruolo", "ruolo")
             grav = cget(v, "DescrizioneProvvedimento", "Descrizione Provvedimento",
                         "DettagliVincoli", "Tipo Dettagli Vincoli", "Vincoli", "Formalita")
-            note = " · ".join(str(x) for x in [ruolo, stato, grav and f"⚠ {grav}"] if x)
+            note = " · ".join(str(x) for x in [ruolo, stato, grav and f"Vincolo: {grav}"] if x)
             results.append({
                 "kind": coded(cget(v, "ClasseVeicolo", "Classe Veicolo", "TipoVeicolo", "tipo_veicolo", "Tipo")) or "veicolo",
                 "plate": cget(v, "Targa", "targa", "plate") or "",

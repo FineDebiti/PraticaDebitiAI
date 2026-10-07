@@ -4,6 +4,40 @@ from typing import Optional
 
 class DebtorIn(BaseModel):
     # Anagrafica
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    tax_code: Optional[str] = None
+    birth_date: Optional[str] = None
+    birth_place: Optional[str] = None
+    residence: Optional[str] = None
+    domicile: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    pec: Optional[str] = None
+    marital_status: Optional[str] = None
+    profession: Optional[str] = None
+    employer: Optional[str] = None
+    client_type: Optional[str] = None
+    # Nucleo familiare
+    household_composition: Optional[str] = None
+    dependents: Optional[int] = None
+    # Economici
+    monthly_net_income: Optional[float] = None
+    annual_income: Optional[float] = None
+    income_sources: Optional[str] = None
+    monthly_expenses: Optional[float] = None
+    rent_or_mortgage: Optional[float] = None
+    bank_accounts: Optional[str] = None
+    # Situazioni in corso
+    has_ongoing_garnishment: Optional[bool] = None
+    has_salary_assignment: Optional[bool] = None
+    has_payment_delegation: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class DebtorOut(BaseModel):
+    id: str
+    case_id: str
     first_name: str = ""
     last_name: str = ""
     tax_code: str = ""
@@ -18,26 +52,18 @@ class DebtorIn(BaseModel):
     profession: str = ""
     employer: str = ""
     client_type: str = "privato"
-    # Nucleo familiare
     household_composition: str = ""
     dependents: int = 0
-    # Economici
     monthly_net_income: float = 0.0
     annual_income: float = 0.0
     income_sources: str = ""
     monthly_expenses: float = 0.0
     rent_or_mortgage: float = 0.0
     bank_accounts: str = ""
-    # Situazioni in corso
     has_ongoing_garnishment: bool = False
     has_salary_assignment: bool = False
     has_payment_delegation: bool = False
     notes: str = ""
-
-
-class DebtorOut(DebtorIn):
-    id: str
-    case_id: str
 
     class Config:
         from_attributes = True

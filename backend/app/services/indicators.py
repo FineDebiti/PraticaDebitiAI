@@ -40,6 +40,11 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
                 return float(val) if val not in (None, "") else None
             except (TypeError, ValueError):
                 return None
+        elif v is not None and not isinstance(v, (list, tuple)):
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
         return None
 
     def prv(key: str, blk: Dict[str, Any] = sp) -> Optional[float]:

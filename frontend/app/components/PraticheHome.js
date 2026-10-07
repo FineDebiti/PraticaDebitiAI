@@ -221,7 +221,7 @@ export function DocumentChecklist() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 14 }}>
               <div style={{ padding: 14, background: "var(--pd-surface-low)", borderRadius: "var(--pd-radius)", borderLeft: "4px solid var(--pd-primary)" }}>
                 <strong style={{ display: "block", fontSize: 12, textTransform: "uppercase", color: "var(--pd-primary)", marginBottom: 4 }}>
-                  📍 Dove recuperare il documento:
+                  Dove recuperare il documento:
                 </strong>
                 <p style={{ margin: 0, fontSize: 13, color: "var(--pd-text-muted)", lineHeight: 1.5 }}>
                   {selectedDoc.retrieval}
@@ -230,7 +230,7 @@ export function DocumentChecklist() {
 
               <div>
                 <strong style={{ display: "block", fontSize: 12, textTransform: "uppercase", color: "var(--pd-accent)", marginBottom: 4 }}>
-                  📄 Struttura del modello / Fac-simile:
+                  Struttura del modello / Fac-simile:
                 </strong>
                 <p style={{ margin: 0, fontSize: 13, color: "var(--pd-text-muted)", lineHeight: 1.5 }}>
                   {selectedDoc.structure}
@@ -239,7 +239,7 @@ export function DocumentChecklist() {
 
               <div>
                 <strong style={{ display: "block", fontSize: 12, textTransform: "uppercase", color: "var(--pd-ok)", marginBottom: 4 }}>
-                  ⚙️ Controlli estrazione OCR Backend:
+                  Controlli estrazione OCR Backend:
                 </strong>
                 <p style={{ margin: 0, fontSize: 13, color: "var(--pd-text-muted)", lineHeight: 1.5 }}>
                   {selectedDoc.ocrCheck}

@@ -286,19 +286,25 @@ def _f(v) -> float:
 
 # ---------- Debitore (anagrafica + economici) ----------
 @router.put("/cases/{case_id}/debtor", response_model=DebtorOut)
+@router.patch("/cases/{case_id}/debtor", response_model=DebtorOut)
 def upsert_debtor(case_id: str, payload: DebtorIn, db: Session = Depends(get_db)):
     case = _get_case(db, case_id)
     debtor = db.query(Debtor).filter_by(case_id=case_id).first()
     if not debtor:
         debtor = Debtor(case_id=case_id)
         db.add(debtor)
-    for k, v in payload.model_dump().items():
-        setattr(debtor, k, v)
-    full = f"{payload.first_name} {payload.last_name}".strip()
+    # Aggiornamento parziale sicuro: esclude i campi omessi
+    update_data = payload.model_dump(exclude_unset=True)
+    for k, v in update_data.items():
+        if v is not None:
+            setattr(debtor, k, v)
+    first = getattr(debtor, "first_name", "") or ""
+    last = getattr(debtor, "last_name", "") or ""
+    full = f"{first} {last}".strip()
     if full:
         case.client_name = full
-    if payload.tax_code:
-        case.client_tax_code = payload.tax_code
+    if getattr(debtor, "tax_code", None):
+        case.client_tax_code = debtor.tax_code
     db.commit()
     db.refresh(debtor)
     return debtor
