@@ -209,17 +209,27 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     (round(fs.equity, 2) if fs else None), "eur", "da stato patrimoniale", section="impresa"))
     out.append(_ind("imp_debiti", "Debiti impresa", "impresa",
                     imp_debiti, "eur", "debiti totali da bilancio", section="impresa"))
+    soc_indiv = any("individuale" in (c.legal_form or "").lower() or "ditta" in (c.legal_form or "").lower() or (c.company_type == "individuale") for c in cliente)
     soc_persone = any((c.company_type == "persone") or
                       (c.legal_form or "").lower().startswith(("s.n.c", "snc", "s.a.s", "sas", "società semplice", "ss"))
                       for c in cliente)
+    if soc_indiv:
+        resp_val = "impresa individuale"
+        resp_crit = "Nell'impresa individuale il titolare risponde con l'intero patrimonio personale presente e futuro (art. 2740 c.c.): responsabilità illimitata."
+    elif soc_persone:
+        resp_val = "società di persone"
+        resp_crit = "Nelle società di persone i soci rispondono anche con i beni personali: la posizione del cliente va valutata dal legale."
+    elif cliente:
+        resp_val = "società di capitali"
+        resp_crit = "Forma a responsabilità limitata: da confermare comunque caso per caso."
+    else:
+        resp_val = None
+        resp_crit = None
+
     out.append(_ind("imp_responsabilita_soci", "Responsabilità dei soci", "impresa",
-                    ("società di persone" if soc_persone else ("società di capitali" if cliente else None)),
-                    "text", "forma giuridica dell'impresa del cliente", kind="signal",
+                    resp_val, "text", "forma giuridica dell'impresa del cliente", kind="signal",
                     section="impresa",
-                    criterion=("Nelle società di persone i soci rispondono anche con i beni "
-                               "personali: la posizione del cliente va valutata dal legale.")
-                    if soc_persone else
-                    ("Forma a responsabilità limitata: da confermare comunque caso per caso." if cliente else None),
+                    criterion=resp_crit,
                     status="neutral" if cliente else "na"))
 
     # ---------------- Trasversale / statistica ----------------

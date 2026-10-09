@@ -23,16 +23,25 @@ class GeminiProvider(LLMProvider):
             "contents": [{"parts": parts}],
             "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
         }
-        try:
-            r = post_with_retry(f"{_BASE}/{model}:generateContent", body,
-                                params={"key": settings.gemini_api_key},
-                                timeout=120 if file_path else 90)
-            j = r.json()
-            txt = j["candidates"][0]["content"]["parts"][0]["text"]
-            data = parse_json(txt)
-            if data is None:
-                return ExtractionResult({}, self.name, model, False, "output non JSON", raw_text=txt)
-            return ExtractionResult(data, self.name, model, True, raw_text=txt,
-                                    usage=j.get("usageMetadata"))
-        except Exception as e:
-            return ExtractionResult({}, self.name, model, False, str(e))
+        candidates = [model] if model else []
+        for fb in ("gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.6-flash"):
+            if fb not in candidates:
+                candidates.append(fb)
+
+        last_error = ""
+        for m in candidates:
+            try:
+                r = post_with_retry(f"{_BASE}/{m}:generateContent", body,
+                                    params={"key": settings.gemini_api_key},
+                                    timeout=120 if file_path else 90)
+                j = r.json()
+                txt = j["candidates"][0]["content"]["parts"][0]["text"]
+                data = parse_json(txt)
+                if data is None:
+                    return ExtractionResult({}, self.name, m, False, "output non JSON", raw_text=txt)
+                return ExtractionResult(data, self.name, m, True, raw_text=txt,
+                                        usage=j.get("usageMetadata"))
+            except Exception as e:
+                last_error = str(e)
+                continue
+        return ExtractionResult({}, self.name, model or "gemini", False, last_error)
