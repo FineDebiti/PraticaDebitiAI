@@ -57,7 +57,7 @@ services:
       - ./backend:/code
       - ./backend/storage:/code/storage          # legacy: documenti pre-storage
       - filestore:/data/uploads                  # volume DEDICATO e persistente per i file originali
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q default
+    command: celery -A app.workers.celery_app worker --concurrency=2 --loglevel=info -Q default
 
   frontend:
     build: ./frontend

@@ -60,8 +60,6 @@ services:
     restart: unless-stopped
     env_file: .env.local
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_started
       backend:
@@ -69,7 +67,7 @@ services:
     volumes:
       - storage:/code/storage
       - filestore:/data/uploads
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q default
+    command: celery -A app.workers.celery_app worker --concurrency=2 --loglevel=info -Q default
 
   frontend:
     build:

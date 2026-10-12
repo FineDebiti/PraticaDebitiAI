@@ -6,8 +6,8 @@ from app.services.pipeline_service import process_document_pipeline, _valore_cat
 logger = logging.getLogger("dossierlex.workers")
 
 
-@celery_app.task(name="app.workers.tasks.process_document")
-def process_document(document_id: str):
+@celery_app.task(name="app.workers.tasks.process_document", bind=True, max_retries=3)
+def process_document(self, document_id: str):
     """Celery task per l'elaborazione asincrona di un documento.
     Delega l'esecuzione alla pipeline documentale modulare."""
     db = SessionLocal()
@@ -15,5 +15,9 @@ def process_document(document_id: str):
         process_document_pipeline(db, document_id)
     except Exception as e:
         logger.error("Celery task process_document fallito per doc %s: %s", document_id, e)
+        try:
+            self.retry(exc=e, countdown=15)
+        except Exception:
+            raise
     finally:
         db.close()

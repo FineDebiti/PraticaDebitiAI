@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createCase, listCases } from "./api";
-import { CasesTable, DocumentChecklist, Kpi, NewCaseForm, statusLabel } from "./components/PraticheHome";
+import { CasesTable, Kpi, NewCaseForm, statusLabel } from "./components/PraticheHome";
 
 function normalizeCf(v) { return (v || "").toUpperCase().replace(/\s+/g, ""); }
 function isValidPersonaCf(v) { return /^[A-Z0-9]{16}$/.test(normalizeCf(v)); }
@@ -105,9 +105,8 @@ export default function Home() {
       </div>
 
       <div className="pd-workspace">
-        <section className="pd-grid" aria-label="Nuova pratica e prerequisiti">
+        <section className="pd-grid" aria-label="Nuova pratica">
           <NewCaseForm kind={kind} changeKind={changeKind} firstName={firstName} setFirstName={setFirstName} lastName={lastName} setLastName={setLastName} denomination={denomination} setDenomination={setDenomination} tax={tax} setTax={setTax} taxValid={taxValid} canSubmit={canSubmit} err={err} setErr={setErr} add={add} />
-          <DocumentChecklist />
         </section>
 
         <section className="pd-grid" aria-label="Elenco pratiche">

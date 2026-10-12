@@ -35,14 +35,14 @@ const EMPTY_COMPANY = {
   business_summary: "", members: [],
 };
 
-export default function Scheda({ params, initialSection = "riepilogo" }) {
+export default function Scheda({ params, initialSection = "documenti" }) {
   const { id } = params;
   const router = useRouter();
   const [d, setD] = useState(EMPTY);
   const [card, setCard] = useState({ real_estates: [], vehicles: [] });
   const [saved, setSaved] = useState("");
   const [incomeToast, setIncomeToast] = useState("");  // "verifica e salva" dopo estrazione reddito
-  const [activeTab, setActiveTab] = useState(initialSection || "riepilogo");
+  const [activeTab, setActiveTab] = useState(initialSection || "documenti");
   const [drafts, setDrafts] = useState([]);   // nuove aziende non ancora salvate (moduli aggiunti)
   const [docs, setDocs] = useState([]);          // documenti (per conteggi + auto-refresh cross-tab)
   const [uploadedByScope, setUploadedByScope] = useState({});  // id doc caricati per sezione (persistono al cambio tab)
@@ -54,7 +54,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
   const draftSeq = useRef(0);
 
   useEffect(() => {
-    setActiveTab(initialSection || "riepilogo");
+    setActiveTab(initialSection || "documenti");
   }, [initialSection]);
 
   function addUploaded(scope, docId) {
@@ -140,7 +140,7 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
     if (k === activeTab) return;
     if (dirty && activeTab === "anagrafica" &&
         !window.confirm("Hai modifiche non salvate nell'anagrafica. Cambiare scheda senza salvarle?")) return;
-    const target = k === "riepilogo" ? `/pratiche/${id}/scheda` : `/pratiche/${id}/scheda/${k}`;
+    const target = k === "documenti" ? `/pratiche/${id}/scheda` : `/pratiche/${id}/scheda/${k}`;
     router.push(target);
   }
 
@@ -190,18 +190,18 @@ export default function Scheda({ params, initialSection = "riepilogo" }) {
     : (`${d.first_name || ""} ${d.last_name || ""}`.trim() || "—");
 
   const TABS = [
-    { key: "riepilogo", label: "Hub analitico" },
-    { key: "raccolta", label: "Raccolta dati" },
-    { key: "anagrafica", label: "Anagrafica" },
     { key: "documenti", label: "Documenti", badge: nDoc },
-    { key: "patrimonio", label: "Patrimonio", badge: nPatr, dim: nPatr === 0 },
-    { key: "banca", label: "Banca", dim: !cr },
     { key: "aer", label: "Stato passivo", badge: nAer, dim: nAer === 0 },
     { key: "aziende", label: "Aziende", badge: nAz, dim: nAz === 0 },
+    { key: "anagrafica", label: "Anagrafica" },
+    { key: "banca", label: "Banca", dim: !cr },
+    { key: "patrimonio", label: "Patrimonio", badge: nPatr, dim: nPatr === 0 },
+    { key: "raccolta", label: "Raccolta dati" },
+    { key: "riepilogo", label: "Hub analitico" },
     { key: "indicatori", label: "Indicatori" },
     { key: "econometria", label: "Econometria" },
-    { key: "report", label: "Report finale" },
     { key: "audit", label: "Audit", badge: edits.length },
+    { key: "report", label: "Report finale" },
   ];
 
   return (

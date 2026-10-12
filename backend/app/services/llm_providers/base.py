@@ -8,15 +8,17 @@ from dataclasses import dataclass
 RETRY_STATUS = {429, 500, 502, 503, 504}
 
 
-def post_with_retry(url, body, headers=None, params=None, timeout=120, attempts=4):
+def post_with_retry(url, body, headers=None, params=None, timeout=120, attempts=6):
     """POST con retry e backoff esponenziale sugli errori transienti. Comune a tutti i provider."""
     import httpx
-    delay = 2.0
+    delay = 3.0
     last_exc = None
     for i in range(attempts):
         try:
             r = httpx.post(url, json=body, headers=headers, params=params, timeout=timeout)
             if r.status_code in RETRY_STATUS and i < attempts - 1:
+                if r.status_code == 429 and ("quota" in r.text.lower() or "resource_exhausted" in r.text.lower()):
+                    r.raise_for_status()
                 time.sleep(delay); delay *= 2; continue
             r.raise_for_status()
             return r
