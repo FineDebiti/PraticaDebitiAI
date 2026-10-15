@@ -34,5 +34,7 @@ def model_for_provider(provider: str, doc_type: str | None) -> str:
         return (settings.claude_model_pro or settings.claude_model) if is_pro else settings.claude_model
     if provider == "openai":
         return settings.openai_model
+    if provider == "lmstudio":
+        return settings.lmstudio_model or "qwen/qwen3.8-27b"
     # provider sconosciuto: ripiega sul default Gemini
     return settings.gemini_model_default or "gemini-2.5-flash"

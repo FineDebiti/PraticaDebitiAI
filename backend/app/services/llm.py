@@ -140,7 +140,8 @@ def _run_crosscheck(file_path, mime, prompt, doc_type) -> dict:
 def _build_prompt(doc_type, client_cf, text) -> str:
     template = get_extract_prompt(doc_type)
     rules = _COMMON_RULES + _client_hint(client_cf)
-    return template.format(doc_type=doc_type, text=text[:30000], rules=rules)
+    max_len = 150000 if "lmstudio" in (settings.llm_provider or "") or "lmstudio" in (settings.llm_fallback_chain or "") else 30000
+    return template.format(doc_type=doc_type, text=text[:max_len], rules=rules)
 
 
 def _result_to_data(res: ExtractionResult, doc_type: str) -> dict:

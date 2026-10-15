@@ -46,6 +46,7 @@ def parse_json(raw: str):
     """Estrae il primo oggetto JSON dalla risposta (togliendo eventuali fence)."""
     if not raw:
         return None
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
     raw = re.sub(r"```(?:json)?", "", raw)
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if not m:

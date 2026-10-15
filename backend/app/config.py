@@ -30,8 +30,13 @@ class Settings(BaseSettings):
     claude_model_pro: str = ""        # se vuoto usa claude_model anche sui doc Pro
     openai_model: str = "gpt-4o"
     # Resilienza multi-provider: catena di fallback e doc_type sottoposti a cross-check.
-    llm_fallback_chain: str = "gemini,claude,openai"
+    llm_fallback_chain: str = "lmstudio,gemini,claude,openai"
     crosscheck_doc_types: str = "bilancio,centrale_rischi"
+
+    # LM Studio (server locale Qwen su GMKtec)
+    lmstudio_base_url: str = "http://host.docker.internal:1234/v1"
+    lmstudio_model: str = "qwen/qwen3.8-27b"
+    lmstudio_timeout: int = 240
 
     # Document AI
     docai_project_id: str = ""
