@@ -22,6 +22,7 @@ from app.schemas.dto import (
 )
 from app.services import fiscal_code as fc
 from app.services.cross_analysis import execute_cross_analysis
+from app.services.preanalysis_report import build_preanalysis_report
 
 router = APIRouter()
 
@@ -641,3 +642,11 @@ def get_cross_analysis_history(case_id: str, db: Session = Depends(get_db)):
         .order_by(CaseCrossAnalysis.created_at.desc())
         .all()
     )
+
+
+@router.get("/cases/{case_id}/preanalysis-report")
+def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
+    """Genera il Report di Preanalisi Economico-Finanziaria conforme al template dello studio legale."""
+    _get_case(db, case_id)
+    return build_preanalysis_report(db, case_id)
+

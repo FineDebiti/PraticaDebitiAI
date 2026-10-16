@@ -510,7 +510,7 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {activeTab === "econometria" && <EconometricEvaluationView indicators={indic} debtor={d} card={card} docs={docs} patrimonio={patrimonio} totalAer={totAer} goTab={goTab} />}
 
       {/* ===== REPORT FINALE ===== */}
-      {activeTab === "report" && <FinalReportView indicators={indic} debtor={d} card={card} docs={docs} edits={edits} title={titolare} totalAer={totAer} patrimonio={patrimonio} crossAnalysis={crossAnalysis} goTab={goTab} />}
+      {activeTab === "report" && <FinalReportView caseId={id} indicators={indic} debtor={d} card={card} docs={docs} edits={edits} title={titolare} totalAer={totAer} patrimonio={patrimonio} crossAnalysis={crossAnalysis} goTab={goTab} />}
 
       {/* ===== AUDIT ===== */}
       {activeTab === "audit" && <AuditTrailView edits={edits} docs={docs} goTab={goTab} />}

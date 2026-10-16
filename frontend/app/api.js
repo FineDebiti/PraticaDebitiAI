@@ -239,3 +239,10 @@ export async function getCrossAnalysis(caseId) {
   return r.json();
 }
 
+export async function getPreanalysisReport(caseId) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/preanalysis-report`, { cache: "no-store" });
+  if (!r.ok) return null;
+  return r.json();
+}
+
+
