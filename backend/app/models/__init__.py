@@ -5,7 +5,7 @@ from app.models.entities import (
     CreditExposure, GuaranteeGiven, CreditReportSummary,
     EnrichmentRequest,
     Document, Extraction, Creditor, DebtPosition,
-    TaxDebtStatement, TaxDebtItem, AccessLog, FieldEdit,
+    TaxDebtStatement, TaxDebtItem, AccessLog, FieldEdit, CaseCrossAnalysis,
 )
 
 __all__ = [
@@ -16,4 +16,5 @@ __all__ = [
     "EnrichmentRequest",
     "Document", "Extraction", "Creditor", "DebtPosition",
     "TaxDebtStatement", "TaxDebtItem", "AccessLog", "FieldEdit",
+    "CaseCrossAnalysis",
 ]

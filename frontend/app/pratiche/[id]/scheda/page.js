@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { getCard, getCase, saveDebtor, createCompany, updateCompany, deleteCompany, uploadDoc, addRealEstate, delRealEstate, addVehicle, delVehicle,
   setPrimaryResidence, openapiSearch, openapiRequests, openapiRequest, companyFill, companyImport, promoteCompany,
   uploadAer, deleteAer, relatedCases, openRelated, docFileUrl, patchRecord, getEdits, getIndicators,
-  getIncomeDocuments, getIncomeSummary } from "../../../api";
+  getIncomeDocuments, getIncomeSummary, runCrossAnalysis, getCrossAnalysis } from "../../../api";
 import DocumentsPanel from "../../../components/DocumentsPanel";
 import { CrBadge, Section, Stat, ToolsBar } from "./scheda-ui";
 import {
   AuditTrail as AuditTrailView,
+  CrossAnalysis as CrossAnalysisView,
   EconometricEvaluation as EconometricEvaluationView,
   FinalReport as FinalReportView,
 } from "./scheda-analysis";
@@ -50,6 +51,8 @@ export default function Scheda({ params, initialSection = "documenti" }) {
   const [indic, setIndic] = useState(null);     // cruscotto indicatori (aggregati)
   const [edits, setEdits] = useState([]);       // correzioni manuali (audit) della pratica
   const [correction, setCorrection] = useState(null);  // modale correzione aperta {entityType,...}
+  const [crossAnalysis, setCrossAnalysis] = useState(null);
+  const [crossLoading, setCrossLoading] = useState(false);
   const docStatusRef = useRef({});
   const draftSeq = useRef(0);
 
@@ -107,8 +110,21 @@ export default function Scheda({ params, initialSection = "documenti" }) {
   }
   useEffect(() => { load(); }, [id]);
   useEffect(() => { relatedCases(id).then(setRelated).catch(() => {}); }, [id]);
+  useEffect(() => { getCrossAnalysis(id).then(setCrossAnalysis).catch(() => {}); }, [id]);
   // indicatori: ricaricati ogni volta che si apre la tab (riflettono i dati più recenti)
   useEffect(() => { if (["indicatori", "econometria", "report"].includes(activeTab)) getIndicators(id).then(setIndic).catch(() => {}); }, [id, activeTab]);
+
+  async function handleRunCrossAnalysis() {
+    setCrossLoading(true);
+    try {
+      const res = await runCrossAnalysis(id);
+      setCrossAnalysis(res);
+    } catch (e) {
+      alert("Errore durante l'analisi trasversale: " + e.message);
+    } finally {
+      setCrossLoading(false);
+    }
+  }
 
   // correzioni: storico + helper per aprire la modale e ricaricare dopo il salvataggio
   function reloadEdits() { getEdits(id).then(setEdits).catch(() => {}); }
@@ -246,43 +262,52 @@ export default function Scheda({ params, initialSection = "documenti" }) {
 
       {/* ===== RIEPILOGO ===== */}
       {activeTab === "riepilogo" && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16 }}>
-          <SummaryCard title="Cliente">
-            <div style={{ fontSize: 16, fontWeight: "bold", color: "var(--pd-primary)" }}>{titolare}</div>
-            <div style={{ fontSize: 13, color: "var(--pd-text)" }}>{isAzienda ? "P.IVA/CF: " : "CF: "}{(isAzienda ? (clienteCompanies[0]?.vat || clienteCompanies[0]?.tax_code || d.tax_code) : d.tax_code) || "—"}</div>
-            <div style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Tipo: {d.client_type}</div>
-          </SummaryCard>
-          <SummaryCard title="Patrimonio" onGo={() => goTab("patrimonio")}>
-            <SLine k="Valore catastale" v={totCad > 0 ? eurFull(totCad) : "da stimare"} />
-            <SLine k="Valore commerciale" v={totComm > 0 ? eurFull(totComm) : "da stimare"} />
-            <SLine k="Immobili" v={(card.real_estates || []).length} />
-            <SLine k="Veicoli" v={(card.vehicles || []).length} />
-          </SummaryCard>
-          {taxDebts.length > 0 && (
-            <SummaryCard title="Debiti AER" onGo={() => goTab("aer")}>
-              <SLine k="Totale residuo" v={eurFull(totAer)} />
-              <SLine k="Estratti di ruolo" v={taxDebts.length} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16 }}>
+            <SummaryCard title="Cliente">
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "var(--pd-primary)" }}>{titolare}</div>
+              <div style={{ fontSize: 13, color: "var(--pd-text)" }}>{isAzienda ? "P.IVA/CF: " : "CF: "}{(isAzienda ? (clienteCompanies[0]?.vat || clienteCompanies[0]?.tax_code || d.tax_code) : d.tax_code) || "—"}</div>
+              <div style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Tipo: {d.client_type}</div>
             </SummaryCard>
-          )}
-          {cr && (
-            <SummaryCard title="Posizione bancaria" onGo={() => goTab("banca")}>
-              <SLine k="Esposizione totale" v={eurFull(cr.total_exposure)} />
-              <SLine k="Garanzie prestate" v={eurFull(cr.total_guarantees)} />
-              <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                <CrBadge on={cr.has_sofferenze} okText="No sofferenze" alertText="Sofferenze" tone="danger" />
-                <CrBadge on={cr.has_criticita} okText="No criticità" alertText="Criticità rilevate" tone="warning" />
-              </div>
+            <SummaryCard title="Patrimonio" onGo={() => goTab("patrimonio")}>
+              <SLine k="Valore catastale" v={totCad > 0 ? eurFull(totCad) : "da stimare"} />
+              <SLine k="Valore commerciale" v={totComm > 0 ? eurFull(totComm) : "da stimare"} />
+              <SLine k="Immobili" v={(card.real_estates || []).length} />
+              <SLine k="Veicoli" v={(card.vehicles || []).length} />
             </SummaryCard>
-          )}
-          <SummaryCard title="Aziende" onGo={() => goTab("aziende")}>
-            <SLine k="Aziende collegate" v={nAz} />
-            {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è socio o titolare di cariche</div>}
-            {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è garante/coobbligato</div>}
-          </SummaryCard>
-          <SummaryCard title="Documenti" onGo={() => goTab("documenti")}>
-            <SLine k="Caricati" v={nDoc} />
-            <SLine k="Elaborati" v={nDocOk} />
-          </SummaryCard>
+            {taxDebts.length > 0 && (
+              <SummaryCard title="Debiti AER" onGo={() => goTab("aer")}>
+                <SLine k="Totale residuo" v={eurFull(totAer)} />
+                <SLine k="Estratti di ruolo" v={taxDebts.length} />
+              </SummaryCard>
+            )}
+            {cr && (
+              <SummaryCard title="Posizione bancaria" onGo={() => goTab("banca")}>
+                <SLine k="Esposizione totale" v={eurFull(cr.total_exposure)} />
+                <SLine k="Garanzie prestate" v={eurFull(cr.total_guarantees)} />
+                <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                  <CrBadge on={cr.has_sofferenze} okText="No sofferenze" alertText="Sofferenze" tone="danger" />
+                  <CrBadge on={cr.has_criticita} okText="No criticità" alertText="Criticità rilevate" tone="warning" />
+                </div>
+              </SummaryCard>
+            )}
+            <SummaryCard title="Aziende" onGo={() => goTab("aziende")}>
+              <SLine k="Aziende collegate" v={nAz} />
+              {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è socio o titolare di cariche</div>}
+              {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è garante/coobbligato</div>}
+            </SummaryCard>
+            <SummaryCard title="Documenti" onGo={() => goTab("documenti")}>
+              <SLine k="Caricati" v={nDoc} />
+              <SLine k="Elaborati" v={nDocOk} />
+            </SummaryCard>
+          </div>
+
+          <CrossAnalysisView
+            crossAnalysis={crossAnalysis}
+            loading={crossLoading}
+            onRun={handleRunCrossAnalysis}
+            goTab={goTab}
+          />
         </div>
       )}
 
@@ -485,7 +510,7 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {activeTab === "econometria" && <EconometricEvaluationView indicators={indic} debtor={d} card={card} docs={docs} patrimonio={patrimonio} totalAer={totAer} goTab={goTab} />}
 
       {/* ===== REPORT FINALE ===== */}
-      {activeTab === "report" && <FinalReportView indicators={indic} debtor={d} card={card} docs={docs} edits={edits} title={titolare} totalAer={totAer} patrimonio={patrimonio} goTab={goTab} />}
+      {activeTab === "report" && <FinalReportView indicators={indic} debtor={d} card={card} docs={docs} edits={edits} title={titolare} totalAer={totAer} patrimonio={patrimonio} crossAnalysis={crossAnalysis} goTab={goTab} />}
 
       {/* ===== AUDIT ===== */}
       {activeTab === "audit" && <AuditTrailView edits={edits} docs={docs} goTab={goTab} />}

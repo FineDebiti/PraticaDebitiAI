@@ -50,6 +50,9 @@ class Case(Base):
     guarantees_given: Mapped[list["GuaranteeGiven"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     cr_summaries: Mapped[list["CreditReportSummary"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     enrichment_requests: Mapped[list["EnrichmentRequest"]] = relationship(back_populates="case", cascade="all, delete-orphan")
+    cross_analyses: Mapped[list["CaseCrossAnalysis"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan", order_by="desc(CaseCrossAnalysis.created_at)"
+    )
 
 
 class Debtor(Base):
@@ -460,3 +463,22 @@ class AccessLog(Base):
     to_case_id: Mapped[str] = mapped_column(String, default="")        # pratica correlata aperta
     action: Mapped[str] = mapped_column(String, default="open_related")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class CaseCrossAnalysis(Base):
+    """Sintesi trasversale, incongruenze e duplicazioni generate dal modello locale (Qwen)."""
+    __tablename__ = "case_cross_analyses"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String, default="completed")  # pending|completed|error
+    incongruenze: Mapped[list] = mapped_column(JSON, default=list)
+    duplicazioni: Mapped[list] = mapped_column(JSON, default=list)
+    dati_mancanti: Mapped[list] = mapped_column(JSON, default=list)
+    scenari: Mapped[list] = mapped_column(JSON, default=list)
+    richieste_prioritarie: Mapped[list] = mapped_column(JSON, default=list)
+    note_per_il_titolare: Mapped[list] = mapped_column(JSON, default=list)
+    raw_response: Mapped[dict] = mapped_column(JSON, default=dict)
+    duration_s: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    case: Mapped["Case"] = relationship(back_populates="cross_analyses")

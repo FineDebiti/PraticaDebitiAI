@@ -137,3 +137,21 @@ class EnrichmentRequestOut(BaseModel):
     mapped_data: Dict[str, Any] = {}
     raw_response: Dict[str, Any] = {}
     created_at: str
+
+
+class CaseCrossAnalysisOut(BaseModel):
+    id: str
+    case_id: str
+    status: str
+    incongruenze: List[Dict[str, Any]] = []
+    duplicazioni: List[Dict[str, Any]] = []
+    dati_mancanti: List[Dict[str, Any]] = []
+    scenari: List[Dict[str, Any]] = []
+    richieste_prioritarie: List[Dict[str, Any]] = []
+    note_per_il_titolare: List[Any] = []
+    duration_s: float = 0.0
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

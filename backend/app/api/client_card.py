@@ -9,6 +9,7 @@ from app.models import (
     Case, Debtor, RealEstate, Vehicle, Company, CompanyMember,
     CreditExposure, GuaranteeGiven, CreditReportSummary,
     Document, TaxDebtStatement, TaxDebtItem, EnrichmentRequest, AccessLog, FieldEdit,
+    CaseCrossAnalysis,
 )
 from app.schemas.debtor import (
     DebtorIn, DebtorOut, RealEstateIn, RealEstateOut,
@@ -16,9 +17,11 @@ from app.schemas.debtor import (
     TaxDebtStatementOut,
 )
 from app.schemas.dto import (
-    IncomeDocumentOut, RelatedCaseOut, CaseIndicatorsOut, FieldEditOut, EnrichmentRequestOut
+    IncomeDocumentOut, RelatedCaseOut, CaseIndicatorsOut, FieldEditOut, EnrichmentRequestOut,
+    CaseCrossAnalysisOut,
 )
 from app.services import fiscal_code as fc
+from app.services.cross_analysis import execute_cross_analysis
 
 router = APIRouter()
 
@@ -606,3 +609,35 @@ def _num(v):
         return float(v) if v not in (None, "") else 0.0
     except (TypeError, ValueError):
         return 0.0
+
+
+# ---------- Super-Analisi Trasversale (Qwen) ----------
+@router.post("/cases/{case_id}/cross-analysis", response_model=CaseCrossAnalysisOut)
+def run_cross_analysis(case_id: str, db: Session = Depends(get_db)):
+    _get_case(db, case_id)
+    try:
+        return execute_cross_analysis(db, case_id)
+    except Exception as e:
+        raise HTTPException(500, f"Errore durante l'analisi trasversale: {str(e)}")
+
+
+@router.get("/cases/{case_id}/cross-analysis", response_model=CaseCrossAnalysisOut | None)
+def get_latest_cross_analysis(case_id: str, db: Session = Depends(get_db)):
+    _get_case(db, case_id)
+    return (
+        db.query(CaseCrossAnalysis)
+        .filter_by(case_id=case_id)
+        .order_by(CaseCrossAnalysis.created_at.desc())
+        .first()
+    )
+
+
+@router.get("/cases/{case_id}/cross-analysis/history", response_model=List[CaseCrossAnalysisOut])
+def get_cross_analysis_history(case_id: str, db: Session = Depends(get_db)):
+    _get_case(db, case_id)
+    return (
+        db.query(CaseCrossAnalysis)
+        .filter_by(case_id=case_id)
+        .order_by(CaseCrossAnalysis.created_at.desc())
+        .all()
+    )

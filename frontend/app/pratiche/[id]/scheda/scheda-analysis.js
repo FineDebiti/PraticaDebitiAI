@@ -225,9 +225,14 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
   );
 }
 
-export function FinalReport({ indicators, debtor, card, docs, edits, title, totalAer, patrimonio, goTab }) {
+export function FinalReport({ indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
   const macro = indicators?.macro || [];
   const risk = riskFromIndicators([...(macro || []), ...((indicators && indicators.indicators) || [])]);
+  const inc = crossAnalysis?.incongruenze || [];
+  const dup = crossAnalysis?.duplicazioni || [];
+  const scenari = crossAnalysis?.scenari || [];
+  const note = crossAnalysis?.note_per_il_titolare || [];
+
   return (
     <div className="pd-grid">
       <div className="pd-page-head no-print" style={{ marginBottom: 0 }}>
@@ -272,6 +277,93 @@ export function FinalReport({ indicators, debtor, card, docs, edits, title, tota
             </table>
           </div>
         </section>
+
+        {/* SEZIONE SUPER-ANALISI TRASVERSALE (QWEN) */}
+        {crossAnalysis && (
+          <section style={{ marginBottom: 32, borderTop: "2px solid var(--pd-primary)", paddingTop: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <h2 className="pd-h3" style={{ margin: 0, color: "var(--pd-primary)" }}>Sintesi trasversale, incongruenze e duplicazioni</h2>
+                <p className="pd-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>Controllo incrociato tra tutti i documenti del fascicolo eseguito dal modello locale Qwen 3.8 (27B).</p>
+              </div>
+              <span className="pd-badge pd-badge--ok">Verifica trasversale attiva</span>
+            </div>
+
+            {/* Incongruenze */}
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--pd-text)", marginBottom: 8 }}>⚠️ Incongruenze e discrasie rilevate ({inc.length})</h3>
+              <div className="pd-table-wrap">
+                <table className="pd-table">
+                  <thead><tr><th>Gravita</th><th>Descrizione discrepanza</th><th>Fonti a confronto</th><th>Azione per il legale</th></tr></thead>
+                  <tbody>
+                    {inc.map((item, idx) => (
+                      <tr key={idx}>
+                        <td><span className={`pd-badge pd-badge--${item.gravita === "SOSTANZIALE" ? "danger" : "warn"}`}>{item.gravita || "VERIFICA"}</span></td>
+                        <td><strong>{item.descrizione}</strong></td>
+                        <td style={{ fontSize: 13 }}>{item.documenti_coinvolti || "Documenti del fascicolo"}</td>
+                        <td style={{ fontSize: 13, color: "var(--pd-primary)", fontWeight: 600 }}>{item.azione_consigliata || "-"}</td>
+                      </tr>
+                    ))}
+                    {inc.length === 0 && <tr><td colSpan={4}>Nessuna incongruenza sostanziale rilevata tra i documenti.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Duplicazioni */}
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--pd-text)", marginBottom: 8 }}>🔁 Rilevamento duplicazioni di debito ({dup.length})</h3>
+              <div className="pd-table-wrap">
+                <table className="pd-table">
+                  <thead><tr><th>Partita / Debito</th><th>Importo</th><th>Documenti ripetuti</th><th>Indicazione di calcolo</th></tr></thead>
+                  <tbody>
+                    {dup.map((item, idx) => (
+                      <tr key={idx}>
+                        <td><strong>{item.partita}</strong></td>
+                        <td className="pd-num"><strong>{item.importo}</strong></td>
+                        <td style={{ fontSize: 13 }}>{item.documenti_coinvolti}</td>
+                        <td style={{ fontSize: 13, color: "var(--pd-ok)", fontWeight: 600 }}>{item.calcolo_consigliato}</td>
+                      </tr>
+                    ))}
+                    {dup.length === 0 && <tr><td colSpan={4}>Nessuna duplicazione di debito rilevata.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Scenari ex CCII */}
+            {scenari.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--pd-text)", marginBottom: 8 }}>⚖️ Valutazione preliminare scenari CCII</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+                  {scenari.map((s, idx) => (
+                    <div key={idx} style={{ background: "var(--pd-surface-low)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <strong style={{ fontSize: 14, color: "var(--pd-primary)" }}>{s.scenario}</strong>
+                        <span className={`pd-badge pd-badge--${s.fattibilita === "ALTA" ? "ok" : s.fattibilita === "MEDIA" ? "warn" : s.fattibilita === "BASSA" ? "danger" : "neutral"}`}>
+                          {s.fattibilita}
+                        </span>
+                      </div>
+                      <p style={{ margin: "4px 0", fontSize: 12, color: "var(--pd-text)" }}>{s.motivazione}</p>
+                      {s.dati_chiave && <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--pd-text-muted)" }}><strong>Dati chiave:</strong> {s.dati_chiave}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Note strategiche */}
+            {note.length > 0 && (
+              <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
+                <h4 style={{ margin: "0 0 8px", fontSize: 13, textTransform: "uppercase", color: "var(--pd-text-muted)", letterSpacing: 0.5 }}>Note e raccomandazioni per l'Avv. Bentivegna</h4>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: "var(--pd-text)" }}>
+                  {note.map((n, idx) => <li key={idx} style={{ marginBottom: 4 }}>{n}</li>)}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+
         <section className="pd-grid pd-grid--3" style={{ marginBottom: 32 }}>
           <SourceBox title="Dato grezzo" value="Documenti originali e fonti API" />
           <SourceBox title="Dato corretto" value="Storico correzioni con motivazione" />
@@ -323,3 +415,216 @@ export function AuditTrail({ edits, docs, goTab }) {
     </div>
   );
 }
+
+export function CrossAnalysis({ crossAnalysis, loading, onRun, goTab }) {
+  const inc = crossAnalysis?.incongruenze || [];
+  const dup = crossAnalysis?.duplicazioni || [];
+  const scenari = crossAnalysis?.scenari || [];
+  const note = crossAnalysis?.note_per_il_titolare || [];
+  const docMancanti = crossAnalysis?.documenti_mancanti || [];
+
+  return (
+    <div className="pd-grid">
+      <div className="pd-page-head" style={{ marginBottom: 0 }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2 className="pd-h2" style={{ margin: 0 }}>Super-Analisi del Fascicolo</h2>
+            <span className="pd-badge pd-badge--primary">Qwen 27B Local</span>
+          </div>
+          <p style={{ marginTop: 4 }}>Controllo incrociato trasversale tra tutti i documenti, rilevamento duplicazioni e verifica scenari CCII.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {crossAnalysis && (
+            <button className="pd-btn pd-btn--secondary" type="button" onClick={() => goTab("report")}>
+              <span className="material-symbols-outlined" aria-hidden="true">visibility</span>
+              Vedi nel Report Finale
+            </button>
+          )}
+          <button
+            className="pd-btn pd-btn--primary"
+            type="button"
+            disabled={loading}
+            onClick={onRun}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">{loading ? "hourglass_top" : "psychology"}</span>
+            {loading ? "Analisi in corso con Qwen..." : crossAnalysis ? "Rianalizza Fascicolo" : "Avvia Super-Analisi"}
+          </button>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="pd-card" style={{ padding: 24, textAlign: "center", background: "var(--pd-surface)" }}>
+          <div style={{ display: "inline-block", animation: "spin 2s linear infinite", fontSize: 32, marginBottom: 12 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 36, color: "var(--pd-primary)" }}>sync</span>
+          </div>
+          <h3 className="pd-h3" style={{ margin: "0 0 8px" }}>Qwen 3.8 (27B) sta analizzando l'intero fascicolo...</h3>
+          <p className="pd-muted" style={{ maxWidth: 640, margin: "0 auto", fontSize: 13 }}>
+            Il modello sta confrontando i debiti tributari (AER), le segnalazioni di Centrale Rischi, i bilanci d'esercizio e i dati anagrafico-patrimoniali per individuare incongruenze, duplicazioni e percorsi giuridici.
+          </p>
+        </div>
+      )}
+
+      {!crossAnalysis && !loading && (
+        <div className="pd-card" style={{ padding: 32, textAlign: "center", background: "var(--pd-surface)" }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 48, color: "var(--pd-primary)", marginBottom: 12 }}>hub</span>
+          <h3 className="pd-h3" style={{ margin: "0 0 8px" }}>Nessuna analisi trasversale eseguita</h3>
+          <p className="pd-muted" style={{ maxWidth: 580, margin: "0 auto 20px", fontSize: 14 }}>
+            Esegui la super-analisi trasversale per far dialogare tutti i documenti del fascicolo in un unico contesto cognitivo con il modello Qwen locale.
+          </p>
+          <button className="pd-btn pd-btn--primary" type="button" onClick={onRun}>
+            <span className="material-symbols-outlined" aria-hidden="true">psychology</span>
+            Esegui Super-Analisi con Qwen 27B
+          </button>
+        </div>
+      )}
+
+      {crossAnalysis && !loading && (
+        <>
+          <div className="pd-grid pd-grid--4">
+            <div className="pd-kpi">
+              <div className="pd-kpi__label">Incongruenze</div>
+              <div className="pd-kpi__value" style={{ color: inc.length > 0 ? "var(--pd-warn)" : "var(--pd-ok)" }}>{inc.length}</div>
+              <div className="pd-kpi__note">Discrasie documentali</div>
+            </div>
+            <div className="pd-kpi">
+              <div className="pd-kpi__label">Duplicazioni</div>
+              <div className="pd-kpi__value" style={{ color: dup.length > 0 ? "var(--pd-accent)" : "var(--pd-ok)" }}>{dup.length}</div>
+              <div className="pd-kpi__note">Partite duplicate / sovrapposte</div>
+            </div>
+            <div className="pd-kpi">
+              <div className="pd-kpi__label">Scenari CCII</div>
+              <div className="pd-kpi__value">{scenari.length}</div>
+              <div className="pd-kpi__note">Strumenti concorsuali valutati</div>
+            </div>
+            <div className="pd-kpi">
+              <div className="pd-kpi__label">Modello</div>
+              <div className="pd-kpi__value" style={{ fontSize: 18 }}>{crossAnalysis.model_used || "Qwen 27B"}</div>
+              <div className="pd-kpi__note">{crossAnalysis.created_at ? new Date(crossAnalysis.created_at).toLocaleString("it-IT") : "Eseguito"}</div>
+            </div>
+          </div>
+
+          {crossAnalysis.sintesi_generale && (
+            <div className="pd-card" style={{ padding: 18, background: "var(--pd-surface)" }}>
+              <h3 className="pd-h4" style={{ margin: "0 0 8px", color: "var(--pd-primary)" }}>Sintesi e quadro generale</h3>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "var(--pd-text)" }}>{crossAnalysis.sintesi_generale}</p>
+            </div>
+          )}
+
+          <div className="pd-card" style={{ padding: 18, background: "var(--pd-surface)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 className="pd-h4" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--pd-warn)" }}>warning</span>
+                Incongruenze e Discrasie tra Fonti ({inc.length})
+              </h3>
+            </div>
+            <div className="pd-table-wrap">
+              <table className="pd-table">
+                <thead>
+                  <tr>
+                    <th>Gravità</th>
+                    <th>Descrizione discrepanza</th>
+                    <th>Fonti a confronto</th>
+                    <th>Azione per il legale</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inc.map((item, idx) => (
+                    <tr key={idx}>
+                      <td><span className={`pd-badge pd-badge--${item.gravita === "SOSTANZIALE" || item.gravita === "GRAVE" ? "danger" : "warn"}`}>{item.gravita || "VERIFICA"}</span></td>
+                      <td><strong>{item.descrizione}</strong></td>
+                      <td style={{ fontSize: 13 }}>{item.documenti_coinvolti || "Documenti del fascicolo"}</td>
+                      <td style={{ fontSize: 13, color: "var(--pd-primary)", fontWeight: 600 }}>{item.azione_consigliata || "-"}</td>
+                    </tr>
+                  ))}
+                  {inc.length === 0 && <tr><td colSpan={4}>Nessuna incongruenza o discrasia rilevata tra i documenti.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="pd-card" style={{ padding: 18, background: "var(--pd-surface)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 className="pd-h4" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--pd-accent)" }}>content_copy</span>
+                Rilevamento Duplicazioni di Debito ({dup.length})
+              </h3>
+            </div>
+            <div className="pd-table-wrap">
+              <table className="pd-table">
+                <thead>
+                  <tr>
+                    <th>Partita / Voce di Debito</th>
+                    <th>Importo</th>
+                    <th>Fonti e Documenti Coinvolti</th>
+                    <th>Calcolo / Trattamento Consigliato</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dup.map((item, idx) => (
+                    <tr key={idx}>
+                      <td><strong>{item.partita}</strong></td>
+                      <td className="pd-num"><strong>{item.importo}</strong></td>
+                      <td style={{ fontSize: 13 }}>{item.documenti_coinvolti}</td>
+                      <td style={{ fontSize: 13, color: "var(--pd-ok)", fontWeight: 600 }}>{item.calcolo_consigliato}</td>
+                    </tr>
+                  ))}
+                  {dup.length === 0 && <tr><td colSpan={4}>Nessuna duplicazione di debito rilevata.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {scenari.length > 0 && (
+            <div className="pd-card" style={{ padding: 18, background: "var(--pd-surface)" }}>
+              <h3 className="pd-h4" style={{ margin: "0 0 14px", display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--pd-primary)" }}>gavel</span>
+                Valutazione Preliminare Scenari CCII (Codice della Crisi)
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+                {scenari.map((s, idx) => (
+                  <div key={idx} style={{ background: "var(--pd-surface-low)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <strong style={{ fontSize: 15, color: "var(--pd-primary)" }}>{s.scenario}</strong>
+                      <span className={`pd-badge pd-badge--${s.fattibilita === "ALTA" ? "ok" : s.fattibilita === "MEDIA" ? "warn" : s.fattibilita === "BASSA" ? "danger" : "neutral"}`}>
+                        Fattibilità: {s.fattibilita}
+                      </span>
+                    </div>
+                    <p style={{ margin: "6px 0", fontSize: 13, lineHeight: 1.5, color: "var(--pd-text)" }}>{s.motivazione}</p>
+                    {s.dati_chiave && <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--pd-text-muted)" }}><strong>Elementi chiave:</strong> {s.dati_chiave}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pd-grid pd-grid--2">
+            {docMancanti.length > 0 && (
+              <div className="pd-card" style={{ padding: 18, background: "var(--pd-surface)" }}>
+                <h3 className="pd-h4" style={{ margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="material-symbols-outlined" style={{ color: "var(--pd-warn)" }}>inventory_2</span>
+                  Documenti Mancanti Suggeriti ({docMancanti.length})
+                </h3>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: "var(--pd-text)" }}>
+                  {docMancanti.map((d, idx) => <li key={idx} style={{ marginBottom: 4 }}><strong>{typeof d === 'string' ? d : d.documento || JSON.stringify(d)}</strong>{d.motivo ? ` — ${d.motivo}` : ''}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {note.length > 0 && (
+              <div className="pd-card" style={{ padding: 18, background: "var(--pd-surface)" }}>
+                <h3 className="pd-h4" style={{ margin: "0 0 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="material-symbols-outlined" style={{ color: "var(--pd-primary)" }}>edit_note</span>
+                  Raccomandazioni per l'Avv. Bentivegna
+                </h3>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: "var(--pd-text)" }}>
+                  {note.map((n, idx) => <li key={idx} style={{ marginBottom: 6 }}>{n}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+

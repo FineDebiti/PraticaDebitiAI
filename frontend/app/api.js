@@ -220,3 +220,22 @@ export async function companyImport(caseId, data) {
   if (!r.ok) return { error: body.detail || "Errore nel salvataggio dell'azienda." };
   return body; // { ok, company_id }
 }
+
+// ---------- Super-Analisi Trasversale (Qwen) ----------
+export async function runCrossAnalysis(caseId) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/cross-analysis`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || "Errore durante l'analisi trasversale.");
+  }
+  return r.json();
+}
+
+export async function getCrossAnalysis(caseId) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/cross-analysis`, { cache: "no-store" });
+  if (!r.ok) return null;
+  return r.json();
+}
+
