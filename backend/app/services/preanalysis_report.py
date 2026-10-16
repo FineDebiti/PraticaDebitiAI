@@ -219,10 +219,17 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     cols = []
     for fs in ordered_fss:
         is_interim = ("provvisorio" in fs.statement_type.lower() or fs.fiscal_year_end.endswith("-06-30") or fs.fiscal_year_end.endswith("-09-30"))
-        lbl = ("Situazione al " if is_interim else "Bilancio approvato al ") + fs.fiscal_year_end
+        year = fs.fiscal_year_end[:4]
+        dt_parts = fs.fiscal_year_end.split("-")
+        dt_it = f"{dt_parts[2]}/{dt_parts[1]}/{dt_parts[0][2:]}" if len(dt_parts) == 3 else fs.fiscal_year_end
+        title = f"Situazione {year}" if is_interim else f"Bilancio {year}"
+        date_lbl = f"al {dt_it}"
+        lbl = f"{title} ({date_lbl})"
         cols.append({
             "key": fs.fiscal_year_end,
             "label": lbl,
+            "title": title,
+            "date": date_lbl,
             "is_interim": is_interim,
             "fs": fs,
         })
@@ -306,13 +313,24 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     total_latest = col_totals.get(latest_col["key"], 0.0) if latest_col else 0.0
     total_var = round(total_latest - total_base, 2)
 
+    var_subtitle = f"({latest_col['key'][:4]} vs {last_approved_col['key'][:4]})" if (latest_col and last_approved_col) else "Netta"
     table_5_1 = {
-        "colonne": [{"key": c["key"], "label": c["label"], "is_interim": c["is_interim"]} for c in cols],
+        "colonne": [
+            {
+                "key": c["key"],
+                "label": c["label"],
+                "title": c.get("title", c["label"]),
+                "date": c.get("date", c["key"]),
+                "is_interim": c["is_interim"],
+            }
+            for c in cols
+        ],
         "righe": table_5_1_rows,
         "totali": {k: round(v, 2) for k, v in col_totals.items()},
         "totale_variazione": total_var,
         "base_confronto": last_approved_col["key"] if last_approved_col else "",
         "situazione_recente": latest_col["key"] if latest_col else "",
+        "var_subtitle": var_subtitle,
     }
 
     # =========================================================================

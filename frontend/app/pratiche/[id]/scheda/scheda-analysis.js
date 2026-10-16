@@ -230,6 +230,7 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
 export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [printOrientation, setPrintOrientation] = useState("portrait");
 
   const fetchReport = useCallback(() => {
     if (!caseId) return;
@@ -266,6 +267,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
     <div className="pd-grid">
       <style>{`
         @media print {
+          @page {
+            size: ${printOrientation === "landscape" ? "A4 landscape" : "A4 portrait"};
+            margin: 8mm 10mm;
+          }
           .no-print { display: none !important; }
           .pd-report-paper {
             box-shadow: none !important;
@@ -273,24 +278,48 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             padding: 0 !important;
             margin: 0 !important;
             max-width: 100% !important;
+            width: 100% !important;
             background: transparent !important;
           }
           body {
             background: #fff !important;
             color: #000 !important;
-            font-size: 11pt !important;
+            font-size: ${printOrientation === "landscape" ? "9pt" : "8pt"} !important;
           }
           .pd-chapter {
             page-break-inside: avoid;
-            margin-bottom: 24pt !important;
+            margin-bottom: 18pt !important;
+          }
+          .pd-table-wrap {
+            overflow: visible !important;
+            box-shadow: none !important;
           }
           table {
             page-break-inside: avoid;
-            font-size: 9.5pt !important;
+            width: 100% !important;
+            table-layout: auto !important;
+            font-size: ${printOrientation === "landscape" ? "8.5pt" : "7.2pt"} !important;
+          }
+          .pd-table th, .pd-table td {
+            padding: 2.5px 3.5px !important;
+          }
+          .sticky-col {
+            position: static !important;
+            box-shadow: none !important;
           }
           h1, h2, h3, h4 {
             page-break-after: avoid;
           }
+        }
+        .sticky-col {
+          position: sticky;
+          left: 0;
+          background: #fff;
+          z-index: 2;
+          box-shadow: 2px 0 4px rgba(0,0,0,0.06);
+        }
+        .pd-table-compact th, .pd-table-compact td {
+          padding: 6px 8px;
         }
         .pd-chapter {
           margin-bottom: 34px;
@@ -357,6 +386,17 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             <span className="material-symbols-outlined" aria-hidden="true">hub</span>
             Hub Analitico
           </button>
+          <button
+            type="button"
+            className="pd-btn pd-btn--secondary"
+            onClick={() => setPrintOrientation((prev) => (prev === "portrait" ? "landscape" : "portrait"))}
+            title="Alterna formato di stampa tra Verticale e Orizzontale"
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              {printOrientation === "landscape" ? "stay_primary_landscape" : "stay_primary_portrait"}
+            </span>
+            Stampa: {printOrientation === "landscape" ? "Orizzontale" : "Verticale"}
+          </button>
           <button type="button" className="pd-btn pd-btn--primary" onClick={() => window.print()}>
             <span className="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
             Stampa / Esporta PDF
@@ -364,7 +404,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         </div>
       </div>
 
-      <article className="pd-report-paper" style={{ padding: "48px 56px", background: "#fff", maxWidth: 960, margin: "0 auto", boxShadow: "var(--pd-shadow-md)", borderRadius: 8 }}>
+      <article className="pd-report-paper" style={{ padding: "36px 44px", background: "#fff", maxWidth: 1140, margin: "0 auto", boxShadow: "var(--pd-shadow-md)", borderRadius: 8 }}>
         {/* HEADER FORMALE DEL TEMPLATE */}
         <header style={{ borderBottom: "2px solid var(--pd-primary)", paddingBottom: 24, marginBottom: 36 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -586,43 +626,59 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             <table className="pd-table">
               <thead>
                 <tr>
-                  <th>Voce di debito effettiva</th>
+                  <th className="sticky-col" style={{ minWidth: 200 }}>Voce di debito effettiva</th>
                   {(t51.colonne || []).map((col) => (
-                    <th key={col.key} className="pd-num" style={{ whiteSpace: "nowrap" }}>
-                      {col.label}
+                    <th key={col.key} className="pd-num" style={{ whiteSpace: "nowrap", minWidth: 92 }}>
+                      <div style={{ fontWeight: 700, fontSize: "12px", color: col.is_interim ? "var(--pd-primary)" : "inherit" }}>
+                        {col.title || col.label}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "var(--pd-text-muted)", fontWeight: 400, marginTop: 1 }}>
+                        {col.date || ""}
+                      </div>
                     </th>
                   ))}
-                  <th className="pd-num" style={{ color: "var(--pd-primary)" }}>Variazione</th>
-                  <th>Note</th>
+                  <th className="pd-num" style={{ color: "var(--pd-primary)", minWidth: 98, whiteSpace: "nowrap" }}>
+                    <div style={{ fontWeight: 700, fontSize: "12px" }}>Variazione</div>
+                    <div style={{ fontSize: "10px", color: "var(--pd-text-muted)", fontWeight: 400, marginTop: 1 }}>
+                      {t51.var_subtitle || "Netta"}
+                    </div>
+                  </th>
+                  <th style={{ minWidth: 125, whiteSpace: "nowrap" }}>Note</th>
                 </tr>
               </thead>
               <tbody>
                 {(t51.righe || []).map((r, idx) => (
                   <tr key={idx}>
-                    <td><strong>{r.voce}</strong></td>
+                    <td className="sticky-col"><strong>{r.voce}</strong></td>
                     {(t51.colonne || []).map((col) => (
-                      <td key={col.key} className="pd-num">
+                      <td key={col.key} className="pd-num" style={{ whiteSpace: "nowrap" }}>
                         {eurFull(r.valori?.[col.key])}
                       </td>
                     ))}
-                    <td className="pd-num" style={{ fontWeight: 700, color: r.variazione > 0 ? "var(--pd-danger)" : r.variazione < 0 ? "var(--pd-ok)" : "inherit" }}>
+                    <td className="pd-num" style={{ whiteSpace: "nowrap", fontWeight: 700, color: r.variazione > 0 ? "var(--pd-danger)" : r.variazione < 0 ? "var(--pd-ok)" : "inherit" }}>
                       {r.variazione > 0 ? `+${eurFull(r.variazione)}` : eurFull(r.variazione)}
                     </td>
-                    <td style={{ fontSize: 12 }}>{r.note || "—"}</td>
+                    <td style={{ fontSize: 11, whiteSpace: "nowrap" }}>
+                      {r.note ? (
+                        <span style={{ background: "rgba(37,99,235,0.08)", color: "var(--pd-primary)", padding: "2px 6px", borderRadius: 4, fontWeight: 600, fontSize: 11, display: "inline-block" }}>
+                          {r.note}
+                        </span>
+                      ) : "—"}
+                    </td>
                   </tr>
                 ))}
                 {/* RIGA TOTALE DEBITI */}
                 <tr style={{ background: "var(--pd-surface-low)", fontWeight: 800, borderTop: "2px solid var(--pd-border)" }}>
-                  <td><strong>TOTALE DEBITI DA BILANCIO</strong></td>
+                  <td className="sticky-col" style={{ background: "var(--pd-surface-low)" }}><strong>TOTALE DEBITI DA BILANCIO</strong></td>
                   {(t51.colonne || []).map((col) => (
-                    <td key={col.key} className="pd-num" style={{ fontWeight: 800 }}>
+                    <td key={col.key} className="pd-num" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>
                       {eurFull(t51.totali?.[col.key])}
                     </td>
                   ))}
-                  <td className="pd-num" style={{ fontWeight: 800, color: t51.totale_variazione > 0 ? "var(--pd-danger)" : "var(--pd-ok)" }}>
+                  <td className="pd-num" style={{ fontWeight: 800, whiteSpace: "nowrap", color: t51.totale_variazione > 0 ? "var(--pd-danger)" : "var(--pd-ok)" }}>
                     {t51.totale_variazione > 0 ? `+${eurFull(t51.totale_variazione)}` : eurFull(t51.totale_variazione)}
                   </td>
-                  <td style={{ fontSize: 12 }}>Escluso PN e risconti</td>
+                  <td style={{ fontSize: 11, whiteSpace: "nowrap" }}>Escluso PN e risconti</td>
                 </tr>
               </tbody>
             </table>
