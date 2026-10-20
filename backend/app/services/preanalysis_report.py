@@ -24,6 +24,7 @@ from app.models import (
     CreditExposure, GuaranteeGiven, CreditReportSummary,
     Document, TaxDebtStatement, FinancialStatement, CaseCrossAnalysis,
 )
+from app.services.rule_engine import get_active_rules
 
 
 def _fmt_eur(v):
@@ -723,4 +724,17 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
             "raccomandazioni": raccomandazioni,
             "dicitura_finale": f"PRIMA BOZZA DI ANALISI - ELABORATA IL {now.strftime('%d/%m/%Y').upper()}",
         },
+        "studio_rules": [
+            {
+                "id": r.id,
+                "scope": r.scope,
+                "scope_title": r.scope_title,
+                "category": r.category,
+                "rule_title": r.rule_title,
+                "rule_prompt": r.rule_prompt,
+                "author": r.author,
+                "created_at": r.created_at.strftime("%d/%m/%Y") if r.created_at else "",
+            }
+            for r in get_active_rules(db)
+        ],
     }

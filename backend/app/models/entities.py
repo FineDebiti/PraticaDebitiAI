@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Float, ForeignKey, DateTime, Text, JSON
+from sqlalchemy import String, Integer, Float, ForeignKey, DateTime, Text, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
@@ -52,6 +52,9 @@ class Case(Base):
     enrichment_requests: Mapped[list["EnrichmentRequest"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     cross_analyses: Mapped[list["CaseCrossAnalysis"]] = relationship(
         back_populates="case", cascade="all, delete-orphan", order_by="desc(CaseCrossAnalysis.created_at)"
+    )
+    studio_rules: Mapped[list["StudioRule"]] = relationship(
+        back_populates="case", order_by="desc(StudioRule.created_at)"
     )
 
 
@@ -482,3 +485,26 @@ class CaseCrossAnalysis(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     case: Mapped["Case"] = relationship(back_populates="cross_analyses")
+
+
+class StudioRule(Base):
+    """Regola e memoria operativa dello Studio Legale.
+    Creata a partire dai feedback dell'avvocato o dell'analista su specifici capitoli o generale,
+    viene memorizzata nel database e iniettata nel contesto di Qwen per l'addestramento continuo."""
+    __tablename__ = "studio_rules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    case_id: Mapped[str | None] = mapped_column(ForeignKey("cases.id", ondelete="SET NULL"), nullable=True, index=True)
+    client_name: Mapped[str] = mapped_column(String, default="")
+    scope: Mapped[str] = mapped_column(String, default="global", index=True)  # 'global' o 'cap_1', 'cap_5_1', 'cap_5_2', ecc.
+    scope_title: Mapped[str] = mapped_column(String, default="Generale")
+    category: Mapped[str] = mapped_column(String, default="Generale")  # Bilancio, Fiscale/AER, Banche/CR, Soci, CCII, ecc.
+    user_comment: Mapped[str] = mapped_column(Text, default="")  # Istruzione / appunto del legale o analista
+    rule_title: Mapped[str] = mapped_column(String, default="")  # Titolo sintetico della regola
+    rule_prompt: Mapped[str] = mapped_column(Text, default="")  # Testo formale della regola iniettato in Qwen
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    author: Mapped[str] = mapped_column(String, default="Team Studio Bentivegna")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    case: Mapped["Case"] = relationship(back_populates="studio_rules")

@@ -245,4 +245,67 @@ export async function getPreanalysisReport(caseId) {
   return r.json();
 }
 
+// ---------- Addestramento Continuo & Playbook dello Studio ----------
+export async function synthesizeStudioRule(payload) {
+  const r = await fetch(`${BASE}/api/studio-rules/synthesize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || "Errore nella formulazione della regola.");
+  }
+  return r.json();
+}
+
+export async function createStudioRule(payload) {
+  const r = await fetch(`${BASE}/api/studio-rules`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || "Errore nel salvataggio della regola.");
+  }
+  return r.json();
+}
+
+export async function listStudioRules(params = {}) {
+  const q = new URLSearchParams();
+  if (params.active_only) q.append("active_only", "true");
+  if (params.scope) q.append("scope", params.scope);
+  if (params.category) q.append("category", params.category);
+  const qs = q.toString() ? `?${q.toString()}` : "";
+  const r = await fetch(`${BASE}/api/studio-rules${qs}`, { cache: "no-store" });
+  if (!r.ok) return { total: 0, active_count: 0, rules: [] };
+  return r.json();
+}
+
+export async function updateStudioRule(ruleId, payload) {
+  const r = await fetch(`${BASE}/api/studio-rules/${ruleId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || "Errore nell'aggiornamento della regola.");
+  }
+  return r.json();
+}
+
+export async function deleteStudioRule(ruleId) {
+  const r = await fetch(`${BASE}/api/studio-rules/${ruleId}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || "Errore nell'eliminazione della regola.");
+  }
+  return r.json();
+}
+
+
 

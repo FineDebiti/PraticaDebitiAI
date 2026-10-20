@@ -18,6 +18,7 @@ from app.models import (
     FinancialStatement, TaxDebtStatement, DebtPosition, Document, Extraction,
     CaseCrossAnalysis,
 )
+from app.services.rule_engine import build_active_rules_prompt_block
 from app.services.llm_providers import REGISTRY
 from app.services.llm_providers.base import parse_json
 from app.config import settings
@@ -162,13 +163,13 @@ def assemble_case_dossier(db: Session, case_id: str) -> dict:
     }
 
 
-def build_cross_analysis_prompt(dossier: dict) -> str:
-    """Costruisce il prompt di sintesi trasversale per Qwen."""
+def build_cross_analysis_prompt(dossier: dict, rules_block: str = "") -> str:
+    """Costruisce il prompt di sintesi trasversale per Qwen, integrando la memoria delle regole di studio."""
     dossier_json = json.dumps(dossier, indent=2, ensure_ascii=False)
-    return f"""Sei un consulente esperto in diritto della crisi d'impresa e sovraindebitamento (Codice della Crisi d'Impresa e dell'Insolvenza - CCII) che opera a supporto dell'Avv. Aurelio Bentivegna.
+    return f"""Sei un consulente esperto in diritto della crisi d'impresa e sovraindebitamento (Codice della Crisi d'Impresa e dell'Insolvenza - CCII) che opera a supporto dell'Avv. Aurelio Bentivegna e del team di analisi.
 
 Il tuo compito è condurre una SINTESI TRASVERSALE E RILEVAMENTO CRITICITÀ incrociando TUTTI i dati e documenti del fascicolo del cliente sotto riportato.
-
+{rules_block}
 FASCICOLO CONSOLIDATO DEL CLIENTE:
 {dossier_json}
 
@@ -225,7 +226,8 @@ def execute_cross_analysis(db: Session, case_id: str) -> CaseCrossAnalysis:
     """Esegue la sintesi trasversale interrogando il modello locale (Qwen su LM Studio) e persiste il risultato."""
     t0 = time.time()
     dossier = assemble_case_dossier(db, case_id)
-    prompt = build_cross_analysis_prompt(dossier)
+    rules_block = build_active_rules_prompt_block(db)
+    prompt = build_cross_analysis_prompt(dossier, rules_block=rules_block)
 
     # Invoca il provider configurato (lmstudio come primario)
     prov = REGISTRY.get(settings.llm_provider) or REGISTRY.get("lmstudio")

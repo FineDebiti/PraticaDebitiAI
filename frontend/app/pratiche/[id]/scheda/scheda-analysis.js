@@ -1,6 +1,13 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { getPreanalysisReport } from "../../../api";
+import {
+  getPreanalysisReport,
+  synthesizeStudioRule,
+  createStudioRule,
+  listStudioRules,
+  updateStudioRule,
+  deleteStudioRule,
+} from "../../../api";
 
 function eurFull(v) {
   return "€ " + (Number(v) || 0).toLocaleString("it-IT", { useGrouping: true, minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -227,10 +234,484 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
   );
 }
 
+// ============================================================================
+// MODULO ADDESTRAMENTO CONTINUO & PLAYBOOK DELLO STUDIO (FEEDBACK INTERATTIVO)
+// ============================================================================
+
+function InlineCommentBox({
+  scope,
+  scopeTitle,
+  contextText,
+  caseId,
+  clientName,
+  onClose,
+  onRuleCreated,
+}) {
+  const [comment, setComment] = useState("");
+  const [author, setAuthor] = useState("Responsabile Analisi");
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [proposal, setProposal] = useState(null);
+  const [error, setError] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
+
+  const [ruleTitle, setRuleTitle] = useState("");
+  const [rulePrompt, setRulePrompt] = useState("");
+  const [category, setCategory] = useState("Generale");
+
+  const handleSynthesize = async () => {
+    if (!comment.trim()) {
+      setError("Inserisci una spiegazione o istruzione correttiva.");
+      return;
+    }
+    setError(null);
+    setSynthesizing(true);
+    try {
+      const res = await synthesizeStudioRule({
+        case_id: caseId,
+        scope,
+        scope_title: scopeTitle,
+        user_comment: comment,
+        current_context_text: typeof contextText === "string" ? contextText : JSON.stringify(contextText || ""),
+        author,
+      });
+      setProposal(res);
+      setRuleTitle(res.rule_title || `Regola su ${scopeTitle}`);
+      setRulePrompt(res.rule_prompt || comment);
+      setCategory(res.category || "Generale");
+    } catch (err) {
+      setError(err.message || "Errore durante la sintesi della regola con Qwen.");
+    } finally {
+      setSynthesizing(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!ruleTitle.trim() || !rulePrompt.trim()) {
+      setError("Titolo e testo della regola sono obbligatori.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
+    try {
+      const created = await createStudioRule({
+        case_id: caseId,
+        client_name: clientName,
+        scope,
+        scope_title: scopeTitle,
+        category,
+        user_comment: comment,
+        rule_title: ruleTitle,
+        rule_prompt: rulePrompt,
+        is_active: true,
+        author,
+      });
+      setSuccessMsg("Regola memorizzata con successo nel Playbook! Verrà applicata a tutte le future analisi.");
+      if (onRuleCreated) onRuleCreated(created);
+      setTimeout(() => {
+        onClose();
+      }, 1600);
+    } catch (err) {
+      setError(err.message || "Errore durante il salvataggio nel database.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="pd-review-box no-print"
+      style={{
+        background: "#f8fafc",
+        border: "1.5px solid #cbd5e1",
+        borderLeft: "4px solid var(--pd-primary)",
+        borderRadius: 8,
+        padding: 16,
+        margin: "12px 0 18px",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="material-symbols-outlined" style={{ color: "var(--pd-primary)", fontSize: 20 }}>
+            school
+          </span>
+          <strong style={{ fontSize: 14, color: "var(--pd-primary)" }}>
+            Addestra DossierLex — {scopeTitle}
+          </strong>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pd-text-muted)" }}
+          title="Chiudi"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+        </button>
+      </div>
+
+      <p style={{ margin: "0 0 10px", fontSize: 12.5, color: "var(--pd-text-muted)", lineHeight: 1.45 }}>
+        Indica cosa c'è da correggere, come andava riclassificata una voce o quale criterio contabile/legale applicare. Qwen formalizzerà la regola per non ripetere più questo errore in futuro.
+      </p>
+
+      {error && (
+        <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#991b1b", padding: "8px 12px", borderRadius: 6, fontSize: 12.5, marginBottom: 10 }}>
+          {error}
+        </div>
+      )}
+
+      {successMsg && (
+        <div style={{ background: "#dcfce7", border: "1px solid #22c55e", color: "#166534", padding: "8px 12px", borderRadius: 6, fontSize: 12.5, marginBottom: 10 }}>
+          ✓ {successMsg}
+        </div>
+      )}
+
+      {!proposal ? (
+        <div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "var(--pd-text)", marginBottom: 4 }}>
+              Operatore / Ruolo
+            </label>
+            <select
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              style={{ width: "100%", maxWidth: 280, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--pd-border)", fontSize: 12.5, background: "#fff" }}
+            >
+              <option value="Responsabile Analisi">Responsabile Analisi</option>
+              <option value="Avv. Aurelio Bentivegna">Avv. Aurelio Bentivegna</option>
+              <option value="Team Studio Legale">Team Studio Legale</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, color: "var(--pd-text)", marginBottom: 4 }}>
+              Istruzione / Correzione (Cosa deve imparare l'AI?)
+            </label>
+            <textarea
+              rows={3}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Es: Su questa sezione non inserire le fatture proforma tra i debiti certi di bilancio, ma riportale solo al par. 5.3 come passività potenziali..."
+              style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid var(--pd-border)", fontSize: 13, resize: "vertical" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button type="button" className="pd-btn pd-btn--secondary" onClick={onClose} disabled={synthesizing}>
+              Annulla
+            </button>
+            <button
+              type="button"
+              className="pd-btn pd-btn--primary"
+              onClick={handleSynthesize}
+              disabled={synthesizing}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                {synthesizing ? "sync" : "smart_toy"}
+              </span>
+              {synthesizing ? "Formalizzazione in corso..." : "Formalizza Regola con Qwen"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: "#fff", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <span className="pd-badge pd-badge--ok" style={{ fontSize: 11 }}>
+              Regola proposta da Qwen
+            </span>
+            <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>
+              Categoria: <strong>{category}</strong>
+            </span>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>Titolo Regola</label>
+            <input
+              type="text"
+              value={ruleTitle}
+              onChange={(e) => setRuleTitle(e.target.value)}
+              style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid var(--pd-border)", fontSize: 13, fontWeight: 600 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ display: "block", fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>Direttiva Operativa per l'AI (Testo Iniettato)</label>
+            <textarea
+              rows={3}
+              value={rulePrompt}
+              onChange={(e) => setRulePrompt(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid var(--pd-border)", fontSize: 12.5 }}
+            />
+          </div>
+
+          {proposal.reasoning && (
+            <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--pd-text-muted)", fontStyle: "italic" }}>
+              💡 <strong>Motivazione:</strong> {proposal.reasoning}
+            </p>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <button
+              type="button"
+              className="pd-btn pd-btn--ghost"
+              onClick={() => setProposal(null)}
+              disabled={saving}
+            >
+              ← Modifica appunto
+            </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="button" className="pd-btn pd-btn--secondary" onClick={onClose} disabled={saving}>
+                Annulla
+              </button>
+              <button
+                type="button"
+                className="pd-btn pd-btn--primary"
+                onClick={handleSave}
+                disabled={saving}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                  {saving ? "sync" : "save"}
+                </span>
+                {saving ? "Salvataggio..." : "Salva nel Playbook dello Studio"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlaybookModal({ isOpen, onClose, onRulesChanged }) {
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [togglingId, setTogglingId] = useState(null);
+
+  const loadRules = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await listStudioRules();
+      setRules(data.rules || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) loadRules();
+  }, [isOpen, loadRules]);
+
+  const handleToggle = async (rule) => {
+    setTogglingId(rule.id);
+    try {
+      await updateStudioRule(rule.id, { is_active: !rule.is_active });
+      setRules((prev) =>
+        prev.map((r) => (r.id === rule.id ? { ...r, is_active: !r.is_active } : r))
+      );
+      if (onRulesChanged) onRulesChanged();
+    } catch (err) {
+      alert("Errore aggiornamento regola: " + err.message);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleDelete = async (ruleId) => {
+    if (!confirm("Sei sicuro di voler eliminare questa regola dal Playbook dello Studio?")) return;
+    try {
+      await deleteStudioRule(ruleId);
+      setRules((prev) => prev.filter((r) => r.id !== ruleId));
+      if (onRulesChanged) onRulesChanged();
+    } catch (err) {
+      alert("Errore eliminazione regola: " + err.message);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const categories = ["all", ...new Set(rules.map((r) => r.category).filter(Boolean))];
+  const filteredRules = filterCategory === "all" ? rules : rules.filter((r) => r.category === filterCategory);
+  const activeCount = rules.filter((r) => r.is_active).length;
+
+  return (
+    <div
+      className="no-print"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(15, 23, 42, 0.6)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          maxWidth: 820,
+          width: "100%",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+          border: "1px solid var(--pd-border)",
+        }}
+      >
+        <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--pd-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18, color: "var(--pd-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="material-symbols-outlined">menu_book</span>
+              Playbook dello Studio — Memoria Operativa ({activeCount} attive su {rules.length})
+            </h3>
+            <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--pd-text-muted)" }}>
+              Regole e prassi apprese dai feedback. Vengono iniettate automaticamente nei prompt di Qwen.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pd-text-muted)", fontSize: 20 }}
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div style={{ padding: "12px 24px", background: "var(--pd-surface-low)", borderBottom: "1px solid var(--pd-border)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)" }}>Filtra per categoria:</span>
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setFilterCategory(cat)}
+              style={{
+                background: filterCategory === cat ? "var(--pd-primary)" : "#fff",
+                color: filterCategory === cat ? "#fff" : "var(--pd-text)",
+                border: "1px solid var(--pd-border)",
+                borderRadius: 20,
+                padding: "3px 12px",
+                fontSize: 12,
+                cursor: "pointer",
+                fontWeight: filterCategory === cat ? 600 : 400,
+              }}
+            >
+              {cat === "all" ? "Tutte le categorie" : cat}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+          {loading ? (
+            <p style={{ textAlign: "center", color: "var(--pd-text-muted)", padding: 40 }}>Caricamento regole...</p>
+          ) : filteredRules.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--pd-text-muted)" }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 40, color: "var(--pd-border-strong)", marginBottom: 8 }}>
+                psychology
+              </span>
+              <p style={{ margin: 0, fontSize: 14 }}>Nessuna regola trovata nel Playbook.</p>
+              <p style={{ margin: "4px 0 0", fontSize: 12 }}>Attiva la 'Modalità Revisione' nel Report Finale e clicca su '+ Istruisci' per addestrare il sistema.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {filteredRules.map((r) => (
+                <div
+                  key={r.id}
+                  style={{
+                    background: r.is_active ? "#fff" : "var(--pd-surface-low)",
+                    border: `1px solid ${r.is_active ? "var(--pd-border)" : "var(--pd-border-strong)"}`,
+                    borderLeft: `4px solid ${r.is_active ? "var(--pd-primary)" : "#94a3b8"}`,
+                    borderRadius: 8,
+                    padding: 14,
+                    opacity: r.is_active ? 1 : 0.7,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span className="pd-badge pd-badge--neutral" style={{ fontSize: 10.5, fontWeight: 700 }}>
+                          {r.scope_title || r.scope}
+                        </span>
+                        <span className="pd-badge pd-badge--neutral" style={{ fontSize: 10.5 }}>
+                          {r.category}
+                        </span>
+                        {!r.is_active && (
+                          <span style={{ fontSize: 11, color: "var(--pd-danger)", fontWeight: 700 }}>
+                            DISATTIVATA
+                          </span>
+                        )}
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: 14, color: "var(--pd-text)" }}>{r.rule_title}</h4>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(r)}
+                        disabled={togglingId === r.id}
+                        className={`pd-btn ${r.is_active ? "pd-btn--secondary" : "pd-btn--primary"}`}
+                        style={{ fontSize: 11.5, padding: "4px 8px" }}
+                        title={r.is_active ? "Disattiva temporaneamente questa regola" : "Riattiva questa regola"}
+                      >
+                        {r.is_active ? "Disattiva" : "Attiva"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(r.id)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--pd-danger)" }}
+                        title="Elimina definitivamente"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <p style={{ margin: "6px 0", fontSize: 13, lineHeight: 1.5, color: "var(--pd-text)" }}>
+                    <strong>Direttiva:</strong> {r.rule_prompt}
+                  </p>
+
+                  {r.user_comment && (
+                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--pd-text-muted)" }}>
+                      <em>Origine feedback: "{r.user_comment}"</em>
+                    </p>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, fontSize: 11, color: "var(--pd-text-muted)" }}>
+                    <span>Inserita da: <strong>{r.author || "Studio"}</strong></span>
+                    <span>{r.client_name ? `Fascicolo: ${r.client_name} — ` : ""}{r.created_at ? new Date(r.created_at).toLocaleDateString("it-IT") : ""}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: "14px 24px", borderTop: "1px solid var(--pd-border)", display: "flex", justifyContent: "flex-end" }}>
+          <button type="button" className="pd-btn pd-btn--secondary" onClick={onClose}>
+            Chiudi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [printOrientation, setPrintOrientation] = useState("portrait");
+  const [reviewMode, setReviewMode] = useState(false);
+  const [activeCommentScope, setActiveCommentScope] = useState(null);
+  const [showPlaybook, setShowPlaybook] = useState(false);
+  const [rulesStats, setRulesStats] = useState({ total: 0, active: 0 });
 
   const fetchReport = useCallback(() => {
     if (!caseId) return;
@@ -241,9 +722,51 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
       .finally(() => setLoading(false));
   }, [caseId]);
 
+  const refreshRulesStats = useCallback(async () => {
+    try {
+      const data = await listStudioRules();
+      setRulesStats({ total: data.total || 0, active: data.active_count || 0 });
+    } catch (err) {
+      console.error("Errore recupero statistiche regole:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchReport();
-  }, [fetchReport]);
+    refreshRulesStats();
+  }, [fetchReport, refreshRulesStats]);
+
+  const renderReviewButton = (scopeKey, scopeName, contextSnippet = "") => {
+    if (!reviewMode) return null;
+    const isOpen = activeCommentScope === scopeKey;
+    return (
+      <button
+        type="button"
+        className="pd-review-btn no-print"
+        style={{
+          background: isOpen ? "var(--pd-primary)" : "rgba(37, 99, 235, 0.08)",
+          color: isOpen ? "#fff" : "var(--pd-primary)",
+          border: "1px solid rgba(37, 99, 235, 0.25)",
+          borderRadius: 6,
+          padding: "3px 9px",
+          fontSize: "12px",
+          fontWeight: 600,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          boxShadow: isOpen ? "0 2px 4px rgba(37, 99, 235, 0.2)" : "none",
+        }}
+        onClick={() => setActiveCommentScope(isOpen ? null : scopeKey)}
+        title="Aggiungi istruzione o correzione per addestrare il sistema"
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+          {isOpen ? "close" : "add_comment"}
+        </span>
+        {isOpen ? "Chiudi" : "Istruisci"}
+      </button>
+    );
+  };
 
   const h = report?.header || {};
   const c1 = report?.capitolo_1_premessa || {};
@@ -306,6 +829,9 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           .sticky-col {
             position: static !important;
             box-shadow: none !important;
+          }
+          .pd-review-btn, .pd-review-box, .pd-general-review-card {
+            display: none !important;
           }
           h1, h2, h3, h4 {
             page-break-after: avoid;
@@ -378,6 +904,28 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <p>Dossier completo conforme al template dello studio legale Avv. Aurelio Bentivegna.</p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
+          <button
+            type="button"
+            className={`pd-btn ${reviewMode ? "pd-btn--primary" : "pd-btn--secondary"}`}
+            onClick={() => setReviewMode((v) => !v)}
+            title="Attiva la modalità per inserire commenti e addestrare il sistema capitolo per capitolo"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">
+              {reviewMode ? "edit_note" : "school"}
+            </span>
+            {reviewMode ? "Revisione & Addestramento: ATTIVA" : "Modalità Revisione"}
+          </button>
+          <button
+            type="button"
+            className="pd-btn pd-btn--secondary"
+            onClick={() => setShowPlaybook(true)}
+            title="Consulta e gestisci il Playbook dello Studio (regole apprese)"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">menu_book</span>
+            Playbook Studio ({rulesStats.active})
+          </button>
           <button type="button" className="pd-btn pd-btn--secondary" onClick={fetchReport} disabled={loading}>
             <span className="material-symbols-outlined" aria-hidden="true">{loading ? "sync" : "refresh"}</span>
             {loading ? "Aggiornamento..." : "Ricarica dati"}
@@ -437,12 +985,82 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           </p>
         </header>
 
+        {/* BOX REVISIONE & ADDESTRAMENTO GENERALE (STILE ANTIGRAVITY) */}
+        {reviewMode && (
+          <div
+            className="pd-general-review-card no-print"
+            style={{
+              background: "#eff6ff",
+              border: "1.5px solid #bfdbfe",
+              borderRadius: 8,
+              padding: "16px 20px",
+              marginBottom: 32,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="material-symbols-outlined" style={{ color: "var(--pd-primary)" }}>
+                  rate_review
+                </span>
+                <strong style={{ fontSize: 15, color: "var(--pd-primary)" }}>
+                  Modalità Revisione & Addestramento Attiva
+                </strong>
+              </div>
+              <button
+                type="button"
+                className="pd-btn pd-btn--ghost"
+                onClick={() => setActiveCommentScope(activeCommentScope === "global" ? null : "global")}
+                style={{ fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                  {activeCommentScope === "global" ? "close" : "add_comment"}
+                </span>
+                {activeCommentScope === "global" ? "Chiudi" : "+ Aggiungi Istruzione Generale"}
+              </button>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--pd-text)", lineHeight: 1.5 }}>
+              Puoi lasciare un'indicazione generale valida per l'intero fascicolo usando il pulsante qui sopra, oppure cliccare sul pulsante <strong>"+ Istruisci"</strong> posizionato su ciascun capitolo per correggere un singolo dato, tabella o classificazione. Le regole formalizzate da Qwen saranno salvate nel Playbook per non ripetere più errori.
+            </p>
+            {activeCommentScope === "global" && (
+              <InlineCommentBox
+                scope="global"
+                scopeTitle="Direttive Generali Fascicolo & Studio"
+                contextText={`Fascicolo ${title} (${h.cliente})`}
+                caseId={caseId}
+                clientName={title}
+                onClose={() => setActiveCommentScope(null)}
+                onRuleCreated={() => {
+                  refreshRulesStats();
+                  fetchReport();
+                }}
+              />
+            )}
+          </div>
+        )}
+
         {/* 1. PREMESSA E FINALITÀ */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">1</span>
-            Premessa e finalità della preanalisi
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">1</span>
+              Premessa e finalità della preanalisi
+            </div>
+            {renderReviewButton("cap_1", "1. Premessa e finalità", c1.scopo || "")}
           </div>
+          {activeCommentScope === "cap_1" && (
+            <InlineCommentBox
+              scope="cap_1"
+              scopeTitle="1. Premessa e finalità"
+              contextText={c1.scopo || ""}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             {c1.scopo || `La presente preanalisi ha lo scopo di fotografare, sulla base della documentazione allo stato disponibile, la situazione economica, patrimoniale e debitoria di ${title}, al fine di comprendere se sussistano i presupposti per un percorso di risanamento e quale, tra gli strumenti previsti dal Codice della Crisi d'Impresa e dell'Insolvenza (CCII), appaia in prima battuta più coerente con il caso specifico.`}
           </p>
@@ -476,10 +1094,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 2. PROFILO DELL'IMPRESA E NATURA DELLA CRISI */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">2</span>
-            Profilo dell'impresa e natura della crisi
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">2</span>
+              Profilo dell'impresa e natura della crisi
+            </div>
+            {renderReviewButton("cap_2", "2. Profilo dell'impresa e soci", c2.denominazione || title)}
           </div>
+          {activeCommentScope === "cap_2" && (
+            <InlineCommentBox
+              scope="cap_2"
+              scopeTitle="2. Profilo dell'impresa e soci"
+              contextText={c2.denominazione || title}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <div className="pd-grid pd-grid--2" style={{ marginBottom: 16 }}>
             <ReportField label="Denominazione" value={c2.denominazione || title} />
             <ReportField label="Forma giuridica" value={c2.forma_giuridica || "SRL"} />
@@ -519,10 +1154,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 3. ANALISI ECONOMICA PLURIENNALE */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">3</span>
-            Analisi economica pluriennale
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">3</span>
+              Analisi economica pluriennale
+            </div>
+            {renderReviewButton("cap_3", "3. Analisi economica pluriennale", JSON.stringify(c3.esercizi || []))}
           </div>
+          {activeCommentScope === "cap_3" && (
+            <InlineCommentBox
+              scope="cap_3"
+              scopeTitle="3. Analisi economica pluriennale"
+              contextText={JSON.stringify(c3.esercizi || [])}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             I risultati economici degli ultimi tre esercizi approvati evidenziano l'andamento della produzione, dei costi operativi e della marginalità (MOL):
           </p>
@@ -576,10 +1228,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         {/* 4. IL DATO DELL'ANNO CORRENTE E PRUDENZA */}
         {c4.dato && (
           <section className="pd-chapter">
-            <div className="pd-chapter-title">
-              <span className="num">4</span>
-              Il dato {c4.dato.periodo?.slice(0, 4) || "infrannuale"} e la necessità di prudenza
+            <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span className="num">4</span>
+                Il dato {c4.dato.periodo?.slice(0, 4) || "infrannuale"} e la necessità di prudenza
+              </div>
+              {renderReviewButton("cap_4", "4. Il dato dell'anno corrente", JSON.stringify(c4.dato || {}))}
             </div>
+            {activeCommentScope === "cap_4" && (
+              <InlineCommentBox
+                scope="cap_4"
+                scopeTitle="4. Il dato dell'anno corrente"
+                contextText={JSON.stringify(c4.dato || {})}
+                caseId={caseId}
+                clientName={title}
+                onClose={() => setActiveCommentScope(null)}
+                onRuleCreated={() => {
+                  refreshRulesStats();
+                  fetchReport();
+                }}
+              />
+            )}
             <div className="pd-table-wrap" style={{ maxWidth: 540, marginBottom: 14 }}>
               <table className="pd-table">
                 <thead><tr><th>Voce Conto Economico ({c4.dato.periodo})</th><th className="pd-num">Importo</th></tr></thead>
@@ -608,16 +1277,50 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 5. ANALISI DELL'INDEBITAMENTO */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">5</span>
-            Analisi dell'indebitamento
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">5</span>
+              Analisi dell'indebitamento
+            </div>
+            {renderReviewButton("cap_5", "5. Analisi dell'indebitamento", "Ponte debitorio complessivo")}
           </div>
+          {activeCommentScope === "cap_5" && (
+            <InlineCommentBox
+              scope="cap_5"
+              scopeTitle="5. Analisi dell'indebitamento"
+              contextText="Ponte debitorio complessivo e classificazione debiti"
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             L'indagine procede in tre passaggi: i debiti risultanti dalla contabilità sociale (5.1), i debiti censiti dalle banche dati esterne (5.2) e la stima di sintesi della massa debitoria senza duplicazioni (5.3).
           </p>
 
           {/* 5.1 DEBITI DA BILANCIO DINAMICA EFFETTIVA */}
-          <h3 className="pd-subchapter-title">5.1 I debiti risultanti dai bilanci (struttura effettiva da bilancio)</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, marginBottom: 6 }}>
+            <h3 className="pd-subchapter-title" style={{ margin: 0 }}>5.1 I debiti risultanti dai bilanci (struttura effettiva da bilancio)</h3>
+            {renderReviewButton("cap_5_1", "5.1 Debiti risultanti dai bilanci", JSON.stringify(t51.righe || []))}
+          </div>
+          {activeCommentScope === "cap_5_1" && (
+            <InlineCommentBox
+              scope="cap_5_1"
+              scopeTitle="5.1 Debiti risultanti dai bilanci"
+              contextText={JSON.stringify(t51.righe || [])}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text" style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>
             La tabella che segue è strutturata a partire dalle voci di debito effettive estratte dai bilanci e dalle situazioni contabili disponibili. La variazione è calcolata tra la situazione più recente ({t51.situazione_recente}) e l'ultimo bilancio approvato ({t51.base_confronto}). Restano rigorosamente esclusi patrimonio netto, fondi ammortamento e risconti passivi.
           </p>
@@ -688,7 +1391,24 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           </p>
 
           {/* 5.2 BANCHE DATI ESTERNE */}
-          <h3 className="pd-subchapter-title" style={{ marginTop: 24 }}>5.2 I debiti risultanti dalle banche dati esterne</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 8 }}>
+            <h3 className="pd-subchapter-title" style={{ margin: 0 }}>5.2 I debiti risultanti dalle banche dati esterne</h3>
+            {renderReviewButton("cap_5_2", "5.2 Banche dati AdER e Centrale Rischi", JSON.stringify(t52A))}
+          </div>
+          {activeCommentScope === "cap_5_2" && (
+            <InlineCommentBox
+              scope="cap_5_2"
+              scopeTitle="5.2 Banche dati AdER e Centrale Rischi"
+              contextText={JSON.stringify(t52A)}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             <strong>Posizione Agenzia delle Entrate-Riscossione (AdER):</strong>
           </p>
@@ -741,7 +1461,24 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           </div>
 
           {/* 5.3 SINTESI MASSA DEBITORIA SENZA DUPLICAZIONI */}
-          <h3 className="pd-subchapter-title" style={{ marginTop: 24 }}>5.3 Sintesi: stima della massa debitoria complessiva (senza duplicazioni)</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 8 }}>
+            <h3 className="pd-subchapter-title" style={{ margin: 0 }}>5.3 Sintesi: stima della massa debitoria complessiva (senza duplicazioni)</h3>
+            {renderReviewButton("cap_5_3", "5.3 Stima sintetica massa debitoria", JSON.stringify(t53.righe || []))}
+          </div>
+          {activeCommentScope === "cap_5_3" && (
+            <InlineCommentBox
+              scope="cap_5_3"
+              scopeTitle="5.3 Stima sintetica massa debitoria"
+              contextText={JSON.stringify(t53.righe || [])}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             La stima che segue è costruita incrociando le banche dati esterne (par. 5.2) con i dati di bilancio (par. 5.1). Ogni debito è computato una sola volta evitando duplicazioni tra ruoli esattoriali e debiti contabili, e tra banche dati creditizie sullo stesso rapporto:
           </p>
@@ -787,10 +1524,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 6. PUNTI DA VERIFICARE */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">6</span>
-            Punti da verificare
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">6</span>
+              Punti da verificare
+            </div>
+            {renderReviewButton("cap_6", "6. Punti da verificare", JSON.stringify(c6 || []))}
           </div>
+          {activeCommentScope === "cap_6" && (
+            <InlineCommentBox
+              scope="cap_6"
+              scopeTitle="6. Punti da verificare"
+              contextText={JSON.stringify(c6 || [])}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             Punti emersi dai documenti che non risultano chiariti e che vanno sciolti prima di consolidare il piano industriale e di risanamento:
           </p>
@@ -816,10 +1570,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 7. DIAGNOSI PRELIMINARE DELLA CRISI */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">7</span>
-            Diagnosi preliminare della crisi
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">7</span>
+              Diagnosi preliminare della crisi
+            </div>
+            {renderReviewButton("cap_7", "7. Diagnosi preliminare della crisi", c7.diagnosi || c7.sintesi_vitalita || "")}
           </div>
+          {activeCommentScope === "cap_7" && (
+            <InlineCommentBox
+              scope="cap_7"
+              scopeTitle="7. Diagnosi preliminare della crisi"
+              contextText={c7.diagnosi || c7.sintesi_vitalita || ""}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 16 }}>
             <div style={{ background: "rgba(16, 185, 129, 0.06)", border: "1px solid var(--pd-ok)", borderRadius: 8, padding: 14 }}>
               <h4 style={{ margin: "0 0 8px", color: "var(--pd-ok)", fontSize: 14, textTransform: "uppercase" }}>
@@ -845,10 +1616,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 8. PATRIMONIO */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">8</span>
-            Patrimonio
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">8</span>
+              Patrimonio
+            </div>
+            {renderReviewButton("cap_8", "8. Patrimonio e garanzie", JSON.stringify(c8 || {}))}
           </div>
+          {activeCommentScope === "cap_8" && (
+            <InlineCommentBox
+              scope="cap_8"
+              scopeTitle="8. Patrimonio e garanzie"
+              contextText={JSON.stringify(c8 || {})}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
 
           <h3 className="pd-subchapter-title">8.1 Patrimonio immobiliare</h3>
           <p className="pd-report-text">
@@ -926,10 +1714,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 9. ORIENTAMENTO VERSO UNA SOLUZIONE DI RISANAMENTO */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">9</span>
-            Orientamento verso una soluzione di risanamento ex CCII
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">9</span>
+              Orientamento verso una soluzione di risanamento ex CCII
+            </div>
+            {renderReviewButton("cap_9", "9. Orientamento per il risanamento CCII", c9.proposta_coerente || "")}
           </div>
+          {activeCommentScope === "cap_9" && (
+            <InlineCommentBox
+              scope="cap_9"
+              scopeTitle="9. Orientamento per il risanamento CCII"
+              contextText={c9.proposta_coerente || ""}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             Valutazione comparativa degli strumenti previsti dal Codice della Crisi d'Impresa e dell'Insolvenza alla luce delle caratteristiche dimensionali, debitorie e patrimoniali dell'impresa:
           </p>
@@ -964,10 +1769,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 10. DOCUMENTAZIONE ANCORA NECESSARIA */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">10</span>
-            Documentazione ancora necessaria prima di procedere
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">10</span>
+              Documentazione ancora necessaria prima di procedere
+            </div>
+            {renderReviewButton("cap_10", "10. Documentazione necessaria", JSON.stringify(c10.documenti_mancanti || []))}
           </div>
+          {activeCommentScope === "cap_10" && (
+            <InlineCommentBox
+              scope="cap_10"
+              scopeTitle="10. Documentazione necessaria"
+              contextText={JSON.stringify(c10.documenti_mancanti || [])}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text">
             Per consentire il passaggio dalla presente preanalisi alla redazione del piano attestato o della proposta formale ai creditori, è indispensabile acquisire:
           </p>
@@ -994,10 +1816,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 11. CONCLUSIONE PROVVISORIA */}
         <section className="pd-chapter" style={{ borderTop: "2px solid var(--pd-primary)", paddingTop: 20 }}>
-          <div className="pd-chapter-title">
-            <span className="num">11</span>
-            Conclusione (provvisoria)
+          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="num">11</span>
+              Conclusione (provvisoria)
+            </div>
+            {renderReviewButton("cap_11", "11. Conclusione e raccomandazioni", c11.giudizio_sintetico || "")}
           </div>
+          {activeCommentScope === "cap_11" && (
+            <InlineCommentBox
+              scope="cap_11"
+              scopeTitle="11. Conclusione e raccomandazioni"
+              contextText={c11.giudizio_sintetico || ""}
+              caseId={caseId}
+              clientName={title}
+              onClose={() => setActiveCommentScope(null)}
+              onRuleCreated={() => {
+                refreshRulesStats();
+                fetchReport();
+              }}
+            />
+          )}
           <p className="pd-report-text" style={{ fontSize: 14.5, lineHeight: 1.7, fontWeight: 500 }}>
             {c11.giudizio_sintetico}
           </p>
@@ -1017,6 +1856,16 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           </footer>
         </section>
       </article>
+
+      {/* MODALE / CASSETTO PLAYBOOK DELLO STUDIO */}
+      <PlaybookModal
+        isOpen={showPlaybook}
+        onClose={() => setShowPlaybook(false)}
+        onRulesChanged={() => {
+          refreshRulesStats();
+          fetchReport();
+        }}
+      />
     </div>
   );
 }
