@@ -245,6 +245,10 @@ export async function getPreanalysisReport(caseId) {
   return r.json();
 }
 
+export function getPreanalysisReportPdfUrl(caseId, orientation = "portrait", action = "download") {
+  return `${BASE}/api/cases/${caseId}/preanalysis-report/pdf?orientation=${orientation}&action=${action}`;
+}
+
 // ---------- Addestramento Continuo & Playbook dello Studio ----------
 export async function synthesizeStudioRule(payload) {
   const r = await fetch(`${BASE}/api/studio-rules/synthesize`, {

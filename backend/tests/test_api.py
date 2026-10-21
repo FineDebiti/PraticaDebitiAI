@@ -71,3 +71,31 @@ def test_get_edits_empty(client, sample_case):
     response = client.get(f"/api/cases/{sample_case.id}/edits")
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_get_preanalysis_report(client, sample_case):
+    response = client.get(f"/api/cases/{sample_case.id}/preanalysis-report")
+    assert response.status_code == 200
+    data = response.json()
+    assert "header" in data
+    assert "capitolo_1_premessa" in data
+    assert "capitolo_5_indebitamento" in data
+    assert "capitolo_11_conclusione" in data
+
+
+def test_get_preanalysis_report_pdf(client, sample_case):
+    # Test portrait download
+    response = client.get(f"/api/cases/{sample_case.id}/preanalysis-report/pdf?orientation=portrait&action=download")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "attachment;" in response.headers.get("content-disposition", "")
+    assert response.content.startswith(b"%PDF")
+    assert len(response.content) > 1000
+
+    # Test landscape inline
+    response_l = client.get(f"/api/cases/{sample_case.id}/preanalysis-report/pdf?orientation=landscape&action=inline")
+    assert response_l.status_code == 200
+    assert response_l.headers["content-type"] == "application/pdf"
+    assert "inline" in response_l.headers.get("content-disposition", "")
+    assert response_l.content.startswith(b"%PDF")
+

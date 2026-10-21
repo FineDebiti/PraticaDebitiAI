@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   getPreanalysisReport,
+  getPreanalysisReportPdfUrl,
   learnStudioRule,
   synthesizeStudioRule,
   createStudioRule,
@@ -670,6 +671,12 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
     fetchReport();
   }, [fetchReport]);
 
+  const handleExportPdf = (action = "download") => {
+    if (!caseId) return;
+    const url = getPreanalysisReportPdfUrl(caseId, printOrientation, action);
+    window.open(url, "_blank");
+  };
+
   const renderPlusButton = (scopeKey, scopeTitle) => {
     const isOpen = activeCommentScope === scopeKey;
     return (
@@ -939,16 +946,32 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             type="button"
             className="pd-btn pd-btn--secondary"
             onClick={() => setPrintOrientation((prev) => (prev === "portrait" ? "landscape" : "portrait"))}
-            title="Alterna formato di stampa tra Verticale e Orizzontale"
+            title="Alterna formato del PDF tra Verticale e Orizzontale"
           >
             <span className="material-symbols-outlined" aria-hidden="true">
               {printOrientation === "landscape" ? "stay_primary_landscape" : "stay_primary_portrait"}
             </span>
-            Stampa: {printOrientation === "landscape" ? "Orizzontale" : "Verticale"}
+            Formato: {printOrientation === "landscape" ? "Orizzontale" : "Verticale"}
           </button>
-          <button type="button" className="pd-btn pd-btn--primary" onClick={() => window.print()}>
+
+          <button
+            type="button"
+            className="pd-btn pd-btn--secondary"
+            onClick={() => handleExportPdf("inline")}
+            title="Visualizza il PDF vettoriale in una nuova scheda del browser"
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+            Apri PDF
+          </button>
+
+          <button
+            type="button"
+            className="pd-btn pd-btn--primary"
+            onClick={() => handleExportPdf("download")}
+            title="Scarica il file PDF ufficiale generato da DossierLex"
+          >
             <span className="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
-            Stampa / Esporta PDF
+            Esporta PDF
           </button>
         </div>
       </div>
@@ -1628,9 +1651,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         isOpen={isProceedModalOpen}
         onClose={() => setIsProceedModalOpen(false)}
         learnedCount={sessionLearnedCount}
-        onPrint={() => {
-          window.print();
-        }}
+        onPrint={() => handleExportPdf("download")}
       />
     </div>
   );

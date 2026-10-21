@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
@@ -23,6 +23,7 @@ from app.schemas.dto import (
 from app.services import fiscal_code as fc
 from app.services.cross_analysis import execute_cross_analysis
 from app.services.preanalysis_report import build_preanalysis_report
+from app.services.pdf_report_generator import generate_preanalysis_pdf
 
 router = APIRouter()
 
@@ -649,4 +650,30 @@ def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
     """Genera il Report di Preanalisi Economico-Finanziaria conforme al template dello studio legale."""
     _get_case(db, case_id)
     return build_preanalysis_report(db, case_id)
+
+
+@router.get("/cases/{case_id}/preanalysis-report/pdf")
+def get_preanalysis_report_pdf(
+    case_id: str,
+    orientation: str = Query("portrait", pattern="^(portrait|landscape)$"),
+    action: str = Query("download", pattern="^(download|inline)$"),
+    db: Session = Depends(get_db),
+):
+    """Genera e restituisce il file PDF nativo vettoriale del Report di Preanalisi ex CCII."""
+    case = _get_case(db, case_id)
+    report_data = build_preanalysis_report(db, case_id)
+    pdf_bytes = generate_preanalysis_pdf(report_data, orientation=orientation)
+
+    clean_name = "".join(c if c.isalnum() else "_" for c in (case.client_name or "Cliente")).strip("_")
+    filename = f"Preanalisi_{clean_name}_{case_id[:8]}.pdf"
+    disposition = "inline" if action == "inline" else f'attachment; filename="{filename}"'
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": disposition,
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
 
