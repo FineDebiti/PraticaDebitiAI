@@ -236,7 +236,7 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
 }
 
 // ============================================================================
-// MODULO REVISIONE E ADDESTRAMENTO CONTINUO (STILE ANTIGRAVITY IMPLEMENTATION PLAN)
+// MODULO REVISIONE E ADDESTRAMENTO CONTINUO (STILE DOSSIERLEX)
 // ============================================================================
 
 function AntigravityReviewDropdown({
@@ -292,39 +292,40 @@ function AntigravityReviewDropdown({
         top: "calc(100% + 6px)",
         right: 0,
         width: 360,
-        background: "#0f172a",
-        border: "1px solid #334155",
-        borderRadius: 8,
-        padding: "14px 16px",
-        boxShadow: "0 12px 28px rgba(0, 0, 0, 0.45)",
+        background: "var(--pd-surface)",
+        border: "1px solid var(--pd-border)",
+        borderTop: "3.5px solid var(--pd-primary)",
+        borderRadius: "var(--pd-radius-lg)",
+        padding: "16px 18px",
+        boxShadow: "0 10px 28px rgba(45, 54, 40, 0.16)",
         zIndex: 1000,
         textAlign: "left",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <strong style={{ fontSize: 13, color: "#f8fafc", fontWeight: 600 }}>
+        <strong style={{ fontSize: 13.5, color: "var(--pd-primary)", fontWeight: 700 }}>
           Submit comment
         </strong>
         <button
           type="button"
           onClick={onClose}
-          style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 0 }}
+          style={{ background: "none", border: "none", color: "var(--pd-text-muted)", cursor: "pointer", padding: 0 }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
         </button>
       </div>
 
-      <p style={{ margin: "0 0 8px", fontSize: 11.5, color: "#94a3b8", lineHeight: 1.35 }}>
+      <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--pd-text-muted)", lineHeight: 1.4 }}>
         Istruzioni generali sull'intero report o seleziona un paragrafo con [+] per commentare.
       </p>
 
       {error && (
-        <div style={{ background: "rgba(239, 68, 68, 0.15)", border: "1px solid #ef4444", color: "#fca5a5", padding: "6px 8px", borderRadius: 6, fontSize: 11.5, marginBottom: 8 }}>
+        <div style={{ background: "var(--pd-danger-bg)", border: "1px solid var(--pd-danger)", color: "var(--pd-danger)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
           {error}
         </div>
       )}
       {msg && (
-        <div style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22c55e", color: "#86efac", padding: "6px 8px", borderRadius: 6, fontSize: 11.5, marginBottom: 8 }}>
+        <div style={{ background: "var(--pd-ok-bg)", border: "1px solid var(--pd-ok)", color: "var(--pd-ok)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
           {msg}
         </div>
       )}
@@ -336,12 +337,12 @@ function AntigravityReviewDropdown({
         placeholder="Add a message..."
         style={{
           width: "100%",
-          background: "#1e293b",
-          border: "1px solid #334155",
-          borderRadius: 6,
-          color: "#f8fafc",
+          background: "var(--pd-surface-low)",
+          border: "1px solid var(--pd-border)",
+          borderRadius: "var(--pd-radius)",
+          color: "var(--pd-text)",
           padding: "8px 10px",
-          fontSize: 12.5,
+          fontSize: 13,
           resize: "vertical",
           boxSizing: "border-box",
           outline: "none",
@@ -355,21 +356,22 @@ function AntigravityReviewDropdown({
           onClick={handleSubmit}
           disabled={loading}
           style={{
-            background: "#7c3aed",
+            background: "var(--pd-accent)",
             color: "#ffffff",
             border: "none",
-            borderRadius: 6,
-            padding: "6px 14px",
-            fontSize: 12.5,
+            borderRadius: "var(--pd-radius)",
+            padding: "6px 16px",
+            fontSize: 13,
             fontWeight: 600,
             cursor: loading ? "default" : "pointer",
             opacity: loading ? 0.7 : 1,
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
+            transition: "background 0.12s",
           }}
         >
-          {loading ? "Saving..." : "Submit"}
+          {loading ? "Salvataggio..." : "Submit"}
         </button>
       </div>
     </div>
@@ -387,7 +389,7 @@ function AntigravitySectionPlus({ scopeKey, scopeTitle, isOpen, onToggle }) {
         width: 22,
         height: 22,
         minWidth: 22,
-        background: isOpen ? "#6d28d9" : "#7c3aed",
+        background: isOpen ? "var(--pd-accent)" : "var(--pd-primary)",
         color: "#ffffff",
         border: "none",
         borderRadius: 4,
@@ -398,7 +400,7 @@ function AntigravitySectionPlus({ scopeKey, scopeTitle, isOpen, onToggle }) {
         fontSize: 16,
         fontWeight: 700,
         lineHeight: 1,
-        boxShadow: isOpen ? "0 0 0 2px rgba(124, 58, 237, 0.4)" : "none",
+        boxShadow: isOpen ? "0 0 0 2px var(--pd-accent-soft)" : "none",
         transition: "all 0.15s ease",
       }}
     >
@@ -456,39 +458,40 @@ function AntigravitySectionCommentBox({
     <div
       className="pd-antigravity-popover no-print"
       style={{
-        background: "#0f172a",
-        border: "1px solid #334155",
-        borderRadius: 8,
-        padding: "12px 14px",
-        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
+        background: "var(--pd-surface)",
+        border: "1px solid var(--pd-border)",
+        borderLeft: "4px solid var(--pd-primary)",
+        borderRadius: "var(--pd-radius-lg)",
+        padding: "12px 16px",
+        boxShadow: "0 8px 24px rgba(45, 54, 40, 0.10)",
         maxWidth: 520,
         width: "100%",
         margin: "8px 0 16px",
-        color: "#f8fafc",
+        color: "var(--pd-text)",
         position: "relative",
         zIndex: 50,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 11.5, color: "#94a3b8" }}>
-          Commento per: <strong style={{ color: "#e2e8f0" }}>{scopeTitle}</strong>
+        <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>
+          Commento per: <strong style={{ color: "var(--pd-primary)" }}>{scopeTitle}</strong>
         </span>
         <button
           type="button"
           onClick={onClose}
-          style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: 0 }}
+          style={{ background: "none", border: "none", color: "var(--pd-text-muted)", cursor: "pointer", padding: 0 }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
         </button>
       </div>
 
       {error && (
-        <div style={{ background: "rgba(239, 68, 68, 0.15)", border: "1px solid #ef4444", color: "#fca5a5", padding: "6px 8px", borderRadius: 6, fontSize: 11.5, marginBottom: 8 }}>
+        <div style={{ background: "var(--pd-danger-bg)", border: "1px solid var(--pd-danger)", color: "var(--pd-danger)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
           {error}
         </div>
       )}
       {msg && (
-        <div style={{ background: "rgba(34, 197, 94, 0.15)", border: "1px solid #22c55e", color: "#86efac", padding: "6px 8px", borderRadius: 6, fontSize: 11.5, marginBottom: 8 }}>
+        <div style={{ background: "var(--pd-ok-bg)", border: "1px solid var(--pd-ok)", color: "var(--pd-ok)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
           {msg}
         </div>
       )}
@@ -500,12 +503,12 @@ function AntigravitySectionCommentBox({
         placeholder="Leave a comment..."
         style={{
           width: "100%",
-          background: "#1e293b",
-          border: "1px solid #334155",
-          borderRadius: 6,
-          color: "#f8fafc",
+          background: "var(--pd-surface-low)",
+          border: "1px solid var(--pd-border)",
+          borderRadius: "var(--pd-radius)",
+          color: "var(--pd-text)",
           padding: "8px 10px",
-          fontSize: 12.5,
+          fontSize: 13,
           resize: "vertical",
           boxSizing: "border-box",
           outline: "none",
@@ -520,9 +523,9 @@ function AntigravitySectionCommentBox({
           disabled={loading}
           style={{
             background: "transparent",
-            color: "#94a3b8",
+            color: "var(--pd-text-muted)",
             border: "none",
-            fontSize: 12.5,
+            fontSize: 13,
             cursor: "pointer",
             padding: "5px 10px",
           }}
@@ -534,21 +537,22 @@ function AntigravitySectionCommentBox({
           onClick={handleAddComment}
           disabled={loading}
           style={{
-            background: "#7c3aed",
+            background: "var(--pd-accent)",
             color: "#ffffff",
             border: "none",
-            borderRadius: 6,
-            padding: "6px 14px",
-            fontSize: 12.5,
+            borderRadius: "var(--pd-radius)",
+            padding: "6px 16px",
+            fontSize: 13,
             fontWeight: 600,
             cursor: loading ? "default" : "pointer",
             opacity: loading ? 0.7 : 1,
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
+            transition: "background 0.12s",
           }}
         >
-          {loading ? "Adding..." : "Add Comment"}
+          {loading ? "Salvataggio..." : "Add Comment"}
         </button>
       </div>
     </div>
@@ -567,7 +571,7 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(15, 23, 42, 0.65)",
+        backgroundColor: "rgba(45, 54, 40, 0.45)",
         zIndex: 9999,
         display: "flex",
         alignItems: "center",
@@ -577,19 +581,20 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
     >
       <div
         style={{
-          background: "#0f172a",
-          border: "1px solid #334155",
-          borderRadius: 12,
+          background: "var(--pd-surface)",
+          border: "1px solid var(--pd-border)",
+          borderTop: "4px solid var(--pd-primary)",
+          borderRadius: "var(--pd-radius-lg)",
           maxWidth: 480,
           width: "100%",
           padding: 24,
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.4)",
-          color: "#f8fafc",
+          boxShadow: "0 20px 25px -5px rgba(45, 54, 40, 0.2)",
+          color: "var(--pd-text)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#f8fafc", display: "flex", alignItems: "center", gap: 8 }}>
-            <span className="material-symbols-outlined" style={{ color: "#7c3aed", fontSize: 22 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--pd-primary)", display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="material-symbols-outlined" style={{ color: "var(--pd-accent)", fontSize: 24 }}>
               verified
             </span>
             Report Aggiornato
@@ -597,13 +602,13 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
           <button
             type="button"
             onClick={onClose}
-            style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 18 }}
+            style={{ background: "none", border: "none", color: "var(--pd-text-muted)", cursor: "pointer", fontSize: 18 }}
           >
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
-        <p style={{ margin: "0 0 16px", fontSize: 13.5, color: "#cbd5e1", lineHeight: 1.55 }}>
+        <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--pd-text-muted)", lineHeight: 1.55 }}>
           {learnedCount > 0 ? (
             <>
               Tutte le <strong>{learnedCount} istruzioni</strong> inserite sono state acquisite da DossierLex. I dati del report sono stati ricaricati automaticamente in base alle nuove regole apprese.
@@ -619,15 +624,8 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
           <button
             type="button"
             onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "1px solid #334155",
-              color: "#cbd5e1",
-              borderRadius: 6,
-              padding: "7px 14px",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
+            className="pd-btn pd-btn--secondary"
+            style={{ minHeight: 36, padding: "6px 14px", fontSize: 13 }}
           >
             Chiudi
           </button>
@@ -638,19 +636,8 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
               onClose();
               onPrint();
             }}
-            style={{
-              background: "#7c3aed",
-              border: "none",
-              color: "#ffffff",
-              borderRadius: 6,
-              padding: "7px 16px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
+            className="pd-btn pd-btn--primary"
+            style={{ minHeight: 36, padding: "6px 16px", fontSize: 13 }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>picture_as_pdf</span>
             Stampa / Esporta PDF
@@ -783,7 +770,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           }
         }
         .pd-antigravity-plus:hover {
-          background: #6d28d9 !important;
+          background: var(--pd-accent) !important;
           transform: scale(1.08);
         }
         .sticky-col {
@@ -853,39 +840,40 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <p>Dossier completo conforme al template dello studio legale Avv. Aurelio Bentivegna.</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* ANTIGRAVITY REVIEW DROPDOWN */}
+          {/* REVIEW DROPDOWN (STILE DOSSIERLEX) */}
           <div style={{ position: "relative" }}>
             <button
               type="button"
               onClick={() => setIsReviewDropdownOpen((v) => !v)}
               title="Aggiungi istruzioni generali per l'intero report"
               style={{
-                background: isReviewDropdownOpen ? "#0f172a" : "#1e293b",
-                color: "#f8fafc",
-                border: "1px solid #334155",
-                borderRadius: 6,
-                padding: "6px 13px",
+                background: isReviewDropdownOpen ? "var(--pd-primary-600)" : "var(--pd-primary)",
+                color: "#ffffff",
+                border: "1px solid var(--pd-primary-600)",
+                borderRadius: "var(--pd-radius)",
+                padding: "7px 14px",
                 fontSize: 13,
-                fontWeight: 500,
+                fontWeight: 600,
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 5,
-                transition: "background 0.15s ease",
+                gap: 6,
+                boxShadow: "var(--pd-shadow)",
+                transition: "all 0.15s ease",
               }}
             >
               <span>Review</span>
-              <span style={{ fontSize: 11, opacity: 0.8 }}>▼</span>
+              <span style={{ fontSize: 11, opacity: 0.85 }}>▼</span>
               {sessionLearnedCount > 0 && (
                 <span
                   style={{
-                    background: "#7c3aed",
-                    color: "#fff",
+                    background: "var(--pd-accent)",
+                    color: "#ffffff",
                     borderRadius: "50%",
                     fontSize: 10.5,
                     fontWeight: 700,
-                    width: 17,
-                    height: 17,
+                    width: 18,
+                    height: 18,
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -909,7 +897,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             />
           </div>
 
-          {/* ANTIGRAVITY PROCEED BUTTON */}
+          {/* PROCEED BUTTON (STILE DOSSIERLEX) */}
           <button
             type="button"
             onClick={() => {
@@ -919,11 +907,11 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             disabled={loading}
             title="Convalida le modifiche, ricarica i dati con le nuove regole e procedi con la stampa"
             style={{
-              background: "#7c3aed",
+              background: "var(--pd-accent)",
               color: "#ffffff",
               border: "none",
-              borderRadius: 6,
-              padding: "6px 16px",
+              borderRadius: "var(--pd-radius)",
+              padding: "7px 18px",
               fontSize: 13,
               fontWeight: 600,
               cursor: loading ? "default" : "pointer",
@@ -931,7 +919,8 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              transition: "background 0.15s ease",
+              boxShadow: "var(--pd-shadow)",
+              transition: "all 0.15s ease",
             }}
           >
             {loading ? (
