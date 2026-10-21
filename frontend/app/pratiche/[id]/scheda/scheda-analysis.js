@@ -555,7 +555,7 @@ function AntigravitySectionCommentBox({
   );
 }
 
-function ProceedModal({ isOpen, onClose, learnedCount, onRegenerate, onPrint }) {
+function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
   if (!isOpen) return null;
 
   return (
@@ -580,7 +580,7 @@ function ProceedModal({ isOpen, onClose, learnedCount, onRegenerate, onPrint }) 
           background: "#0f172a",
           border: "1px solid #334155",
           borderRadius: 12,
-          maxWidth: 500,
+          maxWidth: 480,
           width: "100%",
           padding: 24,
           boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.4)",
@@ -592,7 +592,7 @@ function ProceedModal({ isOpen, onClose, learnedCount, onRegenerate, onPrint }) 
             <span className="material-symbols-outlined" style={{ color: "#7c3aed", fontSize: 22 }}>
               verified
             </span>
-            Revisione e Addestramento DossierLex
+            Report Aggiornato
           </h3>
           <button
             type="button"
@@ -606,11 +606,11 @@ function ProceedModal({ isOpen, onClose, learnedCount, onRegenerate, onPrint }) 
         <p style={{ margin: "0 0 16px", fontSize: 13.5, color: "#cbd5e1", lineHeight: 1.55 }}>
           {learnedCount > 0 ? (
             <>
-              Tutte le <strong>{learnedCount} istruzioni</strong> inserite sono state memorizzate con successo nel sistema di apprendimento continuo. DossierLex non ripeterà più gli errori segnalati.
+              Tutte le <strong>{learnedCount} istruzioni</strong> inserite sono state acquisite da DossierLex. I dati del report sono stati ricaricati automaticamente in base alle nuove regole apprese.
             </>
           ) : (
             <>
-              Nessuna istruzione correttiva aggiunta in questa sessione. Se il report ti soddisfa, puoi procedere direttamente alla stampa o esportazione PDF.
+              Nessuna istruzione correttiva aggiunta: il report è convalidato. Puoi procedere direttamente alla stampa o esportazione in formato PDF.
             </>
           )}
         </p>
@@ -629,30 +629,8 @@ function ProceedModal({ isOpen, onClose, learnedCount, onRegenerate, onPrint }) 
               cursor: "pointer",
             }}
           >
-            Continua revisione
+            Chiudi
           </button>
-
-          {learnedCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onRegenerate();
-              }}
-              style={{
-                background: "#1e293b",
-                border: "1px solid #7c3aed",
-                color: "#e2e8f0",
-                borderRadius: 6,
-                padding: "7px 14px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Rigenera con nuove regole
-            </button>
-          )}
 
           <button
             type="button"
@@ -934,8 +912,12 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           {/* ANTIGRAVITY PROCEED BUTTON */}
           <button
             type="button"
-            onClick={() => setIsProceedModalOpen(true)}
-            title="Convalida le modifiche e procedi con la generazione o stampa del report"
+            onClick={() => {
+              fetchReport();
+              setIsProceedModalOpen(true);
+            }}
+            disabled={loading}
+            title="Convalida le modifiche, ricarica i dati con le nuove regole e procedi con la stampa"
             style={{
               background: "#7c3aed",
               color: "#ffffff",
@@ -944,26 +926,26 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               padding: "6px 16px",
               fontSize: 13,
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: loading ? "default" : "pointer",
+              opacity: loading ? 0.7 : 1,
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
               transition: "background 0.15s ease",
             }}
           >
-            <span>Proceed</span>
+            {loading ? (
+              <>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>sync</span>
+                <span>Ricarica...</span>
+              </>
+            ) : (
+              <span>Proceed</span>
+            )}
           </button>
 
           <span style={{ height: 20, width: 1, background: "var(--pd-border)", margin: "0 4px" }} />
 
-          <button type="button" className="pd-btn pd-btn--secondary" onClick={() => goTab("riepilogo")}>
-            <span className="material-symbols-outlined" aria-hidden="true">hub</span>
-            Hub Analitico
-          </button>
-          <button type="button" className="pd-btn pd-btn--secondary" onClick={fetchReport} disabled={loading}>
-            <span className="material-symbols-outlined" aria-hidden="true">{loading ? "sync" : "refresh"}</span>
-            {loading ? "Aggiornamento..." : "Ricarica dati"}
-          </button>
           <button
             type="button"
             className="pd-btn pd-btn--secondary"
@@ -1657,9 +1639,6 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         isOpen={isProceedModalOpen}
         onClose={() => setIsProceedModalOpen(false)}
         learnedCount={sessionLearnedCount}
-        onRegenerate={() => {
-          fetchReport();
-        }}
         onPrint={() => {
           window.print();
         }}
@@ -1918,4 +1897,3 @@ export function CrossAnalysis({ crossAnalysis, loading, onRun, goTab }) {
     </div>
   );
 }
-
