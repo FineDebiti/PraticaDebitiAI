@@ -208,3 +208,4 @@ def delete_rule(db: Session, rule_id: str) -> bool:
     db.commit()
     logger.info("Eliminata regola di studio id=%s", rule_id)
     return True
+

@@ -46,3 +46,4 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_studio_rules_scope'), table_name='studio_rules')
     op.drop_index(op.f('ix_studio_rules_case_id'), table_name='studio_rules')
     op.drop_table('studio_rules')
+

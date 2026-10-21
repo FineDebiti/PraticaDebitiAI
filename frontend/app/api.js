@@ -272,6 +272,19 @@ export async function createStudioRule(payload) {
   return r.json();
 }
 
+export async function learnStudioRule(payload) {
+  const r = await fetch(`${BASE}/api/studio-rules/learn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || "Errore durante l'acquisizione della regola.");
+  }
+  return r.json();
+}
+
 export async function listStudioRules(params = {}) {
   const q = new URLSearchParams();
   if (params.active_only) q.append("active_only", "true");

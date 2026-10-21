@@ -32,6 +32,16 @@ class CreateRuleRequest(BaseModel):
     author: Optional[str] = "Team Studio Bentivegna"
 
 
+class LearnFromFeedbackRequest(BaseModel):
+    case_id: Optional[str] = None
+    client_name: Optional[str] = ""
+    scope: str = "global"
+    scope_title: str = "Generale"
+    user_comment: str
+    current_context_text: Optional[str] = ""
+    author: Optional[str] = "Responsabile Analisi"
+
+
 class UpdateRuleRequest(BaseModel):
     rule_title: Optional[str] = None
     rule_prompt: Optional[str] = None
@@ -73,6 +83,35 @@ def synthesize_rule(req: SynthesizeRuleRequest, db: Session = Depends(get_db)):
         author=req.author,
     )
     return res
+
+
+@router.post("/studio-rules/learn", response_model=RuleOut)
+def learn_from_feedback(req: LearnFromFeedbackRequest, db: Session = Depends(get_db)):
+    """Sintetizza con Qwen e memorizza immediatamente la regola nel Playbook dello Studio in un'unica operazione."""
+    if not req.user_comment.strip():
+        raise HTTPException(400, "Il commento o istruzione non può essere vuoto.")
+    synth = rule_engine.synthesize_rule_from_feedback(
+        db=db,
+        scope=req.scope,
+        scope_title=req.scope_title,
+        user_comment=req.user_comment,
+        case_id=req.case_id,
+        current_context_text=req.current_context_text,
+        author=req.author,
+    )
+    rule = rule_engine.create_rule(db, {
+        "case_id": req.case_id,
+        "client_name": req.client_name or synth.get("client_name", ""),
+        "scope": req.scope,
+        "scope_title": req.scope_title,
+        "category": synth.get("category", "Generale"),
+        "user_comment": req.user_comment,
+        "rule_title": synth.get("rule_title", f"Regola su {req.scope_title}"),
+        "rule_prompt": synth.get("rule_prompt", req.user_comment),
+        "is_active": True,
+        "author": req.author or "Responsabile Analisi",
+    })
+    return rule
 
 
 @router.post("/studio-rules", response_model=RuleOut)
@@ -141,3 +180,4 @@ def delete_rule(rule_id: str, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(404, "Regola non trovata.")
     return {"ok": True, "id": rule_id}
+
