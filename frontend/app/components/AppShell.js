@@ -211,34 +211,6 @@ function AppShellInner({ children }) {
             <span className={`pd-badge pd-badge--${isBackendOnline ? "ok" : "danger"}`}>
               {isBackendOnline ? "Sistema Operativo" : "Backend Disconnesso"}
             </span>
-            <button
-              className="pd-icon-btn"
-              type="button"
-              title="Notifiche"
-              onClick={() => alert("Nessuna nuova notifica di sistema.")}
-            >
-              <span className="material-symbols-outlined" aria-hidden="true">
-                notifications
-              </span>
-            </button>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 8px",
-                borderRadius: "var(--pd-radius)",
-                background: "var(--pd-surface-low)",
-                border: "1px solid var(--pd-border)",
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ color: "var(--pd-primary)" }}>
-                account_circle
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--pd-primary)" }}>
-                Dr. Alessandro Rossi
-              </span>
-            </div>
           </div>
         </header>
 
