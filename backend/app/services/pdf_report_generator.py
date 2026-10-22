@@ -5,8 +5,9 @@ Realizzato con fpdf2 per una resa grafica vettoriale istituzionale:
 - Tavolozza istituzionale DossierLex (Verde Oliva #2d3628, Accento Cuoio #6c5c42, Superfici calde)
 - Nessuna intestazione ripetuta su ogni pagina (riservatezza e intestazione solo in copertina su pagina 1)
 - Numerazione dinamica 'Pagina X di {nb}' nel footer pulito
-- Tabelle dinamiche con impaginazione automatica e ripetizione automatica intestazioni colonne
-- Supporto dinamico orientamento Verticale (Portrait) e Orizzontale (Landscape)
+- Tabelle ad alto contrasto: intestazioni in verde oliva con testo bianco, righe dati su sfondo bianco candido e testo scuro nitido
+- Nessuna sovrapposizione testuale in copertina o nelle tabelle
+- Formato A4 verticale istituzionale predefinito
 """
 
 import os
@@ -16,14 +17,14 @@ from fpdf.fonts import FontFace
 from fpdf.enums import TableCellFillMode, TableBordersLayout, XPos, YPos
 
 
-# Palette cromatica DossierLex
-COLOR_PRIMARY = (45, 54, 40)        # #2d3628 Verde oliva istituzionale
+# Palette cromatica istituzionale DossierLex
+COLOR_PRIMARY = (45, 54, 40)        # #2d3628 Verde oliva istituzionale studio
 COLOR_ACCENT = (108, 92, 66)        # #6c5c42 Cuoio dorato
-COLOR_TEXT_DARK = (34, 38, 34)      # #222622 Testo principale
-COLOR_TEXT_MUTED = (105, 112, 102)  # #697066 Testo secondario
-COLOR_BORDER = (215, 219, 213)      # #d7dbd5 Bordi tabelle e separatori
-COLOR_BG_ALT = (248, 249, 247)      # #f8f9f7 Righe alternate
-COLOR_BG_BOX = (245, 247, 244)      # #f5f7f4 Box di evidenziazione
+COLOR_TEXT_DARK = (30, 36, 30)      # #1e241e Testo principale ad altissimo contrasto
+COLOR_TEXT_MUTED = (95, 102, 92)    # #5f665c Testo secondario
+COLOR_BORDER = (210, 215, 208)      # #d2d7d0 Bordi tabelle sottili
+COLOR_BG_BOX = (246, 248, 245)      # #f6f8f5 Box anagrafica cliente
+COLOR_BG_TOTAL = (242, 245, 241)    # #f2f5f1 Evidenziazione righe totale
 COLOR_AMBER_BG = (254, 249, 235)    # #fef9eb Avviso / Prudenza
 COLOR_AMBER_BORDER = (217, 119, 6)  # #d97706
 COLOR_RED_BG = (254, 242, 242)      # #fef2f2 Criticità
@@ -47,7 +48,6 @@ class PreanalysisPDF(FPDF):
     """Sottoclasse FPDF personalizzata per il report DossierLex."""
 
     def __init__(self, orientation="portrait", draft_date=""):
-        # A4: 210 x 297 mm
         super().__init__(orientation=orientation, unit="mm", format="A4")
         self.draft_date = draft_date
         self.set_auto_page_break(auto=True, margin=18)
@@ -99,7 +99,7 @@ class PreanalysisPDF(FPDF):
     # COMPONENTI GRAFICI DI STILE
     # -------------------------------------------------------------------------
     def render_cover_header(self, header_data: Dict[str, Any]):
-        """Renderizza l'intestazione formale istituzionale di copertina su Pagina 1."""
+        """Renderizza l'intestazione formale istituzionale di copertina su Pagina 1 senza sovrapposizioni."""
         client_name = header_data.get("cliente") or "CLIENTE"
         legal_form = header_data.get("forma_giuridica") or ""
         cf_piva = header_data.get("codice_fiscale") or ""
@@ -108,37 +108,45 @@ class PreanalysisPDF(FPDF):
         riservatezza = header_data.get("riservatezza") or "DOCUMENTO DI LAVORO RISERVATO"
         data_bozza = header_data.get("data_bozza") or self.draft_date
 
-        # Top Bar: Brand DossierLex + Badge Riservatezza
-        self.set_font(self.font_family_name, "B", 10)
-        self.set_text_color(*COLOR_PRIMARY)
-        self.cell(self.epw * 0.65, 5, "DOSSIERLEX — CRISI D'IMPRESA E SOVRAINDEBITAMENTO", align="L")
+        top_y = self.get_y()
 
+        # RIGA 1: Brand a sinistra (105mm), Badge riservatezza a destra (75mm)
+        self.set_xy(self.l_margin, top_y)
+        self.set_font(self.font_family_name, "B", 10.5)
+        self.set_text_color(*COLOR_PRIMARY)
+        self.cell(105, 5, "DOSSIERLEX — CRISI D'IMPRESA EX CCII", align="L")
+
+        self.set_xy(self.l_margin + 105, top_y)
         self.set_font(self.font_family_name, "B", 8)
         self.set_text_color(*COLOR_RED_BORDER)
-        self.cell(self.epw * 0.35, 5, riservatezza.upper(), align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(self.epw - 105, 5, riservatezza.upper(), align="R")
 
-        self.set_font(self.font_family_name, "", 9)
+        # RIGA 2: Studio Legale a sinistra (105mm), Data di elaborazione a destra (75mm)
+        self.set_xy(self.l_margin, top_y + 5.5)
+        self.set_font(self.font_family_name, "", 8.5)
         self.set_text_color(*COLOR_TEXT_MUTED)
-        self.cell(self.epw * 0.65, 5, "Studio Legale Avv. Aurelio Bentivegna & Partners", align="L")
-        self.cell(self.epw * 0.35, 5, f"Data di elaborazione: {data_bozza}", align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(105, 5, "Studio Legale Avv. Aurelio Bentivegna & Partners", align="L")
+
+        self.set_xy(self.l_margin + 105, top_y + 5.5)
+        self.cell(self.epw - 105, 5, f"Data di elaborazione: {data_bozza}", align="R")
 
         # Linea divisoria principale d'accento
-        self.ln(2)
+        self.set_y(top_y + 12)
         self.set_draw_color(*COLOR_PRIMARY)
         self.set_line_width(0.8)
         self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
-        self.ln(6)
+        self.ln(5)
 
         # Titolo Documento
-        self.set_font(self.font_family_name, "B", 15)
+        self.set_font(self.font_family_name, "B", 14.5)
         self.set_text_color(*COLOR_PRIMARY)
-        self.multi_cell(self.epw, 7, titolo, align="L")
+        self.multi_cell(self.epw, 6.5, titolo, align="L")
         self.ln(1)
 
         # Sottotitolo
-        self.set_font(self.font_family_name, "", 10)
+        self.set_font(self.font_family_name, "", 9.5)
         self.set_text_color(*COLOR_ACCENT)
-        self.multi_cell(self.epw, 5, sottotitolo, align="L")
+        self.multi_cell(self.epw, 4.8, sottotitolo, align="L")
         self.ln(4)
 
         # Riquadro Riassuntivo Anagrafica Cliente
@@ -159,6 +167,10 @@ class PreanalysisPDF(FPDF):
         cf_label = f"Codice Fiscale / P.IVA: {cf_piva}" if cf_piva else "Codice Fiscale: non comunicato"
         self.cell(self.epw - 8, 5, cf_label, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
+        # Ripristino stato colore neutro
+        self.set_fill_color(255, 255, 255)
+        self.set_text_color(*COLOR_TEXT_DARK)
+        self.set_draw_color(*COLOR_BORDER)
         self.set_y(box_y + 22)
 
     def chapter_banner(self, num_str: str, title: str):
@@ -176,6 +188,11 @@ class PreanalysisPDF(FPDF):
         self.set_font(self.font_family_name, "B", 10.5)
         self.set_text_color(*COLOR_WHITE)
         self.cell(self.epw - 8, 5.5, f"CAPITOLO {num_str} — {title.upper()}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+        # Ripristino stato colore neutro dopo il banner
+        self.set_fill_color(255, 255, 255)
+        self.set_text_color(*COLOR_TEXT_DARK)
+        self.set_draw_color(*COLOR_BORDER)
         self.set_y(y + banner_h + 3)
 
     def section_heading(self, title: str):
@@ -186,6 +203,8 @@ class PreanalysisPDF(FPDF):
         self.set_font(self.font_family_name, "B", 10)
         self.set_text_color(*COLOR_ACCENT)
         self.cell(self.epw, 6, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.set_font(self.font_family_name, "", 9)
+        self.set_text_color(*COLOR_TEXT_DARK)
         self.ln(1)
 
     def body_paragraph(self, text: str):
@@ -252,6 +271,11 @@ class PreanalysisPDF(FPDF):
         self.set_font(self.font_family_name, "", 8.5)
         self.set_text_color(*COLOR_TEXT_DARK)
         self.multi_cell(self.epw - 10, 4.2, str(text), align="J")
+
+        # Ripristino stato colore neutro
+        self.set_fill_color(255, 255, 255)
+        self.set_text_color(*COLOR_TEXT_DARK)
+        self.set_draw_color(*COLOR_BORDER)
         self.set_y(y_start + est_height + 3)
 
     def bullet_list(self, items: List[str]):
@@ -294,7 +318,7 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     # 1. Copertina & Intestazione iniziale
     pdf.render_cover_header(header_data)
 
-    # Stili per intestazione tabelle fpdf2
+    # Stili per intestazione tabelle fpdf2 (massimo contrasto e leggibilità)
     header_style = FontFace(
         family=pdf.font_family_name,
         emphasis="B",
@@ -307,14 +331,21 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
         emphasis="B",
         size_pt=8.5,
         color=COLOR_TEXT_DARK,
+        fill_color=COLOR_WHITE,
     )
     accent_bold_style = FontFace(
         family=pdf.font_family_name,
         emphasis="B",
         size_pt=8.5,
         color=COLOR_PRIMARY,
-        fill_color=COLOR_BG_BOX,
+        fill_color=COLOR_BG_TOTAL,
     )
+
+    def _reset_table_palette():
+        pdf.set_fill_color(255, 255, 255)
+        pdf.set_text_color(*COLOR_TEXT_DARK)
+        pdf.set_draw_color(*COLOR_BORDER)
+        pdf.set_line_width(0.2)
 
     # -------------------------------------------------------------------------
     # CAPITOLO 1: PREMESSA E FINALITÀ
@@ -326,14 +357,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     docs = c1.get("documenti_utilizzati", [])
     if docs:
         pdf.section_heading("Documenti Utilizzati ed Esaminati")
-        col_w = (pdf.epw * 0.38, pdf.epw * 0.20, pdf.epw * 0.27, pdf.epw * 0.15)
+        _reset_table_palette()
+        col_w = (pdf.epw * 0.35, pdf.epw * 0.18, pdf.epw * 0.32, pdf.epw * 0.15)
         with pdf.table(
             col_widths=col_w,
             headings_style=header_style,
             line_height=5,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "LEFT", "LEFT", "CENTER"),
         ) as table:
             row = table.row()
@@ -365,14 +397,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
 
     # Tabella Anagrafica Società
     pdf.section_heading("2.1 Dati Identificativi dell'Impresa")
-    anag_w = (pdf.epw * 0.28, pdf.epw * 0.72)
+    _reset_table_palette()
+    anag_w = (pdf.epw * 0.32, pdf.epw * 0.68)
     with pdf.table(
         col_widths=anag_w,
         headings_style=header_style,
         line_height=4.8,
+        padding=(1.5, 2),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-        cell_fill_color=COLOR_BG_ALT,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -400,14 +433,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     soci = c2.get("soci", [])
     if soci:
         pdf.section_heading("2.2 Compagine Sociale e Governance")
+        _reset_table_palette()
         soci_w = (pdf.epw * 0.35, pdf.epw * 0.25, pdf.epw * 0.15, pdf.epw * 0.25)
         with pdf.table(
             col_widths=soci_w,
             headings_style=header_style,
             line_height=4.8,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "LEFT", "CENTER", "LEFT"),
         ) as table:
             row = table.row()
@@ -446,13 +480,14 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
         col_w_num = (pdf.epw * 0.60) / num_es
         table_widths = [col_w_label] + [col_w_num] * num_es
 
+        _reset_table_palette()
         with pdf.table(
             col_widths=table_widths,
             headings_style=header_style,
             line_height=4.8,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=["LEFT"] + ["RIGHT"] * num_es,
         ) as table:
             head_row = table.row()
@@ -480,7 +515,7 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
                         str_val = f"{val:.1f} %" if val is not None else "—"
                     else:
                         str_val = _fmt_eur(val)
-                    row.cell(str_val, style=bold_style if is_bold else None)
+                    row.cell(str_val, style=accent_bold_style if is_highlight else (bold_style if is_bold else None))
         pdf.ln(3)
 
     if c3.get("commento_periodo"):
@@ -503,14 +538,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     d_infr = c4.get("dato")
     if d_infr:
         pdf.section_heading(f"Situazione Economica Infrannuale al {d_infr.get('periodo', 'Data Corrente')}")
-        col_w = (pdf.epw * 0.50, pdf.epw * 0.50)
+        _reset_table_palette()
+        col_w = (pdf.epw * 0.55, pdf.epw * 0.45)
         with pdf.table(
             col_widths=col_w,
             headings_style=header_style,
             line_height=4.8,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "RIGHT"),
         ) as table:
             row = table.row()
@@ -528,8 +564,9 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
             ]
             for l, v in infr_items:
                 r = table.row()
-                r.cell(l, style=bold_style if "MOL" in l or "Risultato" in l else None)
-                r.cell(v, style=bold_style if "MOL" in l or "Risultato" in l else None)
+                is_hi = "MOL" in l or "Risultato" in l
+                r.cell(l, style=accent_bold_style if is_hi else None)
+                r.cell(v, style=accent_bold_style if is_hi else None)
         pdf.ln(3)
 
     if c4.get("prudenza"):
@@ -549,6 +586,7 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
 
     if t5_1_cols and t5_1_rows:
         pdf.section_heading("5.1 Struttura e Dinamica dei Debiti da Bilancio")
+        _reset_table_palette()
         num_cols = len(t5_1_cols)
         w_cat = pdf.epw * 0.36
         w_var = pdf.epw * 0.16
@@ -559,9 +597,9 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
             col_widths=col_widths,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=["LEFT"] + ["RIGHT"] * (num_cols + 1),
         ) as table:
             head = table.row()
@@ -586,9 +624,9 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
                 tot_vals = t5_1_tot.get("valori", {})
                 for c in t5_1_cols:
                     k = c.get("key")
-                    tot_row.cell(_fmt_eur(tot_vals.get(k)), style=bold_style)
+                    tot_row.cell(_fmt_eur(tot_vals.get(k)), style=accent_bold_style)
                 tot_var = t5_1_tot.get("variazione")
-                tot_row.cell(_fmt_eur(tot_var) if tot_var is not None else "—", style=bold_style)
+                tot_row.cell(_fmt_eur(tot_var) if tot_var is not None else "—", style=accent_bold_style)
         pdf.ln(3)
 
     if c5.get("commento_5_1"):
@@ -598,14 +636,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     ader_data = c5.get("tabella_5_2_ader")
     if isinstance(ader_data, dict):
         pdf.section_heading("5.2 Posizione Fiscale da Estratto di Ruolo AdER")
+        _reset_table_palette()
         ader_w = (pdf.epw * 0.65, pdf.epw * 0.35)
         with pdf.table(
             col_widths=ader_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "RIGHT"),
         ) as table:
             head = table.row()
@@ -633,14 +672,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
         rott = ader_data.get("dettaglio_rottamazioni", [])
         if rott:
             pdf.section_heading("Dettaglio Definizioni Agevolate (Rottamazioni AdER)")
+            _reset_table_palette()
             rott_w = (pdf.epw * 0.35, pdf.epw * 0.20, pdf.epw * 0.25, pdf.epw * 0.20)
             with pdf.table(
                 col_widths=rott_w,
                 headings_style=header_style,
                 line_height=4.6,
+                padding=(1.5, 2),
                 borders_layout=TableBordersLayout.ALL,
-                cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-                cell_fill_color=COLOR_BG_ALT,
+                cell_fill_mode=TableCellFillMode.NONE,
                 text_align=("LEFT", "RIGHT", "LEFT", "RIGHT"),
             ) as table:
                 head = table.row()
@@ -660,14 +700,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     cred_rows = c5.get("tabella_5_2_credito", [])
     if isinstance(cred_rows, list) and cred_rows:
         pdf.section_heading("5.2 Posizioni Bancarie da Centrale Rischi, CTC e CRIF")
+        _reset_table_palette()
         cred_w = (pdf.epw * 0.28, pdf.epw * 0.24, pdf.epw * 0.16, pdf.epw * 0.16, pdf.epw * 0.16)
         with pdf.table(
             col_widths=cred_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "LEFT", "LEFT", "RIGHT", "RIGHT"),
         ) as table:
             head = table.row()
@@ -691,14 +732,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     t5_3_rows = t5_3.get("righe", [])
     if t5_3_rows:
         pdf.section_heading("5.3 Stima di Sintesi della Massa Debitoria (Riconciliata senza Duplicazioni)")
+        _reset_table_palette()
         sint_w = (pdf.epw * 0.26, pdf.epw * 0.22, pdf.epw * 0.16, pdf.epw * 0.16, pdf.epw * 0.20)
         with pdf.table(
             col_widths=sint_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "LEFT", "RIGHT", "RIGHT", "LEFT"),
         ) as table:
             head = table.row()
@@ -738,14 +780,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     )
 
     if c6:
-        punti_w = (pdf.epw * 0.35, pdf.epw * 0.15, pdf.epw * 0.22, pdf.epw * 0.28)
+        _reset_table_palette()
+        punti_w = (pdf.epw * 0.32, pdf.epw * 0.17, pdf.epw * 0.21, pdf.epw * 0.30)
         with pdf.table(
             col_widths=punti_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "CENTER", "LEFT", "LEFT"),
         ) as table:
             head = table.row()
@@ -789,14 +832,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     immobili = c8.get("immobili", [])
     if immobili:
         pdf.section_heading("8.1 Beni Immobili Intestati alla Società")
-        imm_w = (pdf.epw * 0.08, pdf.epw * 0.24, pdf.epw * 0.22, pdf.epw * 0.12, pdf.epw * 0.17, pdf.epw * 0.17)
+        _reset_table_palette()
+        imm_w = (pdf.epw * 0.06, pdf.epw * 0.26, pdf.epw * 0.22, pdf.epw * 0.10, pdf.epw * 0.18, pdf.epw * 0.18)
         with pdf.table(
             col_widths=imm_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("CENTER", "LEFT", "LEFT", "CENTER", "RIGHT", "RIGHT"),
         ) as table:
             head = table.row()
@@ -830,14 +874,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     veicoli = c8.get("veicoli", [])
     if veicoli:
         pdf.section_heading("8.2 Veicoli e Mezzi Aziendali")
+        _reset_table_palette()
         veic_w = (pdf.epw * 0.40, pdf.epw * 0.20, pdf.epw * 0.20, pdf.epw * 0.20)
         with pdf.table(
             col_widths=veic_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "CENTER", "CENTER", "RIGHT"),
         ) as table:
             head = table.row()
@@ -865,14 +910,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     garanzie = c8.get("esposizione_personale_soci", [])
     if garanzie:
         pdf.section_heading("8.4 Garanzie Personali Prestate dai Soci (Fideiussioni)")
+        _reset_table_palette()
         gar_w = (pdf.epw * 0.30, pdf.epw * 0.50, pdf.epw * 0.20)
         with pdf.table(
             col_widths=gar_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "LEFT", "RIGHT"),
         ) as table:
             head = table.row()
@@ -896,14 +942,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     scenari = c9.get("scenari", [])
     if scenari:
         pdf.section_heading("9.1 Analisi Comparata degli Scenari Giuridici")
-        scen_w = (pdf.epw * 0.30, pdf.epw * 0.16, pdf.epw * 0.54)
+        _reset_table_palette()
+        scen_w = (pdf.epw * 0.28, pdf.epw * 0.14, pdf.epw * 0.58)
         with pdf.table(
             col_widths=scen_w,
             headings_style=header_style,
             line_height=4.8,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "CENTER", "LEFT"),
         ) as table:
             head = table.row()
@@ -941,14 +988,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     doc_mancanti = c10.get("documenti_mancanti", [])
     if doc_mancanti:
         pdf.section_heading("Documenti e Chiarimenti da Fornire prima dell'Accesso alla Procedura")
-        dm_w = (pdf.epw * 0.40, pdf.epw * 0.45, pdf.epw * 0.15)
+        _reset_table_palette()
+        dm_w = (pdf.epw * 0.38, pdf.epw * 0.47, pdf.epw * 0.15)
         with pdf.table(
             col_widths=dm_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "LEFT", "CENTER"),
         ) as table:
             head = table.row()
@@ -1006,14 +1054,15 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
             "dallo Studio Legale per garantire la massima accuratezza redazionale:"
         )
 
+        _reset_table_palette()
         rules_w = (pdf.epw * 0.28, pdf.epw * 0.22, pdf.epw * 0.50)
         with pdf.table(
             col_widths=rules_w,
             headings_style=header_style,
             line_height=4.6,
+            padding=(1.5, 2),
             borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.EVEN_ROWS,
-            cell_fill_color=COLOR_BG_ALT,
+            cell_fill_mode=TableCellFillMode.NONE,
             text_align=("LEFT", "LEFT", "LEFT"),
         ) as table:
             head = table.row()

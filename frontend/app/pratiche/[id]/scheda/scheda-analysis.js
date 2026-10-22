@@ -945,18 +945,6 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <button
             type="button"
             className="pd-btn pd-btn--secondary"
-            onClick={() => setPrintOrientation((prev) => (prev === "portrait" ? "landscape" : "portrait"))}
-            title="Alterna formato del PDF tra Verticale e Orizzontale"
-          >
-            <span className="material-symbols-outlined" aria-hidden="true">
-              {printOrientation === "landscape" ? "stay_primary_landscape" : "stay_primary_portrait"}
-            </span>
-            Formato: {printOrientation === "landscape" ? "Orizzontale" : "Verticale"}
-          </button>
-
-          <button
-            type="button"
-            className="pd-btn pd-btn--secondary"
             onClick={() => handleExportPdf("inline")}
             title="Visualizza il PDF vettoriale in una nuova scheda del browser"
           >
