@@ -259,73 +259,229 @@ export function DocumentChecklist() {
   );
 }
 
-export function CasesTable({ cases, loading }) {
+export function CasesTable({ cases, loading, onDelete }) {
+  const [caseToDelete, setCaseToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  async function handleConfirmDelete() {
+    if (!caseToDelete || !onDelete) return;
+    setIsDeleting(true);
+    setDeleteError("");
+    try {
+      await onDelete(caseToDelete.id);
+      setCaseToDelete(null);
+    } catch (err) {
+      setDeleteError(err.message || "Errore durante l'eliminazione della pratica.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
-    <div className="pd-table-wrap">
-      <table className="pd-table">
-        <thead>
-          <tr>
-            <th>Codice pratica</th>
-            <th>Identità cliente</th>
-            <th>Stato</th>
-            <th>Modulo Attivo</th>
-            <th className="pd-num">Azioni Rapide</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading && <tr><td colSpan={5}>Caricamento pratiche...</td></tr>}
-          {!loading && cases.map((c) => (
-            <tr key={c.id}>
-              <td><strong style={{ color: "var(--pd-primary)" }}>#{c.code || c.id}</strong></td>
-              <td>
-                <strong>{c.client_name || "Cliente da completare"}</strong>
-                <div className="pd-faint" style={{ fontSize: 12 }}>{c.client_tax_code || "CF/P.IVA non disponibile"}</div>
-              </td>
-              <td><StatusBadge status={c.status} /></td>
-              <td><span className="pd-badge pd-badge--neutral">Dossier Istituzionale</span></td>
-              <td className="pd-num">
-                <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <Link
-                    className="pd-btn pd-btn--ghost"
-                    href={`/dati-economici?caseId=${c.id}`}
-                    title="Apri Dati Economici e Raccolta"
-                    style={{ fontSize: 12, padding: "4px 8px" }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>database</span>
-                    Dati
-                  </Link>
-                  <Link
-                    className="pd-btn pd-btn--ghost"
-                    href={`/valutazione?caseId=${c.id}`}
-                    title="Apri Valutazione Econometrica"
-                    style={{ fontSize: 12, padding: "4px 8px" }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>analytics</span>
-                    Valutazione
-                  </Link>
-                  <Link
-                    className="pd-btn pd-btn--ghost"
-                    href={`/report?caseId=${c.id}`}
-                    title="Apri Report e Scheda Finale"
-                    style={{ fontSize: 12, padding: "4px 8px" }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>description</span>
-                    Report
-                  </Link>
-                  <Link
-                    className="pd-btn pd-btn--secondary"
-                    href={`/pratiche/${c.id}/scheda`}
-                    style={{ fontSize: 12, padding: "4px 10px", minHeight: 30 }}
-                  >
-                    Scheda <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16 }}>chevron_right</span>
-                  </Link>
-                </div>
-              </td>
+    <>
+      <div className="pd-table-wrap">
+        <table className="pd-table">
+          <thead>
+            <tr>
+              <th>Codice pratica</th>
+              <th>Identità cliente</th>
+              <th>Stato</th>
+              <th>Modulo Attivo</th>
+              <th className="pd-num">Azioni Rapide</th>
             </tr>
-          ))}
-          {!loading && cases.length === 0 && <tr><td colSpan={5}>Nessuna pratica trovata con i filtri correnti.</td></tr>}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {loading && <tr><td colSpan={5}>Caricamento pratiche...</td></tr>}
+            {!loading && cases.map((c) => (
+              <tr key={c.id}>
+                <td><strong style={{ color: "var(--pd-primary)" }}>#{c.code || c.id}</strong></td>
+                <td>
+                  <strong>{c.client_name || "Cliente da completare"}</strong>
+                  <div className="pd-faint" style={{ fontSize: 12 }}>{c.client_tax_code || "CF/P.IVA non disponibile"}</div>
+                </td>
+                <td><StatusBadge status={c.status} /></td>
+                <td><span className="pd-badge pd-badge--neutral">Dossier Istituzionale</span></td>
+                <td className="pd-num">
+                  <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center" }}>
+                    <Link
+                      className="pd-btn pd-btn--ghost"
+                      href={`/pratiche/${c.id}/scheda/raccolta`}
+                      title="Apri Dati Economici e Raccolta"
+                      style={{ fontSize: 12, padding: "4px 8px" }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>database</span>
+                      Dati
+                    </Link>
+                    <Link
+                      className="pd-btn pd-btn--ghost"
+                      href={`/pratiche/${c.id}/scheda/econometria`}
+                      title="Apri Valutazione Econometrica"
+                      style={{ fontSize: 12, padding: "4px 8px" }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>analytics</span>
+                      Valutazione
+                    </Link>
+                    <Link
+                      className="pd-btn pd-btn--ghost"
+                      href={`/pratiche/${c.id}/scheda/report`}
+                      title="Apri Report di Pre-Analisi e Scheda Finale"
+                      style={{ fontSize: 12, padding: "4px 8px" }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>description</span>
+                      Report
+                    </Link>
+                    <Link
+                      className="pd-btn pd-btn--secondary"
+                      href={`/pratiche/${c.id}/scheda`}
+                      style={{ fontSize: 12, padding: "4px 10px", minHeight: 30 }}
+                      title="Apri Scheda Cliente Completa"
+                    >
+                      Scheda <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16 }}>chevron_right</span>
+                    </Link>
+                    <button
+                      type="button"
+                      className="pd-btn pd-btn--ghost-danger"
+                      style={{ fontSize: 12, padding: "4px 8px", minHeight: 30 }}
+                      title={`Elimina pratica #${c.code || c.id} e libera il database`}
+                      onClick={() => { setCaseToDelete(c); setDeleteError(""); }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                      Elimina
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!loading && cases.length === 0 && <tr><td colSpan={5}>Nessuna pratica trovata con i filtri correnti.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODALE CONFERMA ELIMINAZIONE PRATICA */}
+      {caseToDelete && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(0, 0, 0, 0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={() => !isDeleting && setCaseToDelete(null)}
+        >
+          <div
+            className="pd-card"
+            style={{
+              width: 520,
+              maxWidth: "100%",
+              background: "#ffffff",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.25)",
+              borderRadius: "var(--pd-radius-lg)",
+              padding: 24,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "var(--pd-danger-bg)",
+                  color: "var(--pd-danger)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 26 }}>warning</span>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, color: "var(--pd-primary)", fontWeight: 700 }}>
+                  Conferma eliminazione pratica
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--pd-text-muted)" }}>
+                  Azione irreversibile con liberazione completa del database
+                </p>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 14, color: "var(--pd-text)", lineHeight: 1.5, marginBottom: 16 }}>
+              <p style={{ margin: "0 0 10px" }}>
+                Stai per eliminare definitivamente la pratica:
+              </p>
+              <div
+                style={{
+                  padding: 12,
+                  background: "var(--pd-surface-low)",
+                  borderRadius: "var(--pd-radius)",
+                  borderLeft: "4px solid var(--pd-danger)",
+                  marginBottom: 12,
+                }}
+              >
+                <strong style={{ color: "var(--pd-primary)", display: "block" }}>
+                  #{caseToDelete.code || caseToDelete.id} — {caseToDelete.client_name || "Cliente"}
+                </strong>
+                <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>
+                  CF / P.IVA: {caseToDelete.client_tax_code || "Non specificato"}
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--pd-text-muted)" }}>
+                Verranno eliminati in modo permanente tutti i documenti originali, le visure, i bilanci, i debiti tributari AER, i conti correnti, gli indici di crisi e le relazioni elaborate.
+              </p>
+            </div>
+
+            {deleteError && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: "8px 12px",
+                  background: "var(--pd-danger-bg)",
+                  color: "var(--pd-danger)",
+                  borderRadius: "var(--pd-radius)",
+                  fontSize: 13,
+                }}
+              >
+                {deleteError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                className="pd-btn pd-btn--secondary"
+                onClick={() => setCaseToDelete(null)}
+                disabled={isDeleting}
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                className="pd-btn pd-btn--danger"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>sync</span>
+                    Eliminazione in corso...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete_forever</span>
+                    Elimina definitivamente
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

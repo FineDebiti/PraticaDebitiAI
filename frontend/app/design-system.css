@@ -186,6 +186,10 @@ button, input, select, textarea { font: inherit; letter-spacing: 0; }
 .pd-btn--olive { background: var(--pd-primary); color: #fff; }
 .pd-btn--secondary { background: transparent; color: var(--pd-primary); border-color: var(--pd-outline); }
 .pd-btn--ghost { background: transparent; color: var(--pd-accent); padding-inline: 8px; }
+.pd-btn--danger { background: var(--pd-danger); color: #fff; border-color: var(--pd-danger); }
+.pd-btn--danger:hover:not(:disabled) { background: #93000a; }
+.pd-btn--ghost-danger { background: transparent; color: var(--pd-danger); padding-inline: 8px; }
+.pd-btn--ghost-danger:hover:not(:disabled) { background: var(--pd-danger-bg); }
 .pd-icon-btn { width: 38px; height: 38px; padding: 0; border: 1px solid var(--pd-border); border-radius: var(--pd-radius); background: var(--pd-surface); color: var(--pd-text-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 
 .pd-field { display: flex; flex-direction: column; gap: 6px; }

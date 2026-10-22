@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createCase, listCases } from "./api";
+import { createCase, listCases, deleteCase } from "./api";
 import { CasesTable, Kpi, NewCaseForm, statusLabel } from "./components/PraticheHome";
 
 function normalizeCf(v) { return (v || "").toUpperCase().replace(/\s+/g, ""); }
@@ -91,6 +91,11 @@ export default function Home() {
   const inProgress = cases.filter(c => /lavor|analisi|verif|incomplet/i.test(c.status || "")).length;
   const ready = cases.filter(c => /complet|export|risolt/i.test(c.status || "")).length;
 
+  async function handleDeleteCase(id) {
+    await deleteCase(id);
+    await refresh();
+  }
+
   return (
     <div>
       <div className="pd-page-head">
@@ -133,7 +138,7 @@ export default function Home() {
                 </select>
               </div>
             </div>
-            <CasesTable cases={filtered} loading={loading} />
+            <CasesTable cases={filtered} loading={loading} onDelete={handleDeleteCase} />
           </div>
         </section>
       </div>

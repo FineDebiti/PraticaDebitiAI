@@ -29,6 +29,15 @@ export async function getCase(id) {
   const r = await fetch(`${BASE}/api/cases/${id}`, { cache: "no-store" });
   return r.json();
 }
+export async function deleteCase(id) {
+  const r = await fetch(`${BASE}/api/cases/${id}`, { method: "DELETE" });
+  if (!r.ok) {
+    let detail = "Errore durante l'eliminazione della pratica.";
+    try { const body = await r.json(); detail = body.detail || detail; } catch {}
+    throw new Error(detail);
+  }
+  return r.json();
+}
 export async function uploadDoc(caseId, file, docType = "") {
   const fd = new FormData();
   fd.append("file", file);

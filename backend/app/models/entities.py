@@ -50,6 +50,9 @@ class Case(Base):
     guarantees_given: Mapped[list["GuaranteeGiven"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     cr_summaries: Mapped[list["CreditReportSummary"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     enrichment_requests: Mapped[list["EnrichmentRequest"]] = relationship(back_populates="case", cascade="all, delete-orphan")
+    tax_debt_statements: Mapped[list["TaxDebtStatement"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan"
+    )
     cross_analyses: Mapped[list["CaseCrossAnalysis"]] = relationship(
         back_populates="case", cascade="all, delete-orphan", order_by="desc(CaseCrossAnalysis.created_at)"
     )
@@ -408,6 +411,7 @@ class TaxDebtStatement(Base):
     raw_extraction: Mapped[dict] = mapped_column(JSON, default=dict)     # schema §4 + aggregazioni
     source_document_id: Mapped[str] = mapped_column(String, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    case: Mapped["Case"] = relationship(back_populates="tax_debt_statements")
     items: Mapped[list["TaxDebtItem"]] = relationship(
         back_populates="statement", cascade="all, delete-orphan")
 

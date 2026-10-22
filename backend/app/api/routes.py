@@ -75,6 +75,46 @@ def get_case(case_id: str, db: Session = Depends(get_db)):
     return case
 
 
+@router.delete("/cases/{case_id}")
+def delete_case(case_id: str, db: Session = Depends(get_db)):
+    """Elimina definitivamente una pratica, tutti i documenti collegati su disco/storage
+    e tutte le entità collegate nel DB (anagrafica, redditi, AER, aziende, bilanci,
+    indici, pignoramenti, patrimoni, cross-analyses, audit manuali e regole mirate)."""
+    case = db.get(Case, case_id)
+    if not case:
+        raise HTTPException(404, "Pratica non trovata")
+
+    from app.services.storage import get_storage
+    storage = get_storage()
+
+    # 1. Pulizia file fisici su storage/disco dei documenti della pratica
+    for doc in case.documents:
+        if doc.storage_uri:
+            try:
+                storage.delete(doc.storage_uri)
+            except Exception:
+                pass
+        if doc.storage_path and os.path.exists(doc.storage_path):
+            try:
+                os.remove(doc.storage_path)
+            except Exception:
+                pass
+
+    # 2. Pulizia record correlati senza FK diretta a cascata (FieldEdit e StudioRule della pratica)
+    from app.models import FieldEdit, StudioRule
+    db.query(FieldEdit).filter_by(case_id=case_id).delete()
+    db.query(StudioRule).filter_by(case_id=case_id).delete()
+
+    # 3. Eliminazione del Case: l'ORM a cascata (cascade="all, delete-orphan")
+    # rimuove automaticamente Debtor, Documenti, Extractions, TaxDebtStatements + Items,
+    # Creditors, DebtPositions, RealEstates, Vehicles, Companies + Members + FinancialStatements + Indicators,
+    # CreditExposures, GuaranteesGiven, CrSummaries, EnrichmentRequests, CrossAnalyses.
+    case_code = case.code or case_id
+    db.delete(case)
+    db.commit()
+    return {"ok": True, "message": f"Pratica #{case_code} eliminata con successo."}
+
+
 @router.post("/cases/{case_id}/documents")
 def upload_document(case_id: str, file: UploadFile = File(...),
                     doc_type: str = Form(""), db: Session = Depends(get_db)):

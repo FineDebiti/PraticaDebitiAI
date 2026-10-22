@@ -99,3 +99,24 @@ def test_get_preanalysis_report_pdf(client, sample_case):
     assert "inline" in response_l.headers.get("content-disposition", "")
     assert response_l.content.startswith(b"%PDF")
 
+
+def test_delete_case(client, sample_case):
+    # Verifichiamo che la pratica esista
+    res_get = client.get(f"/api/cases/{sample_case.id}")
+    assert res_get.status_code == 200
+
+    # Eliminiamo la pratica
+    res_del = client.delete(f"/api/cases/{sample_case.id}")
+    assert res_del.status_code == 200
+    assert res_del.json()["ok"] is True
+
+    # Verifichiamo che ora risponda 404
+    res_after = client.get(f"/api/cases/{sample_case.id}")
+    assert res_after.status_code == 404
+
+
+def test_delete_case_not_found(client):
+    res_del = client.delete("/api/cases/non_existent_case_123")
+    assert res_del.status_code == 404
+
+

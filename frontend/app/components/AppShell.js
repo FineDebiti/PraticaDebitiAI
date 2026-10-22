@@ -6,10 +6,10 @@ import { Suspense, useEffect, useState } from "react";
 import { listCases, checkHealth } from "../api";
 
 const NAV = [
-  { icon: "gavel", label: "Pratiche", href: "/", baseHref: "/" },
-  { icon: "database", label: "Dati economici", href: "/dati-economici", baseHref: "/dati-economici" },
-  { icon: "analytics", label: "Valutazione econometrica", href: "/valutazione", baseHref: "/valutazione" },
-  { icon: "description", label: "Report", href: "/report", baseHref: "/report" },
+  { id: "pratiche", icon: "gavel", label: "Pratiche", baseHref: "/" },
+  { id: "dati", icon: "database", label: "Dati economici", baseHref: "/dati-economici" },
+  { id: "valutazione", icon: "analytics", label: "Valutazione econometrica", baseHref: "/valutazione" },
+  { id: "report", icon: "description", label: "Report", baseHref: "/report" },
 ];
 
 function AppShellInner({ children }) {
@@ -49,30 +49,38 @@ function AppShellInner({ children }) {
 
   const activeCase = cases.find(c => c.id === activeCaseId);
 
-  // Build nav href: if a case is selected, append caseId to section links
+  // Build nav href: if a case is selected, direct to the appropriate section of the practice
   function getNavHref(item) {
-    if (item.baseHref === "/") return "/";
+    if (item.id === "pratiche") return "/";
     if (activeCaseId) {
-      return `${item.baseHref}?caseId=${activeCaseId}`;
+      if (item.id === "dati") return `/pratiche/${activeCaseId}/scheda`;
+      if (item.id === "valutazione") return `/pratiche/${activeCaseId}/scheda/econometria`;
+      if (item.id === "report") return `/pratiche/${activeCaseId}/scheda/report`;
     }
-    return item.baseHref;
+    return null;
   }
 
   // Determine active route
-  function isNavActive(itemHref) {
-    if (itemHref === "/") {
-      return pathname === "/" || (pathname.startsWith("/pratiche") && !pathname.includes("/valutazione") && !pathname.includes("/report") && !pathname.includes("/scheda"));
+  function isNavActive(item) {
+    if (item.id === "pratiche") {
+      return pathname === "/" || (pathname.startsWith("/pratiche") && !activeCaseId);
     }
-    if (itemHref === "/dati-economici") {
-      return pathname.startsWith("/dati-economici") || pathname.includes("/scheda");
+    if (item.id === "report") {
+      return pathname.includes("/report");
     }
-    if (itemHref === "/valutazione") {
-      return pathname.startsWith("/valutazione") || (pathname.includes("/valutazione") && pathname.startsWith("/pratiche"));
+    if (item.id === "valutazione") {
+      return pathname.includes("/econometria") || pathname.includes("/valutazione");
     }
-    if (itemHref === "/report") {
-      return pathname.startsWith("/report") || (pathname.includes("/report") && pathname.startsWith("/pratiche"));
+    if (item.id === "dati") {
+      return (
+        pathname.startsWith("/dati-economici") ||
+        (pathname.startsWith("/pratiche") &&
+          !pathname.includes("/report") &&
+          !pathname.includes("/econometria") &&
+          !pathname.includes("/valutazione"))
+      );
     }
-    return pathname === itemHref;
+    return false;
   }
 
   function handleSearchKeyDown(e) {
@@ -92,11 +100,29 @@ function AppShellInner({ children }) {
 
         <nav className="app-nav" aria-label="Navigazione principale">
           {NAV.map((item) => {
-            const active = isNavActive(item.baseHref);
+            const active = isNavActive(item);
             const href = getNavHref(item);
+            const isDisabled = !href;
+
+            if (isDisabled) {
+              return (
+                <div
+                  key={item.id}
+                  className="app-nav__item app-nav__item--disabled"
+                  style={{ opacity: 0.38, cursor: "not-allowed" }}
+                  title="Seleziona prima una pratica per accedere a questa sezione"
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                  <span className="app-nav__label">{item.label}</span>
+                </div>
+              );
+            }
+
             return (
               <Link
-                key={item.label}
+                key={item.id}
                 href={href}
                 className={`app-nav__item ${active ? "app-nav__item--active" : ""}`}
                 aria-current={active ? "page" : undefined}
