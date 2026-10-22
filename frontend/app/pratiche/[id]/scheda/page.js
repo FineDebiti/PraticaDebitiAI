@@ -215,8 +215,8 @@ export default function Scheda({ params, initialSection = "documenti" }) {
     { key: "raccolta", label: "Raccolta dati" },
     { key: "riepilogo", label: "Hub analitico" },
     { key: "indicatori", label: "Indicatori" },
-    { key: "econometria", label: "Econometria" },
     { key: "audit", label: "Audit", badge: edits.length },
+    { key: "econometria", label: "Econometria" },
     { key: "report", label: "Report finale" },
   ];
 
@@ -506,14 +506,14 @@ export default function Scheda({ params, initialSection = "documenti" }) {
         <DocumentsPanel caseId={id} onProcessed={load} />
       )}
 
+      {/* ===== AUDIT ===== */}
+      {activeTab === "audit" && <AuditTrailView edits={edits} docs={docs} goTab={goTab} />}
+
       {/* ===== VALUTAZIONE ECONOMETRICA ===== */}
       {activeTab === "econometria" && <EconometricEvaluationView indicators={indic} debtor={d} card={card} docs={docs} patrimonio={patrimonio} totalAer={totAer} goTab={goTab} />}
 
       {/* ===== REPORT FINALE ===== */}
       {activeTab === "report" && <FinalReportView caseId={id} indicators={indic} debtor={d} card={card} docs={docs} edits={edits} title={titolare} totalAer={totAer} patrimonio={patrimonio} crossAnalysis={crossAnalysis} goTab={goTab} />}
-
-      {/* ===== AUDIT ===== */}
-      {activeTab === "audit" && <AuditTrailView edits={edits} docs={docs} goTab={goTab} />}
       </div>
     </div>
   );
