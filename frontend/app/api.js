@@ -1,4 +1,11 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE = {
+  toString() {
+    if (typeof window !== "undefined" && window.location?.hostname) {
+      return `http://${window.location.hostname}:8000`;
+    }
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  },
+};
 
 export async function listCases() {
   const r = await fetch(`${BASE}/api/cases`, { cache: "no-store" });
