@@ -77,7 +77,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     # Il browser gira sullo stesso PC: l'API e' raggiungibile su localhost:8000.
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
