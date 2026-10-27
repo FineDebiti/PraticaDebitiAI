@@ -40,3 +40,4 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_case_preanalysis_reports_version'), table_name='case_preanalysis_reports')
     op.drop_index(op.f('ix_case_preanalysis_reports_case_id'), table_name='case_preanalysis_reports')
     op.drop_table('case_preanalysis_reports')
+
