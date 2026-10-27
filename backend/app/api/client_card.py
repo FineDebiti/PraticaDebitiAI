@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 from app.db import get_db
 from app.config import settings
@@ -645,11 +645,78 @@ def get_cross_analysis_history(case_id: str, db: Session = Depends(get_db)):
     )
 
 
+from app.services.report_regenerator import (
+    get_or_create_preanalysis_report,
+    regenerate_preanalysis_report,
+    reset_preanalysis_report,
+)
+
+
+class RegenerateReportRequest(BaseModel):
+    instructions: Optional[List[str]] = None
+    scope: Optional[str] = None
+
+
 @router.get("/cases/{case_id}/preanalysis-report")
 def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
-    """Genera il Report di Preanalisi Economico-Finanziaria conforme al template dello studio legale."""
+    """Restituisce il Report di Preanalisi Economico-Finanziaria conforme al template dello studio legale."""
     _get_case(db, case_id)
-    return build_preanalysis_report(db, case_id)
+    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    if isinstance(report_data, dict):
+        report_data["_meta"] = {
+            "version": report_record.version,
+            "status": report_record.status,
+            "applied_rules_count": report_record.applied_rules_count,
+            "updated_at": report_record.updated_at.isoformat() if report_record.updated_at else None,
+        }
+    return report_data
+
+
+@router.post("/cases/{case_id}/preanalysis-report/regenerate")
+def regenerate_report_endpoint(
+    case_id: str,
+    req: Optional[RegenerateReportRequest] = None,
+    db: Session = Depends(get_db),
+):
+    """Rigenera il Report di Preanalisi applicando le regole apprese e i commenti dello studio."""
+    _get_case(db, case_id)
+    instructions = req.instructions if req else None
+    scope = req.scope if req else None
+    report_record, report_data = regenerate_preanalysis_report(
+        db, case_id, instructions=instructions, target_scope=scope
+    )
+    if isinstance(report_data, dict):
+        report_data["_meta"] = {
+            "version": report_record.version,
+            "status": report_record.status,
+            "applied_rules_count": report_record.applied_rules_count,
+            "updated_at": report_record.updated_at.isoformat() if report_record.updated_at else None,
+        }
+    return {
+        "success": True,
+        "version": report_record.version,
+        "applied_rules_count": report_record.applied_rules_count,
+        "report": report_data,
+    }
+
+
+@router.post("/cases/{case_id}/preanalysis-report/reset")
+def reset_report_endpoint(case_id: str, db: Session = Depends(get_db)):
+    """Ripristina il Report di Preanalisi allo stato iniziale dai documenti grezzi."""
+    _get_case(db, case_id)
+    report_record, report_data = reset_preanalysis_report(db, case_id)
+    if isinstance(report_data, dict):
+        report_data["_meta"] = {
+            "version": report_record.version,
+            "status": report_record.status,
+            "applied_rules_count": report_record.applied_rules_count,
+            "updated_at": report_record.updated_at.isoformat() if report_record.updated_at else None,
+        }
+    return {
+        "success": True,
+        "version": report_record.version,
+        "report": report_data,
+    }
 
 
 @router.get("/cases/{case_id}/preanalysis-report/pdf")
@@ -661,11 +728,11 @@ def get_preanalysis_report_pdf(
 ):
     """Genera e restituisce il file PDF nativo vettoriale del Report di Preanalisi ex CCII."""
     case = _get_case(db, case_id)
-    report_data = build_preanalysis_report(db, case_id)
+    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
     pdf_bytes = generate_preanalysis_pdf(report_data, orientation=orientation)
 
     clean_name = "".join(c if c.isalnum() else "_" for c in (case.client_name or "Cliente")).strip("_")
-    filename = f"Preanalisi_{clean_name}_{case_id[:8]}.pdf"
+    filename = f"Preanalisi_{clean_name}_{case_id[:8]}_v{report_record.version}.pdf"
     disposition = "inline" if action == "inline" else f'attachment; filename="{filename}"'
 
     return Response(

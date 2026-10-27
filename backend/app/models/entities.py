@@ -59,6 +59,9 @@ class Case(Base):
     studio_rules: Mapped[list["StudioRule"]] = relationship(
         back_populates="case", order_by="desc(StudioRule.created_at)"
     )
+    preanalysis_reports: Mapped[list["CasePreanalysisReport"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan", order_by="desc(CasePreanalysisReport.version)"
+    )
 
 
 class Debtor(Base):
@@ -512,3 +515,23 @@ class StudioRule(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
     case: Mapped["Case"] = relationship(back_populates="studio_rules")
+
+
+class CasePreanalysisReport(Base):
+    """Report di Preanalisi Economico-Finanziaria ex CCII persistito per la pratica.
+    Conserva la versione attiva e la cronologia delle modifiche/istruzioni applicate
+    consentendo un workflow iterativo di rigenerazione con l'LLM."""
+    __tablename__ = "case_preanalysis_reports"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    report_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String, default="generated")  # draft, generated, customized, validated
+    applied_rules_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    case: Mapped["Case"] = relationship(back_populates="preanalysis_reports")
+

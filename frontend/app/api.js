@@ -261,6 +261,33 @@ export async function getPreanalysisReport(caseId) {
   return r.json();
 }
 
+export async function regeneratePreanalysisReport(caseId, payload = {}) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/preanalysis-report/regenerate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || "Errore durante la rigenerazione del report");
+  }
+  return r.json();
+}
+
+export async function resetPreanalysisReport(caseId) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/preanalysis-report/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || "Errore durante il ripristino del report");
+  }
+  return r.json();
+}
+
 export function getPreanalysisReportPdfUrl(caseId, orientation = "portrait", action = "download") {
   return `${BASE}/api/cases/${caseId}/preanalysis-report/pdf?orientation=${orientation}&action=${action}`;
 }

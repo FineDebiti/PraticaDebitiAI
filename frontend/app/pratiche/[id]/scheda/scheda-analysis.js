@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   getPreanalysisReport,
   getPreanalysisReportPdfUrl,
+  regeneratePreanalysisReport,
+  resetPreanalysisReport,
   learnStudioRule,
   synthesizeStudioRule,
   createStudioRule,
@@ -560,7 +562,7 @@ function AntigravitySectionCommentBox({
   );
 }
 
-function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
+function ProceedModal({ isOpen, onClose, learnedCount, onPrint, reportVersion }) {
   if (!isOpen) return null;
 
   return (
@@ -586,7 +588,7 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
           border: "1px solid var(--pd-border)",
           borderTop: "4px solid var(--pd-primary)",
           borderRadius: "var(--pd-radius-lg)",
-          maxWidth: 480,
+          maxWidth: 500,
           width: "100%",
           padding: 24,
           boxShadow: "0 20px 25px -5px rgba(45, 54, 40, 0.2)",
@@ -596,9 +598,9 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--pd-primary)", display: "flex", alignItems: "center", gap: 8 }}>
             <span className="material-symbols-outlined" style={{ color: "var(--pd-accent)", fontSize: 24 }}>
-              verified
+              auto_awesome
             </span>
-            Report Aggiornato
+            Report Rigenerato {reportVersion ? `(v${reportVersion})` : ""}
           </h3>
           <button
             type="button"
@@ -610,25 +612,20 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
         </div>
 
         <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--pd-text-muted)", lineHeight: 1.55 }}>
-          {learnedCount > 0 ? (
-            <>
-              Tutte le <strong>{learnedCount} istruzioni</strong> inserite sono state acquisite da DossierLex. I dati del report sono stati ricaricati automaticamente in base alle nuove regole apprese.
-            </>
-          ) : (
-            <>
-              Nessuna istruzione correttiva aggiunta: il report è convalidato. Puoi procedere direttamente alla stampa o esportazione in formato PDF.
-            </>
-          )}
+          Le modifiche e le regole operative dello studio sono state applicate con successo ai dati del report e memorizzate nel database.
+          <br /><br />
+          <strong>I dati e le tabelle sono aggiornati a video.</strong> Puoi continuare a revisionare il report a schermo, aggiungere altri commenti sui capitoli e rigenerare quante volte desideri. Quando il risultato rispecchierà esattamente ciò che ti serve, potrai procedere all&apos;esportazione in PDF.
         </p>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
           <button
             type="button"
             onClick={onClose}
             className="pd-btn pd-btn--secondary"
             style={{ minHeight: 36, padding: "6px 14px", fontSize: 13 }}
           >
-            Chiudi
+            <span className="material-symbols-outlined" style={{ fontSize: 17 }}>visibility</span>
+            Continua a revisionare a video
           </button>
 
           <button
@@ -652,6 +649,8 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint }) {
 export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [feedbackBanner, setFeedbackBanner] = useState(null);
   const [printOrientation, setPrintOrientation] = useState("portrait");
   const [activeCommentScope, setActiveCommentScope] = useState(null);
   const [isReviewDropdownOpen, setIsReviewDropdownOpen] = useState(false);
@@ -675,6 +674,52 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
     if (!caseId) return;
     const url = getPreanalysisReportPdfUrl(caseId, printOrientation, action);
     window.open(url, "_blank");
+  };
+
+  const handleRegenerate = async () => {
+    if (!caseId || regenerating) return;
+    setRegenerating(true);
+    try {
+      const res = await regeneratePreanalysisReport(caseId);
+      if (res && res.report) {
+        setReport(res.report);
+        const count = res.applied_rules_count || sessionLearnedCount || 0;
+        setFeedbackBanner({
+          version: res.version,
+          rulesCount: count,
+          message: `Report aggiornato alla versione v${res.version}. Applicate ${count} istruzioni dello studio. Dati e tabelle sincronizzati a video.`,
+        });
+        setSessionLearnedCount(0);
+        setIsProceedModalOpen(true);
+      }
+    } catch (err) {
+      console.error("Errore rigenerazione report:", err);
+      alert("Errore durante la rigenerazione: " + (err.message || String(err)));
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleResetBaseline = async () => {
+    if (!caseId || regenerating) return;
+    if (!window.confirm("Vuoi ripristinare il report alla versione base originale calcolata direttamente dai documenti?")) return;
+    setRegenerating(true);
+    try {
+      const res = await resetPreanalysisReport(caseId);
+      if (res && res.report) {
+        setReport(res.report);
+        setFeedbackBanner({
+          version: res.version,
+          rulesCount: 0,
+          message: "Report ripristinato alla baseline iniziale dai documenti.",
+        });
+      }
+    } catch (err) {
+      console.error("Errore ripristino report:", err);
+      alert("Errore durante il ripristino: " + (err.message || String(err)));
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   const renderPlusButton = (scopeKey, scopeTitle) => {
@@ -904,15 +949,12 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             />
           </div>
 
-          {/* PROCEED BUTTON (STILE DOSSIERLEX) */}
+          {/* BOTTONE RIGENERA REPORT CON MODIFICHE */}
           <button
             type="button"
-            onClick={() => {
-              fetchReport();
-              setIsProceedModalOpen(true);
-            }}
-            disabled={loading}
-            title="Convalida le modifiche, ricarica i dati con le nuove regole e procedi con la stampa"
+            onClick={handleRegenerate}
+            disabled={regenerating || loading}
+            title="Rigenera il report applicando le istruzioni e le regole apprese dello studio ai dati e alle tabelle"
             style={{
               background: "var(--pd-accent)",
               color: "#ffffff",
@@ -921,8 +963,8 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               padding: "7px 18px",
               fontSize: 13,
               fontWeight: 600,
-              cursor: loading ? "default" : "pointer",
-              opacity: loading ? 0.7 : 1,
+              cursor: (regenerating || loading) ? "default" : "pointer",
+              opacity: (regenerating || loading) ? 0.7 : 1,
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
@@ -930,14 +972,49 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               transition: "all 0.15s ease",
             }}
           >
-            {loading ? (
+            {regenerating ? (
               <>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>sync</span>
-                <span>Ricarica...</span>
+                <span>Rigenerazione in corso...</span>
               </>
             ) : (
-              <span>Proceed</span>
+              <>
+                <span className="material-symbols-outlined" style={{ fontSize: 17 }}>auto_fix_high</span>
+                <span>Rigenera Report</span>
+                {sessionLearnedCount > 0 && (
+                  <span
+                    style={{
+                      background: "#ffffff",
+                      color: "var(--pd-accent)",
+                      borderRadius: "50%",
+                      fontSize: 10,
+                      fontWeight: 800,
+                      width: 17,
+                      height: 17,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginLeft: 2,
+                    }}
+                  >
+                    {sessionLearnedCount}
+                  </span>
+                )}
+              </>
             )}
+          </button>
+
+          {/* BOTTONE RIPRISTINA BASELINE */}
+          <button
+            type="button"
+            onClick={handleResetBaseline}
+            disabled={regenerating || loading}
+            className="pd-btn pd-btn--secondary"
+            title="Ripristina il report allo stato iniziale calcolato direttamente dai documenti grezzi"
+            style={{ padding: "7px 12px", fontSize: 12 }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>restart_alt</span>
+            Ripristina
           </button>
 
           <span style={{ height: 20, width: 1, background: "var(--pd-border)", margin: "0 4px" }} />
@@ -965,6 +1042,42 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
       </div>
 
       <article className="pd-report-paper" style={{ padding: "36px 44px", background: "#fff", maxWidth: 1140, margin: "0 auto", boxShadow: "var(--pd-shadow-md)", borderRadius: 8 }}>
+        {/* BANNER NOTIFICA RIGENERAZIONE */}
+        {feedbackBanner && (
+          <div
+            className="no-print"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "12px 18px",
+              marginBottom: 24,
+              borderRadius: "var(--pd-radius)",
+              background: "#f0fdf4",
+              border: "1px solid #bbf7d0",
+              color: "#166534",
+              fontSize: 13.5,
+              boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span className="material-symbols-outlined" style={{ color: "#16a34a", fontSize: 22 }}>
+                check_circle
+              </span>
+              <div>
+                <strong>Report Aggiornato (v{feedbackBanner.version}):</strong> {feedbackBanner.message}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedbackBanner(null)}
+              style={{ background: "none", border: "none", color: "#166534", cursor: "pointer" }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+            </button>
+          </div>
+        )}
+
         {/* HEADER FORMALE DEL TEMPLATE */}
         <header style={{ borderBottom: "2px solid var(--pd-primary)", paddingBottom: 24, marginBottom: 36 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -983,6 +1096,16 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--pd-text-muted)" }}>
                 Data bozza: {h.data_bozza || new Date().toLocaleDateString("it-IT")}
               </p>
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center", marginTop: 4 }}>
+                <span className="pd-badge pd-badge--neutral" style={{ fontSize: 10.5 }}>
+                  Versione: {report?._meta?.version ? `v${report._meta.version}` : "v1"}
+                </span>
+                {report?._meta?.applied_rules_count > 0 && (
+                  <span className="pd-badge pd-badge--ok" style={{ fontSize: 10.5 }}>
+                    {report._meta.applied_rules_count} istruzioni applicate
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1638,7 +1761,8 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
       <ProceedModal
         isOpen={isProceedModalOpen}
         onClose={() => setIsProceedModalOpen(false)}
-        learnedCount={sessionLearnedCount}
+        learnedCount={feedbackBanner?.rulesCount || sessionLearnedCount}
+        reportVersion={report?._meta?.version}
         onPrint={() => handleExportPdf("download")}
       />
     </div>

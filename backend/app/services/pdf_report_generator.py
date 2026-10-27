@@ -454,7 +454,8 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
                 row = table.row()
                 s_name = s.get("nome") or s.get("nominativo") or "—"
                 row.cell(str(s_name), style=bold_style)
-                row.cell(str(s.get("cf", "—")))
+                s_cf = s.get("codice_fiscale") or s.get("cf") or "—"
+                row.cell(str(s_cf))
                 quota = s.get("quota_pct", 0)
                 row.cell(f"{quota}%" if quota else "—")
                 row.cell(str(s.get("ruolo", "Socio")))

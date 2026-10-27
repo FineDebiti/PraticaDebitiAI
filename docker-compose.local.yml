@@ -45,6 +45,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - ./backend:/code
       - storage:/code/storage          # documenti (legacy)
       - filestore:/data/uploads        # file originali caricati
     # Applica le migrazioni Alembic e avvia l'app (produzione: niente --reload).
@@ -65,6 +66,7 @@ services:
       backend:
         condition: service_healthy
     volumes:
+      - ./backend:/code
       - storage:/code/storage
       - filestore:/data/uploads
     command: celery -A app.workers.celery_app worker --concurrency=2 --loglevel=info -Q default

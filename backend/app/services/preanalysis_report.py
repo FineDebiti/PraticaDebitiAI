@@ -70,8 +70,32 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
         return {}
 
     debtor = db.query(Debtor).filter_by(case_id=case_id).first()
-    company = db.query(Company).filter_by(case_id=case_id).first()
     companies = db.query(Company).filter_by(case_id=case_id).all()
+    # Seleziona la riga Company più completa (con REA o sede valorizzata)
+    company = next((c for c in companies if c.rea and c.legal_address), None) or (companies[0] if companies else None)
+    docs = db.query(Document).filter_by(case_id=case_id).all()
+
+    # Se mancano REA, sede o ATECO nella Company, ricava direttamente dall'estrazione della Visura Camerale
+    if company and (not company.rea or not company.legal_address or not company.ateco):
+        for d in docs:
+            if d.extraction and d.extraction.json_output and isinstance(d.extraction.json_output, dict):
+                jo = d.extraction.json_output
+                imp = jo.get("impresa", {})
+                sec = jo.get("dati_secondari", {})
+                if not company.rea:
+                    company.rea = imp.get("numero_rea") or sec.get("numero_rea") or ""
+                if not company.legal_address:
+                    company.legal_address = imp.get("sede_legale") or sec.get("sede_legale") or ""
+                if not company.ateco:
+                    company.ateco = sec.get("classificazione_ateco") or imp.get("classificazione_ateco") or ""
+                if not company.constitution_date:
+                    company.constitution_date = str(imp.get("data_costituzione") or "")
+                if not company.capital and imp.get("capitale_conferimenti"):
+                    try:
+                        company.capital = float(imp["capitale_conferimenti"])
+                    except Exception:
+                        pass
+
     members = db.query(CompanyMember).filter(CompanyMember.company_id.in_([c.id for c in companies])).all() if companies else []
 
     fss = db.query(FinancialStatement).filter_by(case_id=case_id).order_by(FinancialStatement.fiscal_year_end).all()
@@ -81,7 +105,6 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     exposures = db.query(CreditExposure).filter_by(case_id=case_id).all()
     guarantees = db.query(GuaranteeGiven).filter_by(case_id=case_id).all()
     statements = db.query(TaxDebtStatement).filter_by(case_id=case_id).all()
-    docs = db.query(Document).filter_by(case_id=case_id).all()
     cross = db.query(CaseCrossAnalysis).filter_by(case_id=case_id, status="completed").order_by(CaseCrossAnalysis.id.desc()).first()
 
     now = datetime.now()
@@ -144,9 +167,18 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     # CAP. 2: PROFILO IMPRESA E NATURA CRISI
     # =========================================================================
     soci_list = []
+    seen_soci = set()
     for m in members:
+        # Deduplicazione per Codice Fiscale o per token del nominativo
+        norm_tokens = " ".join(sorted([w.lower() for w in (m.name or "").replace(".", " ").split() if w]))
+        key = (m.tax_code or "").strip().upper() or norm_tokens
+        if key and key in seen_soci:
+            continue
+        if key:
+            seen_soci.add(key)
         soci_list.append({
             "nome": m.name,
+            "codice_fiscale": m.tax_code or None,
             "quota_pct": m.quota_percent,
             "ruolo": m.roles or ("Legale rappresentante" if m.is_legal_rep else "Socio"),
             "garante": m.is_client or "garante" in (m.roles or "").lower(),
