@@ -7,6 +7,7 @@ import { getCard, getCase, saveDebtor, createCompany, updateCompany, deleteCompa
   uploadAer, deleteAer, relatedCases, openRelated, docFileUrl, patchRecord, getEdits, getIndicators,
   getIncomeDocuments, getIncomeSummary, runCrossAnalysis, getCrossAnalysis } from "../../../api";
 import DocumentsPanel from "../../../components/DocumentsPanel";
+import CaseChatDrawer from "../../../components/CaseChatDrawer";
 import { CrBadge, Section, Stat, ToolsBar } from "./scheda-ui";
 import {
   AuditTrail as AuditTrailView,
@@ -53,6 +54,7 @@ export default function Scheda({ params, initialSection = "documenti" }) {
   const [correction, setCorrection] = useState(null);  // modale correzione aperta {entityType,...}
   const [crossAnalysis, setCrossAnalysis] = useState(null);
   const [crossLoading, setCrossLoading] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const docStatusRef = useRef({});
   const draftSeq = useRef(0);
 
@@ -513,8 +515,68 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {activeTab === "econometria" && <EconometricEvaluationView indicators={indic} debtor={d} card={card} docs={docs} patrimonio={patrimonio} totalAer={totAer} goTab={goTab} />}
 
       {/* ===== REPORT FINALE ===== */}
-      {activeTab === "report" && <FinalReportView caseId={id} indicators={indic} debtor={d} card={card} docs={docs} edits={edits} title={titolare} totalAer={totAer} patrimonio={patrimonio} crossAnalysis={crossAnalysis} goTab={goTab} />}
+      {activeTab === "report" && (
+        <FinalReportView
+          caseId={id}
+          indicators={indic}
+          debtor={d}
+          card={card}
+          docs={docs}
+          edits={edits}
+          title={titolare}
+          totalAer={totAer}
+          patrimonio={patrimonio}
+          crossAnalysis={crossAnalysis}
+          goTab={goTab}
+          onOpenChat={() => setIsChatOpen(true)}
+        />
+      )}
       </div>
+
+      {/* PULSANTE FLUTTUANTE ASSISTENTE AI */}
+      <div className="no-print" style={{ position: "fixed", bottom: 24, right: 24, zIndex: 999 }}>
+        <button
+          type="button"
+          onClick={() => setIsChatOpen((prev) => !prev)}
+          title="Apri Assistente AI per chiarimenti sui documenti, calcoli e tabelle"
+          style={{
+            background: "var(--pd-primary)",
+            color: "#ffffff",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 30,
+            padding: "10px 18px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: "0 6px 18px rgba(0,0,0,0.22)",
+            cursor: "pointer",
+            fontWeight: 600,
+            fontSize: 13.5,
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.04)")}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--pd-accent)" }}>
+            smart_toy
+          </span>
+          <span>Assistente AI</span>
+        </button>
+      </div>
+
+      <CaseChatDrawer
+        caseId={id}
+        clientName={titolare}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        onApplyInstruction={(text) => {
+          setActiveTab("report");
+          alert("Suggerimento copiato negli appunti! Ora puoi incollarlo come istruzione correttiva cliccando sul tasto '+' del capitolo desiderato del report.");
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).catch(() => {});
+          }
+        }}
+      />
     </div>
   );
 }

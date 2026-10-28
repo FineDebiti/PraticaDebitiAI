@@ -6,7 +6,7 @@ from app.models.entities import (
     EnrichmentRequest,
     Document, Extraction, Creditor, DebtPosition,
     TaxDebtStatement, TaxDebtItem, AccessLog, FieldEdit, CaseCrossAnalysis,
-    StudioRule, CasePreanalysisReport,
+    StudioRule, CasePreanalysisReport, CaseChatMessage,
 )
 
 __all__ = [
@@ -17,5 +17,5 @@ __all__ = [
     "EnrichmentRequest",
     "Document", "Extraction", "Creditor", "DebtPosition",
     "TaxDebtStatement", "TaxDebtItem", "AccessLog", "FieldEdit",
-    "CaseCrossAnalysis", "StudioRule", "CasePreanalysisReport",
+    "CaseCrossAnalysis", "StudioRule", "CasePreanalysisReport", "CaseChatMessage",
 ]

@@ -62,6 +62,9 @@ class Case(Base):
     preanalysis_reports: Mapped[list["CasePreanalysisReport"]] = relationship(
         back_populates="case", cascade="all, delete-orphan", order_by="desc(CasePreanalysisReport.version)"
     )
+    chat_messages: Mapped[list["CaseChatMessage"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan", order_by="asc(CaseChatMessage.created_at)"
+    )
 
 
 class Debtor(Base):
@@ -534,4 +537,19 @@ class CasePreanalysisReport(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
     case: Mapped["Case"] = relationship(back_populates="preanalysis_reports")
+
+
+class CaseChatMessage(Base):
+    """Messaggio della chat di assistenza e spiegazione tecnica della pratica tra l'operatore e l'LLM."""
+    __tablename__ = "case_chat_messages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_id)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender: Mapped[str] = mapped_column(String, default="user")  # 'user' | 'assistant'
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    context_meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    case: Mapped["Case"] = relationship(back_populates="chat_messages")
+
 

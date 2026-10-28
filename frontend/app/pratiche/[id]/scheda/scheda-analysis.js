@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import CaseChatDrawer from "../../../components/CaseChatDrawer";
 import {
   getPreanalysisReport,
   getPreanalysisReportPdfUrl,
@@ -646,7 +647,7 @@ function ProceedModal({ isOpen, onClose, learnedCount, onPrint, reportVersion })
   );
 }
 
-export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
+export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab, onOpenChat }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -656,6 +657,9 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
   const [isReviewDropdownOpen, setIsReviewDropdownOpen] = useState(false);
   const [isProceedModalOpen, setIsProceedModalOpen] = useState(false);
   const [sessionLearnedCount, setSessionLearnedCount] = useState(0);
+  const [isInternalChatOpen, setIsInternalChatOpen] = useState(false);
+
+  const handleOpenChat = onOpenChat || (() => setIsInternalChatOpen(true));
 
   const fetchReport = useCallback(() => {
     if (!caseId) return;
@@ -948,6 +952,20 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               }}
             />
           </div>
+
+          {/* CHIEDI CHIARIMENTI ALL'AI SUL REPORT */}
+          <button
+            type="button"
+            className="pd-btn pd-btn--secondary"
+            onClick={handleOpenChat}
+            title="Apri la chat con l'AI per chiedere spiegazioni su calcoli, documenti e tabelle del report"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600, minHeight: 35 }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--pd-accent)" }}>
+              smart_toy
+            </span>
+            <span>Chiedi all&apos;AI</span>
+          </button>
 
           {/* BOTTONE RIGENERA REPORT CON MODIFICHE */}
           <button
@@ -1764,6 +1782,17 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         learnedCount={feedbackBanner?.rulesCount || sessionLearnedCount}
         reportVersion={report?._meta?.version}
         onPrint={() => handleExportPdf("download")}
+      />
+
+      {/* DRAWER CHAT ASSISTENTE AI */}
+      <CaseChatDrawer
+        caseId={caseId}
+        clientName={title}
+        isOpen={isInternalChatOpen}
+        onClose={() => setIsInternalChatOpen(false)}
+        onApplyInstruction={() => {
+          setIsReviewDropdownOpen(true);
+        }}
       />
     </div>
   );

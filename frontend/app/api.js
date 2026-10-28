@@ -292,6 +292,36 @@ export function getPreanalysisReportPdfUrl(caseId, orientation = "portrait", act
   return `${BASE}/api/cases/${caseId}/preanalysis-report/pdf?orientation=${orientation}&action=${action}`;
 }
 
+// ---------- Chat e Assistente AI di Pratica ----------
+export async function getCaseChat(caseId) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/chat`, { cache: "no-store" });
+  if (!r.ok) return { total: 0, messages: [] };
+  return r.json();
+}
+
+export async function sendCaseChatMessage(caseId, message) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || "Errore durante l'invio del messaggio all'AI");
+  }
+  return r.json();
+}
+
+export async function clearCaseChat(caseId) {
+  const r = await fetch(`${BASE}/api/cases/${caseId}/chat`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) return { success: false };
+  return r.json();
+}
+
 // ---------- Addestramento Continuo & Playbook dello Studio ----------
 export async function synthesizeStudioRule(payload) {
   const r = await fetch(`${BASE}/api/studio-rules/synthesize`, {
