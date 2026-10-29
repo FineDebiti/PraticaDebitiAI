@@ -67,3 +67,4 @@ def test_case_chat_endpoints(client, db_session):
     res3 = client.get(f"/api/cases/{case.id}/chat")
     assert res3.status_code == 200
     assert res3.json()["total"] == 0
+

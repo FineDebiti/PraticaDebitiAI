@@ -80,3 +80,4 @@ def clear_chat_history(case_id: str, db: Session = Depends(get_db)):
         "success": True,
         "deleted_count": deleted,
     }
+

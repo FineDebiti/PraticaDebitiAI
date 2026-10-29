@@ -35,3 +35,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index(op.f('ix_case_chat_messages_case_id'), table_name='case_chat_messages')
     op.drop_table('case_chat_messages')
+
