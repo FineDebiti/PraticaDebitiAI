@@ -528,7 +528,6 @@ export default function Scheda({ params, initialSection = "documenti" }) {
           patrimonio={patrimonio}
           crossAnalysis={crossAnalysis}
           goTab={goTab}
-          onOpenChat={() => setIsChatOpen(true)}
         />
       )}
       </div>
