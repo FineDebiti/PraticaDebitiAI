@@ -183,28 +183,29 @@ def get_installed_browsers():
     return installed
 
 
-def open_browser_app(url: str):
-    """Apre DossierLex in finestra app autonoma senza barre o in scheda dedicata."""
-    log(f"Apertura browser per URL: {url}")
+def open_browser_tab(url: str):
+    """Apre DossierLex come nuova scheda in Google Chrome (o nel browser preferito) accanto alle altre schede aperte."""
+    log(f"Apertura scheda browser per URL: {url}")
     browsers = get_installed_browsers()
 
+    # 1. Cerca prima Google Chrome per aprirlo come scheda accanto alle altre tue applicazioni
     for b_type, exe in browsers:
-        # Se Chromium-based (Chrome, Brave, Edge, Opera), usa --app per finestra pulita
-        if b_type in ("chrome", "brave", "edge", "opera"):
+        if b_type == "chrome":
             try:
                 subprocess.Popen(
-                    [exe, f"--app={url}", "--window-size=1600,980"],
+                    [exe, url],
                     creationflags=CREATE_NO_WINDOW,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     stdin=subprocess.DEVNULL,
                 )
-                log(f"Aperto con successo in modalita' App tramite {b_type}: {exe}")
+                log(f"Aperta nuova scheda in Google Chrome: {exe}")
                 return
             except Exception as e:
-                log(f"Tentativo --app fallito con {exe}: {e}")
+                log(f"Tentativo Chrome fallito: {e}")
 
-        # Fallback finestra standard del browser trovato
+    # 2. Fallback su altri browser installati (Brave, Edge, Opera, Firefox)
+    for b_type, exe in browsers:
         try:
             subprocess.Popen(
                 [exe, url],
@@ -213,12 +214,12 @@ def open_browser_app(url: str):
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
             )
-            log(f"Aperto tramite browser: {exe}")
+            log(f"Aperta scheda in {b_type}: {exe}")
             return
         except Exception:
             continue
 
-    # Fallback universale (browser predefinito di sistema)
+    # 3. Fallback universale (browser predefinito di sistema)
     webbrowser.open(url)
 
 
@@ -364,7 +365,7 @@ def run_launch_sequence(splash=None):
             time.sleep(0.5)
             splash.close()
 
-        open_browser_app(APP_URL)
+        open_browser_tab(APP_URL)
 
     except Exception as e:
         log(f"Eccezione durante la sequenza di avvio: {e}")
@@ -372,7 +373,7 @@ def run_launch_sequence(splash=None):
             splash.update_status("Errore durante l'avvio. Controlla launcher.log")
             time.sleep(2.0)
             splash.close()
-        open_browser_app(APP_URL)
+        open_browser_tab(APP_URL)
 
 
 def main():
@@ -381,7 +382,7 @@ def main():
     # 1. Se l'app e' gia' pronta, apri all'istante senza splash
     if is_app_ready():
         log("DossierLex e' gia' in esecuzione. Apertura immediata.")
-        open_browser_app(APP_URL)
+        open_browser_tab(APP_URL)
         return
 
     # 2. Mostra la splash window mentre avvia Docker e i container
@@ -397,3 +398,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
