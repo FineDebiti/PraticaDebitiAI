@@ -1,8 +1,18 @@
-# Pratica Debiti AI — MVP locale
+# DossierLex — Studio Legale Avv. Aurelio Bentivegna
+**Piattaforma di Pre-Analisi Documentale, Legale ed Econometrica ex CCII**
 
-Ambiente completo che gira **interamente sul tuo computer** con Docker.
-OCR e AI sono **configurabili**: di default girano in modalità offline/stub
-(zero costi, zero dati fuori); con una riga di `.env` passi ai provider cloud.
+Ambiente completo con Intelligenza Artificiale Locale (**Qwen 27B offline**), database centralizzato PostgreSQL, estrazione OCR, calcolo econometrico e redazione automatica del report di preanalisi.
+
+---
+
+## 🏢 Guida Distribuzione nello Studio (Server & Colleghi)
+Se devi configurare o spiegare l'architettura all'Avvocato o ai colleghi dell'ufficio:
+👉 **Consulta la guida completa:** [`GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md`](GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md)
+
+* **PC Server dello Studio (il tuo computer)**: ospita il database centrale, i documenti e il modello AI Qwen 27B. Si avvia con doppio clic sull'icona `DossierLex` sul Desktop.
+* **PC dei Colleghi (Client leggeri)**: **NON serve installare Docker, né codice, né modelli AI**. Si collegano via Wi-Fi/LAN al tuo IP (es. `http://192.168.1.150:3001`) o tramite il collegamento Desktop automatico generato con `Crea_Collegamento_Colleghi.bat`.
+
+---
 
 ## Cosa contiene
 
