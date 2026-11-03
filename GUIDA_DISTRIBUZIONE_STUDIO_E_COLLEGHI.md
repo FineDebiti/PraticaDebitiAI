@@ -67,9 +67,10 @@ Il tuo computer funge da "motore centrale" dello studio.
 ### Come conoscere l'indirizzo IP locale da dare ai colleghi:
 1. Premi `Tasto Windows + R`, scrivi `cmd` e premi Invio.
 2. Digita: `ipconfig` e premi Invio.
-3. Cerca la voce **Indirizzo IPv4** (ad esempio: `192.168.1.150` oppure `192.168.1.85`).
+3. Cerca la voce **Indirizzo IPv4** sotto la scheda Wi-Fi (ad esempio l'attuale: `192.168.1.31`).
 4. L'indirizzo di DossierLex per l'ufficio sarà:
-   `http://192.168.1.150:3001`
+   `http://192.168.1.31:3001`
+   *(Mentre da remoto con Tailscale è sempre fisso: `http://100.80.46.116:3001`).*
 
 ---
 
@@ -129,4 +130,20 @@ Per consentire all'Avvocato e ai collaboratori di accedere in qualsiasi momento 
 | `Crea_Collegamento_Colleghi.bat` | Crea il collegamento sul Desktop dei PC Windows | Postazioni Windows |
 | `DossierLex.ico` | Icona ufficiale per Windows | Postazioni Windows |
 | `docker-compose.local.yml` | Configurazione container offline (DB, Backend, Frontend) | **Solo sul PC Server** |
+
+---
+
+## 7. Sincronizzazione Dati e Aggiornamenti dell'Applicativo
+
+### A. Nuove pratiche caricate e documenti (Tempo Reale)
+Tutti i dati risiedono nel database PostgreSQL centrale sul PC Server. 
+- Quando un operatore, tu o l'Avvocato inserite una nuova pratica, caricate una visura o generate un report, **la modifica è memorizzata istantaneamente nel server centrale**.
+- Chiunque apra la pagina (o prema `F5` / ricarica) vede all'istante la pratica aggiornata. Non ci sono conflitti di versioni o dati disallineati.
+
+### B. Aggiornamenti del software (Nuove funzionalità, correzioni, grafica)
+Quando sviluppi nuove funzionalità su DossierLex e aggiorni il server:
+- **I client (Mac dell'Avvocato e PC dei colleghi) non devono scaricare né reinstallare nulla.**
+- Poiché l'interfaccia viene erogata dal server, alla successiva apertura o ricarica della pagina web il browser riceve in automatico l'ultima versione del codice.
+- L'esperienza è identica a quella di un servizio web moderno: sempre aggiornato all'ultima versione disponibile senza manutenzione sui dispositivi dei singoli utenti.
+
 
