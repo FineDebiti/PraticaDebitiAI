@@ -1,0 +1,39 @@
+==============================================================================
+   DOSSIERLEX - GUIDA RAPIDA PER APPLE MAC (macOS)
+   Studio Legale Avv. Aurelio Bentivegna
+==============================================================================
+
+Benvenuto in DossierLex! 
+Questa cartella contiene tutto il necessario per utilizzare DossierLex 
+dal tuo Mac sia in studio che da casa/remoto.
+
+------------------------------------------------------------------------------
+OPZIONE 1: INSTALLAZIONE ICONA SUL DESKTOP (Consigliata)
+------------------------------------------------------------------------------
+1. Fai doppio clic sul file:
+   "Configura_DossierLex_Mac.command"
+
+2. Si aprirà una finestra del terminale per 2 secondi che creerà l'applicazione 
+   ufficiale "DossierLex.app" con l'icona dello studio direttamente sulla 
+   tua Scrivania (Desktop).
+
+3. Da quel momento, fai semplicemente doppio clic su "DossierLex" dal Desktop!
+   L'applicazione rileva in automatico se sei in ufficio o a casa e apre 
+   il tuo browser (Safari o Chrome) all'indirizzo corretto.
+
+------------------------------------------------------------------------------
+OPZIONE 2: ACCESSO DIRETTO
+------------------------------------------------------------------------------
+Se preferisci non installare nulla, fai semplicemente doppio clic su:
+"Avvia_DossierLex_Mac.command"
+oppure apri Safari/Chrome e digita:
+• In Studio: http://192.168.1.31:3001
+• Da Remoto: http://100.80.46.116:3001
+
+------------------------------------------------------------------------------
+REQUISITO PER L'ACCESSO DA CASA / REMOTO:
+------------------------------------------------------------------------------
+Quando sei fuori ufficio, assicurati che l'applicazione "Tailscale" 
+sia attiva e connessa sul tuo Mac (icona visibile nella barra dei menu in alto).
+In ufficio invece basta essere connessi al Wi-Fi dello studio.
+==============================================================================

@@ -77,35 +77,43 @@ Il tuo computer funge da "motore centrale" dello studio.
 
 Configurare il computer di un collaboratore richiede **meno di 1 minuto**:
 
-### Opzione A: Creazione Automatica dell'Icona (Consigliata)
-Nella cartella principale di DossierLex trovi il file:
-`Crea_Collegamento_Colleghi.bat`
+### Postazioni Windows:
+Nella cartella `C:\Users\Giuseppe\Desktop\DossierLex` trovi:
+- `Crea_Collegamento_Colleghi.bat`
+- `DossierLex.ico`
 
-1. Copia sul computer del collega solo due piccoli file:
-   - `Crea_Collegamento_Colleghi.bat`
-   - `DossierLex.ico`
-2. Fai doppio clic su `Crea_Collegamento_Colleghi.bat`.
-3. Inserisci l'indirizzo IP del PC Server (es. `192.168.1.150`).
-4. Sul Desktop del collega apparirà l'icona ufficiale di **DossierLex**:
-   - Cliccandoci, DossierLex si apre all'istante nel suo browser senza che il collega debba installare o configurare alcunché!
+1. Passa questi due file al collega.
+2. Il collega fa doppio clic su `Crea_Collegamento_Colleghi.bat`.
+3. Inserisce l'indirizzo del server (in studio: `192.168.1.31` | da remoto: `100.80.46.116`).
+4. Sul Desktop compare l'icona ufficiale di **DossierLex**.
 
-### Opzione B: Accesso Diretto via Browser
-Senza installare nulla:
-1. Il collega apre Google Chrome (o Edge/Safari).
-2. Digita nella barra degli indirizzi: `http://192.168.1.150:3001`
-3. Aggiunge la pagina ai preferiti della barra dei segnalibri.
+### Postazioni Apple Mac (Avvocato e utenti macOS):
+Per gli utenti Mac è disponibile il pacchetto pronto:
+📁 **`Kit_DossierLex_Mac.zip`** (presente in `C:\Users\Giuseppe\Desktop\DossierLex`)
+
+1. Invia all'Avvocato il file `Kit_DossierLex_Mac.zip` (via email, WhatsApp o AirDrop).
+2. L'Avvocato fa doppio clic sullo zip per estrarlo e poi clicca su:
+   👉 **`Configura_DossierLex_Mac.command`**
+3. Viene creata all'istante l'applicazione nativa **`DossierLex.app`** sulla sua Scrivania con l'icona ufficiale di studio.
+4. **Funzionalità Smart Auto-Switch (Ufficio / Casa)**:
+   - Quando l'Avvocato clicca sull'icona `DossierLex`, l'applicazione verifica da sola se si trova in ufficio sul Wi-Fi (`192.168.1.31:3001`) o a casa con Tailscale (`100.80.46.116:3001`) e apre il browser all'indirizzo corretto senza fargli digitare nulla!
 
 ---
 
-## 5. Lavoro da Remoto / Smart Working (Fuori Ufficio)
+## 5. Come garantire che DossierLex sia SEMPRE accessibile (In Studio e da Remoto)
 
-Se un collaboratore o l'Avvocato deve utilizzare DossierLex da casa o da un portatile in trasferta senza essere fisicamente collegato al Wi-Fi dello studio:
+Per consentire all'Avvocato e ai collaboratori di accedere in qualsiasi momento (anche la sera o nei weekend da casa), assicurati che sul tuo PC Server siano attive queste tre condizioni:
 
-1. **Soluzione Consigliata (Zero Costi, Massima Sicurezza)**: **Tailscale**
-   - Si installa Tailscale sul PC Server dello studio e sul portatile del collega.
-   - Crea una rete privata virtuale protetta e crittografata end-to-end.
-   - Il collega da casa digita l'indirizzo IP sicuro di Tailscale (es. `http://100.x.y.z:3001`) e lavora sulle pratiche dello studio con la stessa fluidità dell'ufficio.
-   - **Vantaggio**: Nessun dato esposto su internet pubblico, nessuna apertura di porte sul router dello studio.
+1. **Il PC Server non deve andare in sospensione (Standby)**:
+   - In Windows 11: apri *Impostazioni ➔ Sistema ➔ Arresto e batteria ➔ Schermo e sospensione*.
+   - Imposta la voce: *"Quando è collegato alla rete elettrica, metti il dispositivo in stato di sospensione dopo: MAI"*.
+   - *(Lo schermo può spegnersi regolarmente dopo 5 o 10 minuti, l'importante è che il computer e la scheda di rete rimangano attivi).*
+2. **Tailscale deve rimanere attivo sul PC Server**:
+   - Tailscale si avvia da solo all'accensione di Windows (icona rotonda con cerchietti nella barra delle applicazioni in basso a destra).
+   - Il tuo indirizzo IP Tailscale fisso dello studio è: **`100.80.46.116`**.
+3. **Tailscale sui dispositivi remoti (Mac / PC di casa)**:
+   - Quando l'Avvocato è a casa, Tailscale deve essere connesso sul suo Mac.
+   - Entrambi i computer devono far parte della stessa rete Tailscale dello studio.
 
 ---
 
@@ -113,8 +121,12 @@ Se un collaboratore o l'Avvocato deve utilizzare DossierLex da casa o da un port
 
 | File | Scopo | Dove va usato |
 |---|---|---|
-| `launch_dossierlex.pyw` | Launcher con auto-avvio Docker e apertura in Chrome | **Solo sul PC Server** |
-| `DossierLex.ico` | Icona ufficiale ad alta risoluzione (Verde e Oro) | PC Server e PC Colleghi |
-| `Crea_Collegamento_Desktop.bat` | Crea il collegamento sul Desktop del PC Server | **Solo sul PC Server** |
-| `Crea_Collegamento_Colleghi.bat` | Crea il collegamento per le postazioni remote | **Sui PC dei Colleghi** |
+| `launch_dossierlex.pyw` | Launcher per PC Server con auto-avvio Docker e apertura in Chrome | **Solo sul PC Server** |
+| `Kit_DossierLex_Mac.zip` | Pacchetto completo per Mac con installer e icona | **Da inviare all'Avvocato / Mac** |
+| `Configura_DossierLex_Mac.command` | Crea `DossierLex.app` sulla Scrivania del Mac con Auto-Switch Ufficio/Casa | Utenti Mac |
+| `Avvia_DossierLex_Mac.command` | Avvio rapido a doppio clic per Mac | Utenti Mac |
+| `DossierLex.icns` | Icona vettoriale nativa per macOS | Utenti Mac |
+| `Crea_Collegamento_Colleghi.bat` | Crea il collegamento sul Desktop dei PC Windows | Postazioni Windows |
+| `DossierLex.ico` | Icona ufficiale per Windows | Postazioni Windows |
 | `docker-compose.local.yml` | Configurazione container offline (DB, Backend, Frontend) | **Solo sul PC Server** |
+
