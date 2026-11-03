@@ -91,3 +91,4 @@ echo "  • Non devi digitare nessun indirizzo IP: basta cliccare sull'icona!"
 echo "=============================================================================="
 echo ""
 read -r -p "Premi INVIO per chiudere questa finestra..."
+

@@ -22,3 +22,4 @@ fi
 # 3. Se entrambi falliscono, mostra un avviso dettagliato all'utente
 osascript -e 'display alert "DossierLex non raggiungibile" message "Non è stato possibile collegarsi al Server di DossierLex.\n\n• In Ufficio: assicurati di essere connesso al Wi-Fi dello studio e che il PC Server sia acceso.\n• Da Remoto / Casa: assicurati che l'\''applicazione Tailscale sia attiva e connessa sul tuo Mac."'
 exit 1
+

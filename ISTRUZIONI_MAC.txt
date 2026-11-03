@@ -37,3 +37,4 @@ Quando sei fuori ufficio, assicurati che l'applicazione "Tailscale"
 sia attiva e connessa sul tuo Mac (icona visibile nella barra dei menu in alto).
 In ufficio invece basta essere connessi al Wi-Fi dello studio.
 ==============================================================================
+
