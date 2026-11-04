@@ -43,7 +43,17 @@ def log(msg: str):
         pass
 
 
-def is_app_ready(timeout: float = 1.0) -> bool:
+def is_backend_ready(timeout: float = 1.0) -> bool:
+    """Verifica se il Backend FastAPI (:8000/api/health) e' operativo e risponde 200."""
+    try:
+        req = urllib.request.Request(HEALTH_URL, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def is_frontend_ready(timeout: float = 1.0) -> bool:
     """Verifica se il frontend Next.js su :3001 risponde."""
     try:
         req = urllib.request.Request(APP_URL, method="GET")
@@ -51,6 +61,11 @@ def is_app_ready(timeout: float = 1.0) -> bool:
             return resp.status < 500
     except Exception:
         return False
+
+
+def is_app_ready(timeout: float = 1.0) -> bool:
+    """Verifica che sia il Backend (:8000) che il Frontend (:3001) siano entrambi pronti al 100%."""
+    return is_backend_ready(timeout) and is_frontend_ready(timeout)
 
 
 def is_docker_running() -> bool:
@@ -349,19 +364,27 @@ def run_launch_sequence(splash=None):
             splash.update_status("Avvio servizi DossierLex (DB, AI, Backend)...")
         start_dossierlex_containers()
 
-        # 4. Attesa che il frontend risponda HTTP (max 35 secondi)
+        # 4. Attesa sincronizzata: il browser si apre SOLO quando sia Backend che Frontend sono al 100% attivi
         ready = False
-        for sec in range(35):
+        for sec in range(50):
             time.sleep(0.8)
-            if is_app_ready():
+            b_ok = is_backend_ready()
+            f_ok = is_frontend_ready()
+            if b_ok and f_ok:
                 ready = True
-                log(f"DossierLex ha risposto con successo su :3001 dopo {sec+1} tentativi.")
+                log(f"DossierLex e' completamente online (Backend :8000 e Frontend :3001) dopo {sec+1} tentativi.")
                 break
-            if splash and sec > 5 and sec % 4 == 0:
-                splash.update_status("Avvio interfaccia grafica DossierLex...")
+            if splash and sec % 3 == 0:
+                if not b_ok:
+                    splash.update_status("Avvio del database e del backend AI...")
+                elif not f_ok:
+                    splash.update_status("Avvio interfaccia grafica...")
 
         if splash:
-            splash.update_status("Accesso all'applicazione in corso...")
+            if ready:
+                splash.update_status("DossierLex pronto! Apertura in corso...")
+            else:
+                splash.update_status("Accesso all'applicazione in corso...")
             time.sleep(0.5)
             splash.close()
 
