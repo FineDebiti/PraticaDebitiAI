@@ -49,3 +49,4 @@ REQUISITI PER FUNZIONARE:
 2. Da Remoto: devi avere l'applicazione Tailscale attiva e connessa alla rete dello studio.
 3. Il PC Server principale dello studio (PC di Giuseppe) deve essere acceso con DossierLex avviato.
 ==============================================================================
+
