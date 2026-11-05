@@ -210,7 +210,7 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
                     <strong>{DOC_TYPE_LABELS[d.doc_type] || d.doc_type || "Non classificato"}</strong>
                     <div className="pd-faint" style={{ fontSize: 12 }}>{d.storage_uri || d.storage_path || "Archivio backend"}</div>
                   </td>
-                  <td>{statusBadge(d.status)}{d.error ? <div className="pd-badge pd-badge--danger" style={{ marginTop: 6 }}>{d.error}</div> : null}</td>
+                  <td>{statusBadge(d.status)}{d.status === "errore" && d.error ? <div className="pd-badge pd-badge--danger" style={{ marginTop: 6 }}>{d.error}</div> : null}</td>
                   <td>
                     <QualityBar value={q} />
                     <span className="pd-faint" style={{ fontSize: 12 }}>{q ? `${q}% confidenza` : "Non stimata"}</span>

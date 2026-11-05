@@ -66,17 +66,22 @@ Rispondi SOLO con questo JSON (ogni voce di SP/CE ha forma {{"corrente": <number
     "totale_passivo":          {{"corrente": <number|null>, "precedente": <number|null>}}
   }},
   "conto_economico": {{
-    "ricavi_vendite":          {{"corrente": <number|null>, "precedente": <number|null>}},
-    "valore_produzione":       {{"corrente": <number|null>, "precedente": <number|null>}},
-    "costi_produzione":        {{"corrente": <number|null>, "precedente": <number|null>}},
-    "differenza_valore_costi": {{"corrente": <number|null>, "precedente": <number|null>}},  // A-B = EBIT
-    "costi_personale":         {{"corrente": <number|null>, "precedente": <number|null>}},
-    "ammortamenti":            {{"corrente": <number|null>, "precedente": <number|null>}},
-    "proventi_oneri_finanziari":{{"corrente": <number|null>, "precedente": <number|null>}},
-    "oneri_finanziari":        {{"corrente": <number|null>, "precedente": <number|null>}},  // valore assoluto
-    "risultato_ante_imposte":  {{"corrente": <number|null>, "precedente": <number|null>}},
-    "imposte":                 {{"corrente": <number|null>, "precedente": <number|null>}},
-    "utile_perdita":           {{"corrente": <number|null>, "precedente": <number|null>}}
+    "ricavi_vendite":          {{"corrente": <number|null>, "precedente": <number|null>}},  // A1
+    "valore_produzione":       {{"corrente": <number|null>, "precedente": <number|null>}},  // Totale A
+    "costi_produzione":        {{"corrente": <number|null>, "precedente": <number|null>}},  // Totale B
+    "differenza_valore_costi": {{"corrente": <number|null>, "precedente": <number|null>}},  // A-B = EBIT civilistico
+    "canoni_leasing":          {{"corrente": <number|null>, "precedente": <number|null>}},  // B8 godimento beni terzi / leasing
+    "costi_personale":         {{"corrente": <number|null>, "precedente": <number|null>}},  // B9
+    "ammortamenti":            {{"corrente": <number|null>, "precedente": <number|null>}},  // Totale B10
+    "ammortamento_immateriali":{{"corrente": <number|null>, "precedente": <number|null>}},  // B10a
+    "ammortamento_materiali":  {{"corrente": <number|null>, "precedente": <number|null>}},  // B10b
+    "svalutazioni_immobilizzazioni": {{"corrente": <number|null>, "precedente": <number|null>}}, // B10c
+    "svalutazione_crediti":    {{"corrente": <number|null>, "precedente": <number|null>}},  // B10d (attivo circolante)
+    "proventi_oneri_finanziari":{{"corrente": <number|null>, "precedente": <number|null>}}, // Totale C
+    "oneri_finanziari":        {{"corrente": <number|null>, "precedente": <number|null>}},  // C17 (valore assoluto)
+    "risultato_ante_imposte":  {{"corrente": <number|null>, "precedente": <number|null>}},  // EBT
+    "imposte":                 {{"corrente": <number|null>, "precedente": <number|null>}},  // Voce 20
+    "utile_perdita":           {{"corrente": <number|null>, "precedente": <number|null>}}   // Voce 21
   }},
   "debiti_per_natura": {{
     "fornitori":      {{"importo": <number|null>, "entro": <number|null>, "oltre": <number|null>, "di_cui_ipoteche": <number|null>, "di_cui_privilegi": <number|null>}},

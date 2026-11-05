@@ -44,6 +44,7 @@ def process_document_pipeline(db: Session, document_id: str) -> Document:
 
     # Step 1: aggiorna stato a in_elaborazione
     doc.status = "in_elaborazione"
+    doc.error = ""
     db.commit()
 
     try:
@@ -515,6 +516,8 @@ def _save_credit_report(db: Session, doc: Document, data: Dict[str, Any]) -> Non
                 })
 
     for e in esp_list:
+        if not isinstance(e, dict):
+            continue
         db.add(CreditExposure(
             case_id=doc.case_id,
             intermediary=str(e.get("intermediario") or ""),
@@ -545,6 +548,8 @@ def _save_credit_report(db: Session, doc: Document, data: Dict[str, Any]) -> Non
                 gar_list.append(row)
 
     for g in gar_list:
+        if not isinstance(g, dict):
+            continue
         db.add(GuaranteeGiven(
             case_id=doc.case_id,
             intermediary=str(g.get("intermediario") or ""),
@@ -718,8 +723,8 @@ def _apply_income_to_debtor(db: Session, case_id: str, doc_type: str, data: Dict
                          f"entrate medie {_eur(entrate)}/mese · uscite {_eur(uscite)}/mese")
 
     elif doc_type == "dichiarazione_redditi":
-        rn = data.get("riepilogo_RN") or {}
-        quadri = data.get("quadri") or {}
+        rn = data.get("riepilogo_RN") if isinstance(data.get("riepilogo_RN"), dict) else {}
+        quadri = data.get("quadri") if isinstance(data.get("quadri"), dict) else {}
         annual = _num(rn.get("reddito_complessivo"))
         fonti = []
         for key, label, amount_key in [
@@ -731,7 +736,9 @@ def _apply_income_to_debtor(db: Session, case_id: str, doc_type: str, data: Dict
             ("RA_terreni", "terreni", "reddito"),
             ("RL_altri_redditi", "altri redditi", "reddito"),
         ]:
-            q = quadri.get(key) or {}
+            q = quadri.get(key)
+            if not isinstance(q, dict):
+                continue
             if not q.get("presente"):
                 continue
             val = _num(q.get(amount_key)) or _num(q.get("reddito"))

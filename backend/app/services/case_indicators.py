@@ -17,6 +17,13 @@ from app.models import (
     CreditExposure, GuaranteeGiven, CreditReportSummary, TaxDebtStatement,
 )
 from app.services.income_summary import compute_income_summary
+from app.services.statutory_knowledge import (
+    calculate_ebitda_oic12,
+    calculate_pfn_esma,
+    evaluate_pfn_ebitda,
+    check_ccii_soglie_impresa_minore,
+    check_ccii_segnali_allarme_art3,
+)
 
 # area -> tab di destinazione del link "→ vedi in ..."
 SECTION_TAB = {
@@ -209,10 +216,97 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     (round(fs.equity, 2) if fs else None), "eur", "da stato patrimoniale", section="impresa"))
     out.append(_ind("imp_debiti", "Debiti impresa", "impresa",
                     imp_debiti, "eur", "debiti totali da bilancio", section="impresa"))
+
+    # Indicatori avanzati OIC 12 / CNDCEC / CCII
+    fs_raw = fs.raw_extraction if fs and getattr(fs, "raw_extraction", None) else {}
+    ce_dict = fs_raw.get("conto_economico") or {}
+    sp_dict = fs_raw.get("stato_patrimoniale") or {}
+    deb_dict = fs_raw.get("debiti_per_natura") or {}
+
+    eb_calc = calculate_ebitda_oic12(ce_dict) if ce_dict else None
+    eb_val = eb_calc["ebitda_standard"] if eb_calc else None
+    out.append(_ind("imp_ebitda", "MOL / EBITDA (OIC 12 - CNDCEC)", "impresa",
+                    eb_val, "eur",
+                    "(A - B) + B10a + B10b + B10c", section="impresa",
+                    status=("ok" if (eb_val or 0) > 0 else "danger") if eb_val is not None else "na"))
+
+    liq_val = sp_dict.get("disponibilita_liquide")
+    liq_num = float(liq_val.get("corrente", 0.0)) if isinstance(liq_val, dict) else (float(liq_val or 0.0))
+    deb_banc = float((deb_dict.get("banche") or {}).get("importo", 0.0) if isinstance(deb_dict.get("banche"), dict) else 0.0)
+    deb_ml = float(sp_dict.get("debiti_oltre", {}).get("corrente", 0.0) if isinstance(sp_dict.get("debiti_oltre"), dict) else 0.0)
+    tfr_val = float(sp_dict.get("tfr", {}).get("corrente", 0.0) if isinstance(sp_dict.get("tfr"), dict) else 0.0)
+    soc_fin = float((deb_dict.get("soci_finanziamenti") or {}).get("importo", 0.0) if isinstance(deb_dict.get("soci_finanziamenti"), dict) else 0.0)
+
+    pfn_calc = calculate_pfn_esma(
+        debiti_bancari_breve=deb_banc,
+        debiti_bancari_medio_lungo=deb_ml,
+        disponibilita_liquide=liq_num,
+        tfr_fondo=tfr_val,
+        finanziamenti_soci=soc_fin,
+        debiti_tributari_scaduti=aer_total or 0.0,
+    ) if fs else None
+
+    pfn_val = pfn_calc["pfn_totale"] if pfn_calc else None
+    out.append(_ind("imp_pfn", "Posizione finanziaria netta (ESMA 2021)", "impresa",
+                    pfn_val, "eur",
+                    "Debiti finanziari + debt-like (TFR, erario, soci) − liquidità", section="impresa",
+                    status=("ok" if (pfn_val or 0) <= 0 else ("warn" if (pfn_val or 0) < 500000 else "danger")) if pfn_val is not None else "na"))
+
+    pfn_eb_eval = evaluate_pfn_ebitda(pfn_val or 0.0, eb_val or 0.0) if (pfn_val is not None and eb_val is not None) else None
+    ratio_eb = pfn_eb_eval["ratio"] if pfn_eb_eval else None
+    out.append(_ind("imp_pfn_ebitda", "PFN / EBITDA (Anni rimborso)", "impresa",
+                    ratio_eb, "ratio",
+                    "PFN ÷ EBITDA (soglie bancarie: <2 solido, 2-3 fisiologico, 3-6 attenzione, >6 allarme, >12 critico)",
+                    kind="signal",
+                    section="impresa",
+                    criterion=pfn_eb_eval["valutazione_bancaria"] if pfn_eb_eval else None,
+                    status=pfn_eb_eval["status"] if pfn_eb_eval else "na"))
+
+    # Verifica soglie CCII Impresa Minore (art. 2 co. 1 lett. d)
+    all_fss = [f for c in cliente for f in c.financial_statements]
+    attivi_triennio = [float(f.total_assets or 0.0) for f in all_fss if f.total_assets]
+    ricavi_triennio = [float(f.revenues or 0.0) for f in all_fss if f.revenues]
+    ccii_minore = check_ccii_soglie_impresa_minore(
+        attivo_patrimoniale_triennio=attivi_triennio,
+        ricavi_lordi_triennio=ricavi_triennio,
+        debiti_totali_attuali=(imp_debiti or 0.0) + (aer_total or 0.0) + (cr_esp or 0.0),
+    ) if (all_fss or imp_debiti or aer_total) else None
+
+    if ccii_minore:
+        out.append(_ind("ccii_qualifica_impresa", "Inquadramento CCII (art. 2)", "impresa",
+                        ccii_minore["qualifica_giuridica"], "text",
+                        "Attivo <= 300k, Ricavi <= 200k, Debiti <= 500k",
+                        kind="signal",
+                        section="impresa",
+                        criterion=f"Presupposto di accesso agli strumenti di regolazione: {ccii_minore['motivo_superamento']}. Procedure indicate: {', '.join(ccii_minore['procedure_esperibili'][:2])}.",
+                        status="neutral"))
+
     soc_indiv = any("individuale" in (c.legal_form or "").lower() or "ditta" in (c.legal_form or "").lower() or (c.company_type == "individuale") for c in cliente)
     soc_persone = any((c.company_type == "persone") or
                       (c.legal_form or "").lower().startswith(("s.n.c", "snc", "s.a.s", "sas", "società semplice", "ss"))
                       for c in cliente)
+
+    # Segnali allarme tempestivi CCII (art. 3 co. 4)
+    ccii_alert = check_ccii_segnali_allarme_art3(
+        retribuzioni_scadute_30gg=0.0,
+        monte_salari_mensile=0.0,
+        debiti_fornitori_scaduti_90gg=0.0,
+        debiti_fornitori_non_scaduti=0.0,
+        esposizioni_banche_scadute_60gg=cr_esp or 0.0 if (cr and cr.has_sofferenze) else 0.0,
+        sconfinamento_banche_fidi=0.0,
+        totale_fidi_accordati=0.0,
+        debiti_ader_scaduti_90gg=aer_total or 0.0,
+        tipo_soggetto="societa_capitali" if not soc_indiv and not soc_persone else "persone",
+    )
+    out.append(_ind("ccii_segnali_art3", "Segnali di allarme precoce (art. 3 CCII)", "impresa",
+                    "Presenti (" + str(ccii_alert["totale_segnali"]) + ")" if ccii_alert["ha_segnali_allarme_art3"] else "Assenti",
+                    "text",
+                    "Verifica art. 3 co. 4 CCII (retribuzioni, fornitori, banche, AdER)",
+                    kind="signal",
+                    section="impresa",
+                    criterion=ccii_alert["obbligo_adeguati_assetti"],
+                    status="danger" if ccii_alert["ha_segnali_allarme_art3"] else "ok"))
+
     if soc_indiv:
         resp_val = "impresa individuale"
         resp_crit = "Nell'impresa individuale il titolare risponde con l'intero patrimonio personale presente e futuro (art. 2740 c.c.): responsabilità illimitata."

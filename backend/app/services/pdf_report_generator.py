@@ -522,6 +522,9 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     if c3.get("commento_periodo"):
         pdf.body_paragraph(c3.get("commento_periodo", ""))
 
+    if c3.get("principio_oic12"):
+        pdf.callout_box("Standard Contabile OIC 12 & CNDCEC marzo 2024", c3.get("principio_oic12", ""), tone="neutral")
+
     anomalie = c3.get("anomalie_contabili", [])
     if anomalie:
         pdf.section_heading("Anomalie Contabili Rilevate dall'Esame dei Bilanci")
@@ -770,6 +773,53 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     if c5.get("cautele_sintesi"):
         pdf.callout_box("Cautele sulla Massa Debitoria", c5.get("cautele_sintesi", ""), tone="neutral")
 
+    # 5.4 Posizione Finanziaria Netta (PFN ESMA 2021) e Rapporto PFN / EBITDA
+    pfn_data = c5.get("tabella_pfn_esma")
+    pfn_eval = c5.get("valutazione_pfn_ebitda")
+    if isinstance(pfn_data, dict):
+        pdf.section_heading("5.4 Posizione Finanziaria Netta (PFN - Orientamento ESMA 2021 n. 39)")
+        _reset_table_palette()
+        pfn_w = (pdf.epw * 0.65, pdf.epw * 0.35)
+        with pdf.table(
+            col_widths=pfn_w,
+            headings_style=header_style,
+            line_height=4.6,
+            padding=(1.5, 2),
+            borders_layout=TableBordersLayout.ALL,
+            cell_fill_mode=TableCellFillMode.NONE,
+            text_align=("LEFT", "RIGHT"),
+        ) as table:
+            head = table.row()
+            head.cell("Voce Schema ESMA / CNDCEC 2024")
+            head.cell("Importo Rilevato")
+
+            pfn_items = [
+                ("Disponibilità liquide e mezzi equivalenti", _fmt_eur(pfn_data.get("disponibilita_liquide"))),
+                ("Debito finanziario corrente (banche a breve, prestiti)", _fmt_eur(pfn_data.get("debiti_finanziari_breve"))),
+                ("Debito finanziario non corrente (mutui e finanziamenti M/L)", _fmt_eur(pfn_data.get("debiti_finanziari_medio_lungo"))),
+                ("Fondo Trattamento Fine Rapporto (TFR) e TFM", _fmt_eur(pfn_data.get("debt_like_items", {}).get("fondo_tfr"))),
+                ("Finanziamenti soci rimborsabili", _fmt_eur(pfn_data.get("debt_like_items", {}).get("finanziamenti_soci"))),
+                ("Debiti tributari e previdenziali scaduti o rateizzati", _fmt_eur(pfn_data.get("debt_like_items", {}).get("debiti_tributari_scaduti_o_rateizzati"))),
+            ]
+            for lbl, val in pfn_items:
+                r = table.row()
+                r.cell(lbl)
+                r.cell(val)
+
+            tot_p = table.row()
+            tot_p.cell("POSIZIONE FINANZIARIA NETTA (PFN)", style=accent_bold_style)
+            tot_p.cell(_fmt_eur(pfn_data.get("pfn_totale")), style=accent_bold_style)
+        pdf.ln(3)
+
+        if pfn_eval and isinstance(pfn_eval, dict):
+            tone = "ok" if pfn_eval.get("status") == "ok" else ("warn" if pfn_eval.get("status") == "warn" else "danger")
+            r_str = f"{pfn_eval['ratio']:.2f}" if pfn_eval.get("ratio") is not None else "N/D (EBITDA <= 0)"
+            pdf.callout_box(
+                f"Rapporto PFN / EBITDA: {r_str} anni — Valutazione Bancaria EBA / CNDCEC",
+                pfn_eval.get("valutazione_bancaria", ""),
+                tone=tone,
+            )
+
     # -------------------------------------------------------------------------
     # CAPITOLO 6: PUNTI DA VERIFICARE
     # -------------------------------------------------------------------------
@@ -823,6 +873,35 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
 
     if c7.get("sintesi_vitalita"):
         pdf.callout_box("7.3 Giudizio di Vitalità Aziendale", c7.get("sintesi_vitalita", ""), tone="ok")
+
+    # 7.4 Inquadramento Codice della Crisi d'Impresa (CCII)
+    ccii_min = c7.get("inquadramento_ccii")
+    if ccii_min and isinstance(ccii_min, dict):
+        pdf.section_heading("7.4 Inquadramento Giuridico CCII (art. 2 e art. 3 D.Lgs. 14/2019)")
+        qual = ccii_min.get("qualifica_giuridica", "Inquadramento CCII")
+        mot = ccii_min.get("motivo_superamento", "")
+        procs = ccii_min.get("procedure_esperibili", [])
+        pdf.callout_box(
+            f"Qualifica del Debitore: {qual}",
+            f"Presupposto dimensionale ex art. 2 co. 1 lett. d) CCII: {mot}.\nStrumenti di regolazione esperibili: {', '.join(procs)}.",
+            tone="neutral" if ccii_min.get("e_impresa_minore") else "warn",
+        )
+
+    ccii_art3_data = c7.get("segnali_allarme_art3")
+    if ccii_art3_data and isinstance(ccii_art3_data, dict):
+        if ccii_art3_data.get("ha_segnali_allarme_art3"):
+            desc_list = [s.get("descrizione", "") for s in ccii_art3_data.get("segnali", [])]
+            pdf.callout_box(
+                "Segnali di Allarme Tempestivo Conclamati (art. 3 co. 4 CCII)",
+                f"{ccii_art3_data.get('obbligo_adeguati_assetti', '')}\n• " + "\n• ".join(desc_list),
+                tone="danger",
+            )
+        else:
+            pdf.callout_box(
+                "Monitoraggio Segnali di Allarme (art. 3 co. 4 CCII)",
+                ccii_art3_data.get("obbligo_adeguati_assetti", "Nessun segnale di allarme precoce conclamato."),
+                tone="ok",
+            )
 
     # -------------------------------------------------------------------------
     # CAPITOLO 8: PATRIMONIO

@@ -1,6 +1,7 @@
 """Router per la chat di assistenza tecnica e spiegazione dell'analisi di pratica (LLM locale)."""
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -66,6 +67,31 @@ def send_chat_message(case_id: str, req: SendChatMessageRequest, db: Session = D
         "user_message": user_msg,
         "assistant_message": asst_msg,
     }
+
+
+@router.post("/cases/{case_id}/chat/stream")
+def send_chat_message_stream(case_id: str, req: SendChatMessageRequest, db: Session = Depends(get_db)):
+    """Invia un messaggio e riceve la risposta dell'LLM in tempo reale via Server-Sent Events (SSE)."""
+    case = db.get(Case, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+
+    if not req.message.strip():
+        raise HTTPException(status_code=400, detail="Il messaggio non può essere vuoto.")
+
+    def event_stream():
+        for chunk in case_chat_service.stream_case_chat(db, case_id, req.message.strip()):
+            yield f"data: {chunk}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.delete("/cases/{case_id}/chat")

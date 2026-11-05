@@ -313,6 +313,57 @@ export async function sendCaseChatMessage(caseId, message) {
   return r.json();
 }
 
+export async function streamCaseChatMessage(caseId, message, { onDelta, onDone, onError }) {
+  try {
+    const response = await fetch(`${BASE}/api/cases/${caseId}/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Errore HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("data: ")) {
+          const jsonStr = trimmed.slice(6).trim();
+          if (!jsonStr) continue;
+          try {
+            const data = JSON.parse(jsonStr);
+            if (data.type === "delta" && data.delta) {
+              onDelta(data.delta);
+            } else if (data.type === "done") {
+              onDone(data);
+            } else if (data.type === "error") {
+              onError(new Error(data.error));
+            }
+          } catch (e) {
+            console.warn("Parse error SSE chunk:", e);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    onError(err);
+  }
+}
+
 export async function clearCaseChat(caseId) {
   const r = await fetch(`${BASE}/api/cases/${caseId}/chat`, {
     method: "DELETE",

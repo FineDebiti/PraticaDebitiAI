@@ -7,6 +7,11 @@ trend, status, note) pronti per persistenza e frontend.
 """
 from typing import Dict, Any, List, Optional
 from app.services.indicator_thresholds import thresholds_for, status_for
+from app.services.statutory_knowledge import (
+    calculate_ebitda_oic12,
+    calculate_pfn_esma,
+    evaluate_pfn_ebitda,
+)
 
 
 def _safe_div(n: Optional[float], d: Optional[float]) -> Optional[float]:
@@ -124,18 +129,41 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
         _pct(_safe_div(prv("differenza_valore_costi", ce), prv("totale_attivo"))),
         "pct", "redditività del capitale investito")
 
+    # EBITDA / MOL Standard Civilistico OIC 12 & CNDCEC
+    eb_cur = calculate_ebitda_oic12(
+        {
+            "ricavi_vendite": cur("ricavi_vendite", ce),
+            "valore_produzione": cur("valore_produzione", ce),
+            "costi_produzione": cur("costi_produzione", ce),
+            "differenza_valore_costi": cur("differenza_valore_costi", ce),
+            "ammortamenti": cur("ammortamenti", ce),
+            "B10a": cur("ammortamento_immateriali", ce),
+            "B10b": cur("ammortamento_materiali", ce),
+            "B10c": cur("svalutazioni_immobilizzazioni", ce),
+        }
+    )
+    eb_prv = calculate_ebitda_oic12(
+        {
+            "ricavi_vendite": prv("ricavi_vendite", ce),
+            "valore_produzione": prv("valore_produzione", ce),
+            "costi_produzione": prv("costi_produzione", ce),
+            "differenza_valore_costi": prv("differenza_valore_costi", ce),
+            "ammortamenti": prv("ammortamenti", ce),
+            "B10a": prv("ammortamento_immateriali", ce),
+            "B10b": prv("ammortamento_materiali", ce),
+            "B10c": prv("svalutazioni_immobilizzazioni", ce),
+        }
+    )
+    add("ebitda", "MOL / EBITDA standard (OIC 12)", "redditivita",
+        eb_cur["ebitda_standard"], eb_prv["ebitda_standard"], "eur",
+        "EBIT + B10a (Amm. immat.) + B10b (Amm. mat.) + B10c (Sval. imm.) [CNDCEC 2024]",
+        status_cur="green" if (eb_cur["ebitda_standard"] or 0) > 0 else "red")
+
+    add("ebitda_margin", "Margine EBITDA %", "redditivita",
+        eb_cur["ebitda_margin_pct"], eb_prv["ebitda_margin_pct"], "pct",
+        "MOL / Valore della Produzione")
+
     # ---- SOSTENIBILITÀ DEL DEBITO ----
-    pfn_c = (cur("debiti_totali") or 0.0) - (cur("disponibilita_liquide") or 0.0) if cur("debiti_totali") is not None else None
-    pfn_p = (prv("debiti_totali") or 0.0) - (prv("disponibilita_liquide") or 0.0) if prv("debiti_totali") is not None else None
-    add("pfn", "Posizione finanziaria netta", "debito", pfn_c, pfn_p, "eur",
-        "debiti − liquidità (lettura contestuale)", status_cur="amber" if pfn_c is not None else "na")
-
-    ebit_c, ebit_p = cur("differenza_valore_costi", ce), prv("differenza_valore_costi", ce)
-    add("oneri_ebit", "Oneri finanziari / EBIT", "debito",
-        _pct(_safe_div(cur("oneri_finanziari", ce), ebit_c)) if (ebit_c or 0.0) > 0 else None,
-        _pct(_safe_div(prv("oneri_finanziari", ce), ebit_p)) if (ebit_p or 0.0) > 0 else None,
-        "pct", "quota di margine assorbita dal debito (n.s. se EBIT≤0)")
-
     def _imp(nat: str) -> float:
         b = deb.get(nat)
         if isinstance(b, dict):
@@ -144,6 +172,44 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
             except (TypeError, ValueError):
                 return 0.0
         return 0.0
+
+    # PFN secondo Orientamento ESMA 32-382-1138 (2021) n. 39 & CNDCEC marzo 2024
+    deb_banche = _imp("banche") or (cur("debiti_entro") or 0.0) * 0.4
+    tfr_val = cur("tfr") or 0.0
+    fin_soci = _imp("soci_finanziamenti")
+    trib_scad = _imp("tributari")
+    forn_scad = _imp("fornitori") * 0.3 if _imp("fornitori") else 0.0
+
+    pfn_esma_res = calculate_pfn_esma(
+        debiti_bancari_breve=deb_banche,
+        debiti_bancari_medio_lungo=cur("debiti_oltre") or 0.0,
+        disponibilita_liquide=cur("disponibilita_liquide") or 0.0,
+        tfr_fondo=tfr_val,
+        finanziamenti_soci=fin_soci,
+        debiti_tributari_scaduti=trib_scad,
+        debiti_fornitori_scaduti_90gg=forn_scad,
+    )
+    pfn_c = pfn_esma_res["pfn_totale"]
+    pfn_p = (prv("debiti_totali") or 0.0) - (prv("disponibilita_liquide") or 0.0) if prv("debiti_totali") is not None else None
+
+    add("pfn", "Posizione finanziaria netta (ESMA 2021)", "debito", pfn_c, pfn_p, "eur",
+        "Debiti Finanziari + Debt-like items (TFR, tributi, soci) − Liquidità [ESMA / CNDCEC]",
+        status_cur="green" if (pfn_c or 0) <= 0 else ("amber" if (pfn_c or 0) < 500000 else "red"))
+
+    # Rapporto PFN / EBITDA (Anni di rimborso del debito) & Soglie Bancarie
+    pfn_eb_eval = evaluate_pfn_ebitda(pfn_c, eb_cur["ebitda_standard"])
+    ratio_val = pfn_eb_eval["ratio"]
+    status_map = {"ok": "green", "warn": "amber", "danger": "red"}
+    add("pfn_ebitda", "PFN / EBITDA (Anni rimborso)", "debito",
+        ratio_val, None, "ratio",
+        pfn_eb_eval["valutazione_bancaria"],
+        status_cur=status_map.get(pfn_eb_eval["status"], "na"))
+
+    ebit_c, ebit_p = cur("differenza_valore_costi", ce), prv("differenza_valore_costi", ce)
+    add("oneri_ebit", "Oneri finanziari / EBIT", "debito",
+        _pct(_safe_div(cur("oneri_finanziari", ce), ebit_c)) if (ebit_c or 0.0) > 0 else None,
+        _pct(_safe_div(prv("oneri_finanziari", ce), ebit_p)) if (ebit_p or 0.0) > 0 else None,
+        "pct", "quota di margine assorbita dal debito (n.s. se EBIT≤0)")
 
     priv = _imp("tributari") + _imp("previdenziali")
     add("incid_priv", "Incidenza debiti privilegiati", "debito",

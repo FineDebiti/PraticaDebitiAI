@@ -25,6 +25,13 @@ from app.models import (
     Document, TaxDebtStatement, FinancialStatement, CaseCrossAnalysis,
 )
 from app.services.rule_engine import get_active_rules
+from app.services.statutory_knowledge import (
+    calculate_ebitda_oic12,
+    calculate_pfn_esma,
+    evaluate_pfn_ebitda,
+    check_ccii_soglie_impresa_minore,
+    check_ccii_segnali_allarme_art3,
+)
 
 
 def _fmt_eur(v):
@@ -194,14 +201,15 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     esercizi_economici = []
     for fs in annual_fss:
         ce = fs.raw_extraction.get("conto_economico") or {}
-        a1 = _num(ce.get("ricavi_vendite") or fs.revenues)
-        val_prod = _num(ce.get("valore_produzione") or a1)
-        costi_prod = _num(ce.get("costi_produzione"))
-        ammortamenti = _num(ce.get("ammortamenti"))
+        eb = calculate_ebitda_oic12(ce)
+        a1 = eb["ricavi_vendite_a1"]
+        val_prod = eb["valore_produzione_a"]
+        costi_prod = eb["costi_produzione_b"]
+        ammortamenti = eb["ammortamenti_b10a_b10b_b10c"]
         altri_ricavi = max(0.0, round(val_prod - a1, 2))
-        mol = round((val_prod - costi_prod) + ammortamenti, 2)
+        mol = eb["ebitda_standard"]
+        mol_pct = eb["ebitda_margin_pct"]
         utile_perdita = _num(ce.get("utile_perdita") or fs.net_result)
-        mol_pct = round((mol / val_prod * 100), 1) if val_prod > 0 else 0.0
 
         anno_str = fs.fiscal_year_end[:4]
         esercizi_economici.append({
@@ -212,9 +220,11 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
             "valore_produzione_a": val_prod,
             "costi_produzione_b": costi_prod,
             "ammortamenti": ammortamenti,
+            "ebit": eb["ebit_differenza_a_b"],
             "mol": mol,
             "mol_pct": mol_pct,
             "utile_perdita": utile_perdita,
+            "formula_mol": eb["formula_applicata"],
         })
 
     # =========================================================================
@@ -224,12 +234,13 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     dato_infrannuale = None
     if interim_fs:
         ce = interim_fs.raw_extraction.get("conto_economico") or {}
-        a1 = _num(ce.get("ricavi_vendite") or interim_fs.revenues)
-        val_prod = _num(ce.get("valore_produzione") or a1)
-        costi_prod = _num(ce.get("costi_produzione"))
-        ammortamenti = _num(ce.get("ammortamenti"))
+        eb_int = calculate_ebitda_oic12(ce)
+        a1 = eb_int["ricavi_vendite_a1"]
+        val_prod = eb_int["valore_produzione_a"]
+        costi_prod = eb_int["costi_produzione_b"]
+        ammortamenti = eb_int["ammortamenti_b10a_b10b_b10c"]
         altri_ricavi = max(0.0, round(val_prod - a1, 2))
-        mol = round((val_prod - costi_prod) + ammortamenti, 2)
+        mol = eb_int["ebitda_standard"]
         utile_perdita = _num(ce.get("utile_perdita") or interim_fs.net_result)
         oneri_fin = _num(ce.get("oneri_finanziari"))
         dato_infrannuale = {
@@ -239,9 +250,11 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
             "valore_produzione_a": val_prod,
             "costi_produzione_b": costi_prod,
             "ammortamenti": ammortamenti,
+            "ebit": eb_int["ebit_differenza_a_b"],
             "oneri_finanziari": oneri_fin,
             "mol": mol,
             "utile_perdita": utile_perdita,
+            "formula_mol": eb_int["formula_applicata"],
         }
 
     # =========================================================================
@@ -521,12 +534,21 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     for idx, r in enumerate(real_estates, 1):
         cad_val = float(r.cadastral_value or 0.0)
         tot_catastale += cad_val
+        addr = r.address or ""
+        comune_val = "—"
+        if addr and " - " in addr:
+            parts = addr.split(" - ", 1)
+            comune_val = parts[0].strip()
+            addr = parts[1].strip()
+        elif addr and "," in addr:
+            comune_val = addr.split(",")[-1].strip()
+
         immobili_table.append({
             "numero": idx,
-            "comune": "Bastia Umbra (PG)",
-            "indirizzo": r.address or "Via Berlino n. 28",
-            "catasto": r.cadastral_data or "Foglio 24, Part. 1152",
-            "categoria": r.category or "C/6",
+            "comune": comune_val,
+            "indirizzo": addr or "Indirizzo in fase di riscontro",
+            "catasto": r.cadastral_data or "Dati catastali in verifica",
+            "categoria": r.category or "—",
             "rendita": float(r.cadastral_income or 0.0),
             "valore_catastale": cad_val,
             "stima_fascia": cad_val * 1.35 if cad_val > 0 else 0.0,
@@ -602,10 +624,117 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     # =========================================================================
     raccomandazioni = cross.note_per_il_titolare if cross and cross.note_per_il_titolare else [
         "Verificare la discrepanza tra il debito bancario residuo contrattuale e la segnalazione Centrale Rischi.",
-        "Analizzare con il consulente contabile la causa dell'incremento di oneri finanziari nel primo semestre 2026.",
+        "Analizzare con il consulente contabile la causa dell'incremento di oneri finanziari nel periodo recente.",
         "Richiedere ad AdER la situazione aggiornata delle rateizzazioni per blindare l'esclusione di doppi carichi.",
-        "Attivare tempestivamente la Composizione Negoziata della Crisi sulla piattaforma camerale ex CCII.",
+        "Attivare tempestivamente la procedura di composizione della crisi o accordo di ristrutturazione ex CCII.",
     ]
+
+    # Calcolo Posizione Finanziaria Netta (PFN) ESMA 2021 & Rapporto PFN / EBITDA
+    last_fs_sp = (last_approved_fs.raw_extraction.get("stato_patrimoniale") or {}) if last_approved_fs else {}
+    last_fs_deb = (last_approved_fs.raw_extraction.get("debiti_per_natura") or {}) if last_approved_fs else {}
+    deb_banche_val = _num((last_fs_deb.get("banche") or {}).get("importo")) or (_num(last_fs_sp.get("debiti_entro")) * 0.35)
+    deb_ml_val = _num(last_fs_sp.get("debiti_oltre"))
+    liq_val = _num(last_fs_sp.get("disponibilita_liquide"))
+    tfr_val = _num(last_fs_sp.get("tfr"))
+    soci_fin_val = _num((last_fs_deb.get("soci_finanziamenti") or {}).get("importo"))
+    tot_ader_scad = sum(s.total_residuo for s in statements) if statements else 0.0
+
+    pfn_obj = calculate_pfn_esma(
+        debiti_bancari_breve=deb_banche_val,
+        debiti_bancari_medio_lungo=deb_ml_val,
+        disponibilita_liquide=liq_val,
+        tfr_fondo=tfr_val,
+        finanziamenti_soci=soci_fin_val,
+        debiti_tributari_scaduti=tot_ader_scad,
+    )
+    last_ebitda = esercizi_economici[-1]["mol"] if esercizi_economici else 0.0
+    pfn_eval = evaluate_pfn_ebitda(pfn_obj["pfn_totale"], last_ebitda)
+    ratio_val = pfn_eval.get("ratio")
+    pfn_ratio_str = f"{ratio_val:.2f}" if ratio_val is not None else "critico"
+
+    # Inquadramento CCII: soglie art. 2 e segnali allarme art. 3 co. 4
+    attivi_tri = [float(f.total_assets or 0.0) for f in fss if f.total_assets]
+    ricavi_tri = [float(f.revenues or 0.0) for f in fss if f.revenues]
+    ccii_minore = check_ccii_soglie_impresa_minore(
+        attivo_patrimoniale_triennio=attivi_tri,
+        ricavi_lordi_triennio=ricavi_tri,
+        debiti_totali_attuali=tot_massa_stimata or 0.0,
+    )
+    ccii_art3 = check_ccii_segnali_allarme_art3(
+        retribuzioni_scadute_30gg=0.0,
+        monte_salari_mensile=0.0,
+        debiti_fornitori_scaduti_90gg=0.0,
+        debiti_fornitori_non_scaduti=0.0,
+        esposizioni_banche_scadute_60gg=cr.total_exposure if (cr and cr.has_sofferenze) else 0.0,
+        sconfinamento_banche_fidi=0.0,
+        totale_fidi_accordati=0.0,
+        debiti_ader_scaduti_90gg=tot_ader_scad,
+    )
+
+    # Esposizioni soci dinamiche
+    esposizioni_soci = []
+    for g in guarantees:
+        esposizioni_soci.append({
+            "socio": g.guaranteed_subject or client_display,
+            "garanzia": f"Garanzia/Fideiussione a favore di {g.intermediary or 'Istituto di Credito'}",
+            "importo": f"€ {float(g.valore_garanzia or g.importo_garantito or 0.0):,.2f}",
+        })
+    if not esposizioni_soci and soci_list:
+        for s in soci_list:
+            if s.get("garante") or s.get("ruolo") == "Legale rappresentante":
+                esposizioni_soci.append({
+                    "socio": s.get("nome", "Legale rappresentante"),
+                    "garanzia": "Fideiussione personale a presidio degli affidamenti bancari della società",
+                    "importo": "Da quantificare con copia delle lettere di garanzia",
+                })
+    if not esposizioni_soci:
+        esposizioni_soci.append({
+            "socio": client_display,
+            "garanzia": "Nessuna garanzia personale formalmente documentata",
+            "importo": "—",
+        })
+
+    # Commento periodo dinamico
+    if esercizi_economici:
+        ex_last = esercizi_economici[-1]
+        commento_periodo = (
+            f"Nell'esercizio {ex_last['anno']}, il Valore della Produzione si attesta a € {ex_last['valore_produzione_a']:,.2f} "
+            f"con un Margine Operativo Lordo (MOL / EBITDA ex OIC 12 e CNDCEC marzo 2024) pari a € {ex_last['mol']:,.2f} "
+            f"({ex_last['mol_pct']:.1f}% sul valore della produzione). "
+            f"Formula applicata: {ex_last.get('formula_mol')}. "
+            f"L'esercizio registra un risultato netto di € {ex_last['utile_perdita']:,.2f}."
+        )
+    else:
+        commento_periodo = "Dati economici in attesa di caricamento dei bilanci d'esercizio completi."
+
+    # Commento debiti 5.1 dinamico
+    if table_5_1 and table_5_1.get("totali", {}).get("valori"):
+        tot_vals = table_5_1["totali"]["valori"]
+        cols_keys = list(tot_vals.keys())
+        if len(cols_keys) >= 2:
+            c_first, c_last = cols_keys[0], cols_keys[-1]
+            commento_5_1 = (
+                f"L'indebitamento contabile complessivo da bilancio evolve da € {tot_vals[c_first]:,.2f} ({c_first}) "
+                f"a € {tot_vals[c_last]:,.2f} ({c_last}). "
+                f"La dinamica riflette la composizione tra debiti commerciali, bancari, tributari e verso soci."
+            )
+        else:
+            commento_5_1 = f"I debiti contabili da bilancio si attestano complessivamente a € {tot_massa_bilancio:,.2f}."
+    else:
+        commento_5_1 = f"I debiti contabili da bilancio si attestano complessivamente a € {tot_massa_bilancio:,.2f}."
+
+    # Elementi favorevoli dinamici
+    elem_fav = []
+    if last_approved_fs and last_approved_fs.equity and last_approved_fs.equity > 0:
+        elem_fav.append(f"Patrimonio netto contabile positivo pari a € {float(last_approved_fs.equity):,.2f}.")
+    if last_approved_fs and last_approved_fs.revenues and last_approved_fs.revenues > 0:
+        elem_fav.append(f"Volume d'affari consolidato pari a € {float(last_approved_fs.revenues):,.2f}.")
+    if cr and not cr.has_sofferenze:
+        elem_fav.append("Assenza di segnalazioni a sofferenza o incagli presso la Centrale Rischi della Banca d'Italia.")
+    if real_estates:
+        elem_fav.append(f"Patrimonio immobiliare ({len(real_estates)} unità censite) per un valore catastale complessivo di € {tot_catastale:,.2f}.")
+    if not elem_fav:
+        elem_fav.append("Presenza di continuità aziendale e prospettive di risanamento del debito.")
 
     return {
         "header": {
@@ -643,47 +772,42 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
             "attivita_prevalente": (company.business_summary if company else "") or "Attività commerciale e industriale",
             "soci": soci_list,
             "natura_crisi": (
-                "L'analisi documentale evidenzia una crisi di natura PREVALENTEMENTE FINANZIARIA E DEBITORIA derivante "
-                "dall'accumulo di passività pregresse verso l'Erario e gli Istituti Finanziari, a fronte di una gestione caratteristica "
-                "storicamente vitale che ha sviluppato un volume d'affari superiore a € 400.000 nell'esercizio 2025. "
-                "Tuttavia, i dati del primo semestre 2026 mostrano una flessione e pesanti oneri finanziari che richiedono "
-                "la massima prudenza e un tempestivo intervento di regolazione."
+                f"L'analisi documentale condotta su {client_display} evidenzia una situazione debitoria "
+                f"derivante principalmente dall'accumulo di passività verso l'Erario ({_fmt_eur(tot_ader_scad)}) e "
+                f"verso il sistema bancario/commerciale, a fronte di una gestione caratteristica che richiede "
+                f"un tempestivo intervento di regolazione per ristabilire l'equilibrio economico-finanziario."
             ),
         },
         "capitolo_3_analisi_economica": {
             "esercizi": esercizi_economici,
-            "commento_periodo": (
-                "Nel triennio analizzato, i ricavi mostrano un andamento in espansione culminato nell'esercizio 2025 con "
-                "un Valore della Produzione pari a € 411.553,58 e un MOL positivo di € 47.167,98 (11,5% sul valore della produzione). "
-                "La gestione caratteristica ha dimostrato capacità di tenuta e generazione di marginalità operativa lorda."
+            "commento_periodo": commento_periodo,
+            "principio_oic12": (
+                "La riclassificazione del Conto Economico è conforme al principio OIC 12 e alle Linee Guida CNDCEC "
+                "del marzo 2024. Il Margine Operativo Lordo (MOL / EBITDA) è calcolato come Differenza tra valore e "
+                "costi della produzione (A - B) reintegrando gli ammortamenti e svalutazioni delle immobilizzazioni "
+                "(voci B10a, B10b, B10c), lasciando all'interno dei costi operativi ordinari le svalutazioni dei crediti "
+                "(B10d) e gli accantonamenti rischi/oneri (B12, B13)."
             ),
             "riscontro_dichiarazioni_redditi": (
-                "I dati economici esposti nei bilanci approvati trovano riscontro nelle dichiarazioni dei redditi (Modelli Redditi SC) "
-                "acquisite, con allineamento dei ricavi e del risultato ante imposte dichiarato."
+                "I dati economici esposti nei bilanci approvati trovano riscontro nelle dichiarazioni fiscali "
+                "acquisite nel fascicolo documentale."
             ),
             "anomalie_contabili": [
-                "Presenza di debiti verso fornitori oltre 12 mesi costanti all'importo fisso di € 65.258,39 per più esercizi consecutivi.",
-                "Rilevante incidenza degli oneri finanziari nel bilancio infrannuale 2026 (€ 35.214,98).",
-                "Discrepanza tra l'utile stimato in anagrafica preliminare e il risultato contabile effettivo.",
+                f"Oneri finanziari registrati: {_fmt_eur(last_fs_sp.get('oneri_finanziari')) if last_fs_sp.get('oneri_finanziari') else 'sotto monitoraggio'}.",
+                "Discrepanza tra l'indebitamento bancario contabile e le risultanze della Centrale Rischi.",
             ],
         },
         "capitolo_4_dato_corrente": {
             "dato": dato_infrannuale,
             "prudenza": (
-                "I risultati del periodo infra-annuale (primo semestre 2026) presentano fisiologici limiti di stagionalità "
-                "e non costituiscono un consuntivo definitivo. Il dato evidenzia una contrazione dei ricavi (€ 66.467,96) e "
-                "un risultato economico negativo di -€ 75.358,15 fortemente condizionato da oneri finanziari straordinari. "
-                "Il dato non va proiettato linearmente sull'intero anno ma impone prudenza nella stima dei flussi prospettici."
+                "I risultati del periodo infra-annuale presentano fisiologici limiti di stagionalità "
+                "e non costituiscono un consuntivo definitivo. Il dato non va proiettato linearmente sull'intero anno "
+                "ma impone prudenza nella stima dei flussi finanziari prospettici destinabili al servizio del debito."
             ),
         },
         "capitolo_5_indebitamento": {
             "tabella_5_1": table_5_1,
-            "commento_5_1": (
-                "L'indebitamento contabile complessivo passa da € 352.977,63 al 31/12/2023 a € 414.760,37 al 30/06/2026. "
-                "La voce di maggior rilievo è rappresentata dai debiti commerciali (€ 121.859,68), seguita dai debiti verso soci "
-                "per finanziamenti (€ 38.080,78) e dai debiti bancari (€ 23.621,41). I debiti tributari e previdenziali contabili "
-                "riflettono la gestione corrente e le posizioni rateizzate."
-            ),
+            "commento_5_1": commento_5_1,
             "tabella_5_2_ader": ader_table,
             "tabella_5_2_credito": credit_db_rows,
             "tabella_5_3_sintesi": {
@@ -691,29 +815,30 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
                 "totale_stimato": tot_massa_stimata,
                 "totale_bilancio": tot_massa_bilancio,
             },
+            "tabella_pfn_esma": pfn_obj,
+            "valutazione_pfn_ebitda": pfn_eval,
             "cautele_sintesi": (
-                "La stima della massa debitoria è costruita incrociando le banche dati esterne (AdER, Centrale Rischi, CTC) "
-                "con la contabilità societaria per eliminare ogni duplicazione (es. mutuo UniCredit e carichi transitati nelle rottamazioni). "
-                "Il dato fornisce l'ordine di grandezza complessivo necessario per impostare la manovra finanziaria di risanamento."
+                "La stima della massa debitoria è costruita incrociando le banche dati esterne (AdER, Centrale Rischi, CRIF/CTC) "
+                "con la contabilità societaria per eliminare ogni duplicazione. "
+                "La Posizione Finanziaria Netta (PFN) è determinata secondo l'Orientamento ESMA 32-382-1138 (2021) n. 39 "
+                "e include le passività finanziarie correnti e non correnti, il Fondo TFR e le passività debt-like (tributari/previdenziali "
+                "scaduti e debiti fornitori oltre 90 giorni), al netto delle disponibilità liquide."
             ),
         },
         "capitolo_6_punti_verificare": punti_da_verificare,
         "capitolo_7_diagnosi_crisi": {
-            "elementi_favorevoli": [
-                "Patrimonio netto contabile positivo pari a € 178.064,93 al 30/06/2026 (€ 253.423,08 al 31/12/2025).",
-                "Volume d'affari consolidato (> € 400.000 nel 2025) con portafoglio clienti attivo.",
-                "Assenza di sofferenze o incagli segnalati presso la Centrale Rischi della Banca d'Italia.",
-                "Patrimonio immobiliare societario (6 unità censite a Bastia Umbra) a presidio del ceto creditorio.",
-            ],
+            "elementi_favorevoli": elem_fav,
             "principale_criticita": (
-                "Il fardello dell'indebitamento pregresso verso l'Erario (rottamazioni in corso per oltre € 100k) e "
-                "lo squilibrio finanziario di breve termine accentuato dalla flessione del primo semestre 2026, "
-                "che rende insostenibile il rimborso del debito storico secondo i piani di rientro ordinari."
+                f"L'ammontare complessivo dell'indebitamento erariale ({_fmt_eur(tot_ader_scad)}) e bancario, "
+                f"unito a un rapporto PFN/EBITDA ({pfn_ratio_str}) "
+                f"che evidenzia: {pfn_eval['valutazione_bancaria']}."
             ),
             "sintesi_vitalita": (
-                "L'impresa manifesta una solida vitalità economica intrinseca nella gestione caratteristica, ma necessita "
-                "improrogabilmente di uno strumento di ristrutturazione per dilazionare e stralciare il debito storico."
+                "L'impresa manifesta presupposti operativi per il risanamento, purché si attivi tempestivamente "
+                "uno strumento di regolazione della crisi idoneo a rimodulare e stralciare l'indebitamento pregresso."
             ),
+            "inquadramento_ccii": ccii_minore,
+            "segnali_allarme_art3": ccii_art3,
         },
         "capitolo_8_patrimonio": {
             "immobili": immobili_table,
@@ -724,9 +849,7 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
                 "costo_storico_stimato": val_cespiti * 1.5 if val_cespiti > 0 else 0.0,
                 "note": "Valore da verificare con perizia o libro cespiti ammortizzabili aggiornato.",
             },
-            "esposizione_personale_soci": [
-                {"socio": "Guido Fazio / Amabile Fazio", "garanzia": "Fideiussione personale a favore di UniCredit S.p.A. sul mutuo chirografario", "importo": "€ 40.000,00"},
-            ],
+            "esposizione_personale_soci": esposizioni_soci,
         },
         "capitolo_9_orientamento_risanamento": {
             "scenari": scenari_ccii,

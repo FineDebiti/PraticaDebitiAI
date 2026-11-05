@@ -68,3 +68,27 @@ def test_case_chat_endpoints(client, db_session):
     assert res3.status_code == 200
     assert res3.json()["total"] == 0
 
+    # 6. Test SSE streaming chat endpoint
+    class MockStreamResponse:
+        status_code = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def iter_lines(self):
+            yield 'data: {"choices": [{"delta": {"content": "Il MOL è calcolato come "}}]}'
+            yield 'data: {"choices": [{"delta": {"content": "(A - B) + Ammortamenti."}}]}'
+            yield 'data: [DONE]'
+
+    with patch("httpx.Client.stream", return_value=MockStreamResponse()):
+        stream_res = client.post(
+            f"/api/cases/{case.id}/chat/stream",
+            json={"message": "Come hai calcolato il MOL?"},
+        )
+        assert stream_res.status_code == 200
+        assert "text/event-stream" in stream_res.headers["content-type"]
+        body_text = stream_res.text
+        assert "data: " in body_text
+        assert "Ammortamenti" in body_text
+        assert "done" in body_text
+

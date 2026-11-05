@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { getCaseChat, sendCaseChatMessage, clearCaseChat } from "../api";
+import { getCaseChat, sendCaseChatMessage, streamCaseChatMessage, clearCaseChat } from "../api";
 
 export default function CaseChatDrawer({
   caseId,
@@ -51,33 +51,74 @@ export default function CaseChatDrawer({
       content: text,
       created_at: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, tempUserMsg]);
+    const tempAsstId = "stream-" + Date.now();
+    const tempAsstMsg = {
+      id: tempAsstId,
+      case_id: caseId,
+      sender: "assistant",
+      content: "",
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, tempUserMsg, tempAsstMsg]);
     setInput("");
     setLoading(true);
 
-    try {
-      const res = await sendCaseChatMessage(caseId, text);
-      if (res && res.assistant_message) {
-        setMessages((prev) => [
-          ...prev.filter((m) => m.id !== tempUserMsg.id),
-          res.user_message,
-          res.assistant_message,
-        ]);
-      }
-    } catch (err) {
-      console.error("Errore invio messaggio chat:", err);
-      const errMsg = {
-        id: "err-" + Date.now(),
-        case_id: caseId,
-        sender: "assistant",
-        content: `⚠️ **Errore di comunicazione:** ${err.message || String(err)}. Verifica che LM Studio sia attivo sulla porta 1234 con il modello caricato.`,
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errMsg]);
-    } finally {
-      setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    let hasReceivedDelta = false;
+
+    await streamCaseChatMessage(caseId, text, {
+      onDelta: (delta) => {
+        hasReceivedDelta = true;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempAsstId ? { ...m, content: m.content + delta } : m))
+        );
+      },
+      onDone: (data) => {
+        if (data && data.assistant_message) {
+          setMessages((prev) => [
+            ...prev.filter((m) => m.id !== tempUserMsg.id && m.id !== tempAsstId),
+            data.user_message,
+            data.assistant_message,
+          ]);
+        }
+        setLoading(false);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      },
+      onError: async (err) => {
+        console.warn("Errore streaming chat, provo fallback sincrono:", err);
+        // Se non abbiamo ancora ricevuto delta, tentiamo il fallback sincronico
+        if (!hasReceivedDelta) {
+          try {
+            const res = await sendCaseChatMessage(caseId, text);
+            if (res && res.assistant_message) {
+              setMessages((prev) => [
+                ...prev.filter((m) => m.id !== tempUserMsg.id && m.id !== tempAsstId),
+                res.user_message,
+                res.assistant_message,
+              ]);
+              setLoading(false);
+              return;
+            }
+          } catch (syncErr) {
+            console.error("Errore anche su fallback:", syncErr);
+          }
+        }
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempAsstId
+              ? {
+                  ...m,
+                  content:
+                    m.content ||
+                    `⚠️ **Errore di comunicazione:** ${err.message || String(err)}. Verifica che LM Studio sia attivo sulla porta 1234 con il modello caricato.`,
+                }
+              : m
+          )
+        );
+        setLoading(false);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      },
+    });
   };
 
   const handleClear = async () => {
@@ -98,10 +139,10 @@ export default function CaseChatDrawer({
   };
 
   const quickPrompts = [
-    "Come hai ottenuto i dati identificativi (REA e Sede) nel Cap. 2.1?",
-    "Come hai unificato i soci nella compagine sociale (Cap. 2.2)?",
+    "Come hai calcolato il MOL / EBITDA e con quale formula?",
     "Spiegami da quali documenti derivano i debiti del Cap. 5",
-    "Come è stato calcolato il MOL nel bilancio 2025?",
+    "Come è stata determinata la Posizione Finanziaria Netta (PFN)?",
+    "Qual è l'inquadramento del debitore secondo il Codice della Crisi (CCII)?",
   ];
 
   // Helper formattazione markdown leggera (grassetti, elenchi, citazioni)
@@ -395,7 +436,16 @@ export default function CaseChatDrawer({
                   </div>
                 ) : (
                   <div>
-                    {renderFormattedText(m.content)}
+                    {!m.content ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", color: "var(--pd-accent)", fontSize: 13 }}>
+                        <span className="material-symbols-outlined" style={{ animation: "spin 1s linear infinite", fontSize: 18 }}>
+                          progress_activity
+                        </span>
+                        <span>DossierLex AI sta elaborando i calcoli...</span>
+                      </div>
+                    ) : (
+                      renderFormattedText(m.content)
+                    )}
 
                     {/* AZIONE DI FEEDBACK PER IL REPORT */}
                     <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--pd-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
