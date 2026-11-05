@@ -2725,15 +2725,19 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
   useEffect(() => () => clearInterval(timer.current), []);
 
   async function onFile(e) {
-    const f = e.target.files[0];
-    if (!f) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     setBusy(true); setDup("");
-    let res;
-    try { res = await uploadDoc(caseId, f, cfg.docType); } catch {}
+    const dups = [];
+    for (const f of files) {
+      let res;
+      try { res = await uploadDoc(caseId, f, cfg.docType); } catch {}
+      if (res && res.duplicate) dups.push(res.original_filename || f.name);
+      if (res && res.id && !res.duplicate && onUploadedId) onUploadedId(cfg.docType, res.id);
+    }
     setBusy(false);
     e.target.value = "";
-    if (res && res.duplicate) setDup(`"${res.original_filename}" è già presente: non ricaricato.`);
-    if (res && res.id && !res.duplicate && onUploadedId) onUploadedId(cfg.docType, res.id);
+    if (dups.length) setDup(`${dups.length === 1 ? `"${dups[0]}" è già presente: non ricaricato.` : `${dups.length} file già presenti: deduplicazione applicata.`}`);
     if (reload) reload();
   }
 
@@ -2781,7 +2785,7 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
       {/* Canale UPLOAD — sempre presente */}
       <div style={{ borderTop: "1px solid var(--pd-border)", paddingTop: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text)", marginBottom: 4 }}>Carica documento</div>
-        <input type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
+        <input type="file" multiple onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
         {busy && <span style={{ marginLeft: 8, fontSize: 12 }}>Upload...</span>}
         {dup && <div style={{ marginTop: 6, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>{dup}</div>}
         {mine.map(doc => (

@@ -195,12 +195,26 @@ def _parse_ocr_text_deterministic(text: str, doc_type: str, client_cf: str) -> D
         sofferenze = _pnum_simple(m_soff)
         num_int = int(m_int.group(1)) if m_int else (1 if (accordato or utilizzato) else 0)
 
-        out["esposizione_attuale"] = {
-            "totale_accordato": accordato,
-            "totale_utilizzato": utilizzato,
-            "sofferenze": sofferenze,
-            "numero_intermediari": num_int
+        out["totali"] = {
+            "numero_intermediari": num_int,
+            "esposizione_totale_utilizzata": utilizzato,
+            "totale_garanzie_prestate": 0.0,
+            "presenza_sofferenze": sofferenze > 0,
+            "presenza_criticita": sofferenze > 0,
         }
+        if accordato or utilizzato or sofferenze:
+            out["esposizione_attuale"] = [{
+                "intermediario": "Sintesi da prospetto CR",
+                "categoria": "sofferenze" if sofferenze > 0 else "esposizione_complessiva",
+                "accordato": accordato,
+                "utilizzato": utilizzato,
+                "importo_garantito": 0.0,
+                "stato_rapporto": "sofferenza" if sofferenze > 0 else "regolare",
+                "e_critico": sofferenze > 0,
+                "confidence": 0.7,
+            }]
+        else:
+            out["esposizione_attuale"] = []
 
     elif doc_type == "visura_camerale":
         piva_match = re.search(r'(?:partita\s+iva|p\.?\s*i\.?|p\.?\s*iva)[^\d]*(\d{11})', text, re.I)
@@ -353,9 +367,15 @@ def _num(v: Any) -> float:
 
 def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any], client_cf: str) -> None:
     """Mappa i dati strutturati estratto nelle relative tabelle di dominio."""
+    if not isinstance(data, dict):
+        return
 
     # 1. Immobili (da Visura Catastale)
-    for imm in data.get("immobili", []) or []:
+    imm_raw = data.get("immobili")
+    imm_list = imm_raw if isinstance(imm_raw, list) else []
+    for imm in imm_list:
+        if not isinstance(imm, dict):
+            continue
         rendita = _num(imm.get("rendita_catastale"))
         quota = imm.get("quota_soggetto") or ""
         cat = imm.get("categoria") or ""
@@ -394,7 +414,11 @@ def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any
         _apply_income_to_debtor(db, doc.case_id, doc.doc_type, data)
 
     # 6. Posizioni debitorie
-    for pos in data.get("credit_positions", []) or []:
+    pos_raw = data.get("credit_positions")
+    pos_list = pos_raw if isinstance(pos_raw, list) else []
+    for pos in pos_list:
+        if not isinstance(pos, dict):
+            continue
         name = (pos.get("creditor") or "").strip()
         if name and not db.query(Creditor).filter_by(case_id=doc.case_id, name=name).first():
             db.add(Creditor(case_id=doc.case_id, name=name, source_document_id=doc.id))
@@ -414,8 +438,9 @@ def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any
 
 
 def _save_company(db: Session, doc: Document, data: Dict[str, Any], client_cf: str) -> None:
-    imp = data.get("impresa") or {}
-    soci = data.get("soci", []) or []
+    imp = data.get("impresa") if isinstance(data.get("impresa"), dict) else {}
+    soci_raw = data.get("soci")
+    soci = [s for s in soci_raw if isinstance(s, dict)] if isinstance(soci_raw, list) else []
 
     for s in soci:
         s["e_cliente"] = bool(s.get("e_cliente")) or fc.same(s.get("codice_fiscale", ""), client_cf)
@@ -437,7 +462,7 @@ def _save_company(db: Session, doc: Document, data: Dict[str, Any], client_cf: s
         constitution_date=imp.get("data_costituzione") or "",
         capital=_num(imp.get("capitale_conferimenti")),
         business_summary=imp.get("oggetto_sociale_sintesi") or "",
-        extra=data.get("dati_secondari") or {},
+        extra=data.get("dati_secondari") if isinstance(data.get("dati_secondari"), dict) else {},
         source_document_id=doc.id,
     )
     db.add(company)
@@ -448,7 +473,7 @@ def _save_company(db: Session, doc: Document, data: Dict[str, Any], client_cf: s
             name=s.get("denominazione") or "",
             tax_code=s.get("codice_fiscale") or "",
             is_client=bool(s.get("e_cliente")),
-            roles=", ".join(s.get("cariche", []) or []),
+            roles=", ".join(s.get("cariche", []) or []) if isinstance(s.get("cariche"), list) else "",
             is_legal_rep=bool(s.get("rappresentante_legale")),
             quota_value=_num(s.get("quota_valore")),
             quota_percent=_num(s.get("quota_percentuale")),
@@ -456,60 +481,110 @@ def _save_company(db: Session, doc: Document, data: Dict[str, Any], client_cf: s
 
 
 def _save_credit_report(db: Session, doc: Document, data: Dict[str, Any]) -> None:
-    rec = data.get("data_riferimento_piu_recente") or ""
+    rec = str(data.get("data_riferimento_piu_recente") or "")
 
-    for e in data.get("esposizione_attuale", []) or []:
+    # Normalizzazione difensiva di esposizione_attuale (supporta list di dict, list di str, o dict di totali/intermediari)
+    esp_raw = data.get("esposizione_attuale")
+    esp_list = []
+    if isinstance(esp_raw, list):
+        for e in esp_raw:
+            if isinstance(e, dict):
+                esp_list.append(e)
+            elif isinstance(e, str) and e.strip():
+                esp_list.append({"intermediario": e.strip()})
+    elif isinstance(esp_raw, dict):
+        has_subdicts = any(isinstance(v, dict) for v in esp_raw.values())
+        if has_subdicts:
+            for k, v in esp_raw.items():
+                if isinstance(v, dict):
+                    row = dict(v)
+                    row.setdefault("intermediario", k)
+                    esp_list.append(row)
+        else:
+            tot_acc = _num(esp_raw.get("totale_accordato") or esp_raw.get("accordato"))
+            tot_ut = _num(esp_raw.get("totale_utilizzato") or esp_raw.get("utilizzato"))
+            soff = _num(esp_raw.get("sofferenze"))
+            if tot_acc or tot_ut or soff:
+                esp_list.append({
+                    "intermediario": "Sintesi da prospetto CR",
+                    "categoria": "sofferenze" if soff > 0 else "esposizione_complessiva",
+                    "accordato": tot_acc,
+                    "utilizzato": tot_ut,
+                    "stato_rapporto": "sofferenza" if soff > 0 else "regolare",
+                    "e_critico": soff > 0,
+                })
+
+    for e in esp_list:
         db.add(CreditExposure(
             case_id=doc.case_id,
-            intermediary=e.get("intermediario") or "",
-            category=e.get("categoria") or "",
+            intermediary=str(e.get("intermediario") or ""),
+            category=str(e.get("categoria") or ""),
             accordato=_num(e.get("accordato")),
             utilizzato=_num(e.get("utilizzato")),
             importo_garantito=_num(e.get("importo_garantito")),
-            status=e.get("stato_rapporto") or "",
+            status=str(e.get("stato_rapporto") or ""),
             is_critical=bool(e.get("e_critico")),
             reference_month=rec,
             source_document_id=doc.id,
         ))
 
-    for g in data.get("garanzie_prestate", []) or []:
+    # Normalizzazione difensiva di garanzie_prestate
+    gar_raw = data.get("garanzie_prestate")
+    gar_list = []
+    if isinstance(gar_raw, list):
+        for g in gar_raw:
+            if isinstance(g, dict):
+                gar_list.append(g)
+            elif isinstance(g, str) and g.strip():
+                gar_list.append({"intermediario": g.strip()})
+    elif isinstance(gar_raw, dict):
+        for k, v in gar_raw.items():
+            if isinstance(v, dict):
+                row = dict(v)
+                row.setdefault("intermediario", k)
+                gar_list.append(row)
+
+    for g in gar_list:
         db.add(GuaranteeGiven(
             case_id=doc.case_id,
-            intermediary=g.get("intermediario") or "",
-            guaranteed_subject=g.get("soggetto_garantito") or "",
+            intermediary=str(g.get("intermediario") or ""),
+            guaranteed_subject=str(g.get("soggetto_garantito") or ""),
             valore_garanzia=_num(g.get("valore_garanzia")),
             importo_garantito=_num(g.get("importo_garantito")),
-            status=g.get("stato") or "",
+            status=str(g.get("stato") or ""),
             source_document_id=doc.id,
         ))
 
-    tot = data.get("totali") or {}
-    periodo = data.get("periodo") or {}
-    cc = data.get("_crosscheck") or {}
+    tot = data.get("totali") if isinstance(data.get("totali"), dict) else {}
+    periodo = data.get("periodo") if isinstance(data.get("periodo"), dict) else {}
+    cc = data.get("_crosscheck") if isinstance(data.get("_crosscheck"), dict) else {}
+    crit_raw = data.get("criticita")
+    crit_list = crit_raw if isinstance(crit_raw, list) else []
+
     db.add(CreditReportSummary(
         case_id=doc.case_id,
-        period_from=periodo.get("da") or "",
-        period_to=periodo.get("a") or "",
+        period_from=str(periodo.get("da") or ""),
+        period_to=str(periodo.get("a") or ""),
         most_recent_month=rec,
-        num_intermediaries=int(tot.get("numero_intermediari") or 0),
-        total_exposure=_num(tot.get("esposizione_totale_utilizzata")),
-        total_guarantees=_num(tot.get("totale_garanzie_prestate")),
-        has_sofferenze=bool(tot.get("presenza_sofferenze")),
-        has_criticita=bool(tot.get("presenza_criticita")),
-        criticita=data.get("criticita") or [],
+        num_intermediaries=int(tot.get("numero_intermediari") or len(esp_list)),
+        total_exposure=_num(tot.get("esposizione_totale_utilizzata")) or sum(_num(x.get("utilizzato")) for x in esp_list),
+        total_guarantees=_num(tot.get("totale_garanzie_prestate")) or sum(_num(x.get("importo_garantito")) for x in gar_list),
+        has_sofferenze=bool(tot.get("presenza_sofferenze")) or any(bool(x.get("e_critico")) or "sofferenza" in str(x.get("categoria", "")).lower() for x in esp_list),
+        has_criticita=bool(tot.get("presenza_criticita")) or bool(crit_list),
+        criticita=crit_list,
         source_document_id=doc.id,
-        llm_provider=data.get("_llm_provider") or "",
-        llm_model=data.get("_llm_model") or "",
-        crosscheck_status=cc.get("status") or "",
-        crosscheck_payload=cc if cc else {},
+        llm_provider=str(data.get("_llm_provider") or ""),
+        llm_model=str(data.get("_llm_model") or ""),
+        crosscheck_status=str(cc.get("status") or ""),
+        crosscheck_payload=cc if isinstance(cc, dict) else {},
     ))
 
 
 def _save_financial_statement(db: Session, doc: Document, data: Dict[str, Any], client_cf: str) -> None:
-    az = data.get("azienda") or {}
-    sp = data.get("stato_patrimoniale") or {}
-    ce = data.get("conto_economico") or {}
-    deb = data.get("debiti_per_natura") or {}
+    az = data.get("azienda") if isinstance(data.get("azienda"), dict) else {}
+    sp = data.get("stato_patrimoniale") if isinstance(data.get("stato_patrimoniale"), dict) else {}
+    ce = data.get("conto_economico") if isinstance(data.get("conto_economico"), dict) else {}
+    deb = data.get("debiti_per_natura") if isinstance(data.get("debiti_per_natura"), dict) else {}
     piva = az.get("partita_iva") or ""
     cf = az.get("codice_fiscale") or ""
     ateco = az.get("ateco") or ""
@@ -541,8 +616,13 @@ def _save_financial_statement(db: Session, doc: Document, data: Dict[str, Any], 
     elif ateco and not company.ateco:
         company.ateco = ateco
 
-    priv = _num((deb.get("tributari") or {}).get("importo")) + _num((deb.get("previdenziali") or {}).get("importo"))
-    cc = data.get("_crosscheck") or {}
+    def _num_or_sub(obj, key="importo"):
+        if isinstance(obj, dict):
+            return _num(obj.get(key) if obj.get(key) is not None else obj.get("valore"))
+        return _num(obj)
+
+    priv = _num_or_sub(deb.get("tributari")) + _num_or_sub(deb.get("previdenziali"))
+    cc = data.get("_crosscheck") if isinstance(data.get("_crosscheck"), dict) else {}
 
     stmt = db.query(FinancialStatement).filter_by(source_document_id=doc.id).first()
     if not stmt:
@@ -554,8 +634,9 @@ def _save_financial_statement(db: Session, doc: Document, data: Dict[str, Any], 
 
     stmt.company_id = company.id
     stmt.case_id = doc.case_id
-    stmt.fiscal_year_end = (data.get("esercizio") or {}).get("data_chiusura") or stmt.fiscal_year_end or ""
-    stmt.statement_type = (data.get("esercizio") or {}).get("tipo") or stmt.statement_type or "abbreviato"
+    es_dict = data.get("esercizio") if isinstance(data.get("esercizio"), dict) else {}
+    stmt.fiscal_year_end = es_dict.get("data_chiusura") or stmt.fiscal_year_end or ""
+    stmt.statement_type = es_dict.get("tipo") or stmt.statement_type or "abbreviato"
     stmt.ateco = ateco or company.ateco or ""
     stmt.raw_extraction = data
     stmt.total_assets = _cur(sp, "totale_attivo")
@@ -677,8 +758,10 @@ def _set_income_note(debtor: Debtor, tag: str, text: str) -> None:
     debtor.income_sources = "\n".join(lines)
 
 
-def _cur(blk: Dict[str, Any], key: str) -> float:
-    v = (blk or {}).get(key)
+def _cur(blk: Any, key: str) -> float:
+    if not isinstance(blk, dict):
+        return 0.0
+    v = blk.get(key)
     return _num(v.get("corrente")) if isinstance(v, dict) else _num(v)
 
 
@@ -717,7 +800,10 @@ def _imm_notes(imm: dict) -> str:
 
 def _altri_intestatari(imm: dict) -> str:
     out = []
-    for o in imm.get("altri_intestatari", []) or []:
+    intestatari = imm.get("altri_intestatari") if isinstance(imm, dict) else []
+    for o in (intestatari if isinstance(intestatari, list) else []):
+        if not isinstance(o, dict):
+            continue
         nome = o.get("denominazione") or "?"
         quota = o.get("quota") or ""
         diritto = o.get("diritto") or ""

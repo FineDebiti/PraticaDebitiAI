@@ -20,6 +20,8 @@ const DOC_TYPE_LABELS = {
 export default function DocumentsPanel({ caseId, onProcessed }) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [notice, setNotice] = useState("");
   const [priority, setPriority] = useState("ordinaria");
   const [docType, setDocType] = useState("da_classificare");
@@ -49,16 +51,55 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
     return () => clearInterval(t);
   }, [caseId]);
 
-  async function onFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+
     setBusy(true);
     setNotice("");
-    const res = await uploadDoc(caseId, file, docType).catch(() => null);
+    const duplicates = [];
+    const errors = [];
+    let uploadedCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      setUploadProgress({ current: i + 1, total: files.length, name: f.name });
+      try {
+        const res = await uploadDoc(caseId, f, docType);
+        if (res && res.duplicate) {
+          duplicates.push(f.name);
+        } else if (res && res.id) {
+          uploadedCount++;
+        }
+      } catch {
+        errors.push(f.name);
+      }
+    }
+
     setBusy(false);
-    e.target.value = "";
-    if (res && res.duplicate) setNotice(`"${res.original_filename}" e gia presente: deduplicazione applicata.`);
+    setUploadProgress(null);
+
+    const msgs = [];
+    if (uploadedCount > 0) {
+      msgs.push(`${uploadedCount} ${uploadedCount === 1 ? "documento caricato" : "documenti caricati"} con successo.`);
+    }
+    if (duplicates.length > 0) {
+      msgs.push(`${duplicates.length} ${duplicates.length === 1 ? "file era già presente" : "file erano già presenti"} (deduplicazione applicata).`);
+    }
+    if (errors.length > 0) {
+      msgs.push(`Errore durante il caricamento di: ${errors.join(", ")}`);
+    }
+    if (msgs.length > 0) {
+      setNotice(msgs.join(" · "));
+    }
     refresh();
+  }
+
+  async function onFile(e) {
+    if (e.target.files && e.target.files.length) {
+      await handleFiles(e.target.files);
+      e.target.value = "";
+    }
   }
 
   async function onDelete(doc) {
@@ -89,14 +130,31 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
         <Kpi label="Deduplicazione" value="SHA-256" note="Controllo backend" />
       </div>
 
-      <div className="pd-card">
+      <div
+        className="pd-card"
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(false);
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+            handleFiles(e.dataTransfer.files);
+          }
+        }}
+        style={{
+          transition: "border-color 0.2s, background-color 0.2s",
+          ...(isDragging ? { borderColor: "var(--pd-accent)", backgroundColor: "rgba(18, 92, 19, 0.05)" } : {})
+        }}
+      >
         <div className="pd-card__head">
           <div>
             <h3 className="pd-card__title">
               <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
-              Carica documento
+              Carica documenti
             </h3>
-            <p className="pd-card__subtitle">PDF o immagine. OCR ed estrazione vengono gestiti dal backend.</p>
+            <p className="pd-card__subtitle">PDF o immagini. Puoi selezionare o trascinare più file contemporaneamente.</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <select className="pd-select" value={docType} onChange={e => setDocType(e.target.value)} style={{ width: 220 }} aria-label="Tipo documento">
@@ -112,11 +170,18 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
             </select>
           </div>
         </div>
-        <input className="pd-input" type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
-        {busy && <p className="pd-muted">Upload in corso...</p>}
-        {notice && <div className="pd-badge pd-badge--warn" style={{ marginTop: 10 }}>{notice}</div>}
+        <input className="pd-input" type="file" multiple onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
+        {busy && uploadProgress && (
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="pd-spinner" style={{ width: 14, height: 14 }} />
+            <span className="pd-muted" style={{ fontSize: 13 }}>
+              Caricamento in corso ({uploadProgress.current}/{uploadProgress.total}): <strong>{uploadProgress.name}</strong>...
+            </span>
+          </div>
+        )}
+        {notice && <div className="pd-badge pd-badge--warn" style={{ marginTop: 10, display: "inline-block" }}>{notice}</div>}
         <p className="pd-faint" style={{ margin: "8px 0 0", fontSize: 12 }}>
-          Tipo: {DOC_TYPE_LABELS[docType] || "Classificazione automatica"} · Priorita: {priority}
+          Tipo: {DOC_TYPE_LABELS[docType] || "Classificazione automatica"} · Priorita: {priority} · (Puoi selezionare più file contemporaneamente o trascinarli qui)
         </p>
       </div>
 

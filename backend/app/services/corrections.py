@@ -202,8 +202,10 @@ def _set_path(d: dict, path: str, value: Any) -> None:
     cur[parts[-1]] = value
 
 
-def _cur(blk: dict, key: str) -> float:
-    v = (blk or {}).get(key)
+def _cur(blk: Any, key: str) -> float:
+    if not isinstance(blk, dict):
+        return 0.0
+    v = blk.get(key)
     if isinstance(v, dict):
         try:
             return float(v.get("corrente") or 0)
