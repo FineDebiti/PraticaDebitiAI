@@ -412,3 +412,4 @@ def check_ccii_segnali_allarme_art3(
         "segnali": signals,
         "obbligo_adeguati_assetti": "L'imprenditore e gli organi societari hanno l'obbligo (art. 2086 c.c. e art. 3 CCII) di attivarsi senza indugio per l'adozione tempestiva di uno strumento di composizione della crisi." if has_alert else "Nessun segnale di allarme ex art. 3 co. 4 CCII attualmente conclamato.",
     }
+

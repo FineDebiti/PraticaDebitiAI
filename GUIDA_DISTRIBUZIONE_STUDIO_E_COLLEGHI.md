@@ -78,15 +78,43 @@ Il tuo computer funge da "motore centrale" dello studio.
 
 Configurare il computer di un collaboratore richiede **meno di 1 minuto**:
 
-### Postazioni Windows:
-Nella cartella `C:\Users\Giuseppe\Desktop\DossierLex` trovi:
-- `Crea_Collegamento_Colleghi.bat`
-- `DossierLex.ico`
+### Postazioni Windows (Portatili e Fissi dei Colleghi):
+Per configurare un computer Windows (es. il tuo portatile o il PC di un collaboratore):
 
-1. Passa questi due file al collega.
-2. Il collega fa doppio clic su `Crea_Collegamento_Colleghi.bat`.
-3. Inserisce l'indirizzo del server (in studio: `192.168.1.31` | da remoto: `100.80.46.116`).
-4. Sul Desktop compare l'icona ufficiale di **DossierLex**.
+1. **File necessari**:
+   Copia sul PC del collega (tramite chiavetta USB, rete locale o cartella condivisa) i due file:
+   - `Crea_Collegamento_Colleghi.bat`
+   - `DossierLex.ico` (icona ufficiale)
+
+2. **Esecuzione dello script**:
+   Fai doppio clic su **`Crea_Collegamento_Colleghi.bat`**.
+
+3. **Cosa inserire alla richiesta (Prompt)**:
+   Lo script mostra una schermata chiara con gli indirizzi dello studio:
+   ```text
+   ------------------------------------------------------------------------------
+     INDIRIZZO IP DEL SERVER DI STUDIO:
+     - In Studio (Wi-Fi o Cavo LAN):   192.168.1.31   [PREDEFINITO]
+     - Da Casa / Remoto (Tailscale):   100.80.46.116
+   ------------------------------------------------------------------------------
+
+   Inserisci l'IP del Server [Premi INVIO per usare 192.168.1.31]:
+   ```
+
+   | Scenario d'uso | Cosa digitare | Indirizzo configurato |
+   |---|---|---|
+   | **In Studio** (connesso al Wi-Fi o cavo dell'ufficio) | Premi semplicemente **INVIO** *(oppure scrivi `192.168.1.31`)* | `http://192.168.1.31:3001` |
+   | **Da Remoto / Casa** (con VPN Tailscale attiva) | Digita: **`100.80.46.116`** e premi INVIO | `http://100.80.46.116:3001` |
+
+   > [!TIP]
+   > **Nessun errore di digitazione**: se per sbaglio scrivi `http://192.168.1.31:3001`, inserisci spazi o barre, lo script corregge e ripulisce automaticamente l'indirizzo senza bloccare la procedura.
+
+4. **Risultato immediato**:
+   Sul Desktop compare l'icona ufficiale di **DossierLex**.
+   Facendo doppio clic:
+   - Si apre Google Chrome (o Microsoft Edge) direttamente sulla schermata principale di DossierLex.
+   - Il collega accede in tempo reale all'archivio pratiche, carica documenti ed esegue i calcoli.
+   - Non è necessario installare Docker, Python né scaricare file pesanti.
 
 ### Postazioni Apple Mac (Avvocato e utenti macOS):
 Per gli utenti Mac è disponibile il pacchetto pronto:
@@ -128,6 +156,7 @@ Per consentire all'Avvocato e ai collaboratori di accedere in qualsiasi momento 
 | `Avvia_DossierLex_Mac.command` | Avvio rapido a doppio clic per Mac | Utenti Mac |
 | `DossierLex.icns` | Icona vettoriale nativa per macOS | Utenti Mac |
 | `Crea_Collegamento_Colleghi.bat` | Crea il collegamento sul Desktop dei PC Windows | Postazioni Windows |
+| `ISTRUZIONI_COLLEGHI_WINDOWS.txt` | Guida rapida leggibile con Blocco Note per colleghi Windows | Postazioni Windows |
 | `DossierLex.ico` | Icona ufficiale per Windows | Postazioni Windows |
 | `docker-compose.local.yml` | Configurazione container offline (DB, Backend, Frontend) | **Solo sul PC Server** |
 

@@ -134,3 +134,4 @@ def test_ccii_segnali_allarme_art3():
     )
     assert alert["ha_segnali_allarme_art3"] is True
     assert alert["segnali"][0]["codice"] == "art25_novies_ader"
+

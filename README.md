@@ -10,7 +10,10 @@ Se devi configurare o spiegare l'architettura all'Avvocato o ai colleghi dell'uf
 👉 **Consulta la guida completa:** [`GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md`](GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md)
 
 * **PC Server dello Studio (il tuo computer)**: ospita il database centrale, i documenti e il modello AI Qwen 27B. Si avvia con doppio clic sull'icona `DossierLex` sul Desktop.
-* **PC dei Colleghi (Client leggeri)**: **NON serve installare Docker, né codice, né modelli AI**. Si collegano via Wi-Fi/LAN al tuo IP (es. `http://192.168.1.150:3001`) o tramite il collegamento Desktop automatico generato con `Crea_Collegamento_Colleghi.bat`.
+* **PC dei Colleghi (Client leggeri)**: **NON serve installare Docker, né codice, né modelli AI**.
+  - **In Studio (Wi-Fi / LAN)**: `http://192.168.1.31:3001`
+  - **Da Remoto / Casa (Tailscale)**: `http://100.80.46.116:3001`
+  - Si configurano in 5 secondi avviando `Crea_Collegamento_Colleghi.bat` (basta premere INVIO per confermare `192.168.1.31`).
 
 ---
 

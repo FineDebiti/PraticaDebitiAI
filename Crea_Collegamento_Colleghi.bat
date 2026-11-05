@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ==============================================================================
-echo   DossierLex - Configurazione Postazione Colleghi (Rete Studio)
+echo   DossierLex - Configurazione Postazione Colleghi
 echo   Studio Legale Avv. Aurelio Bentivegna
 echo ==============================================================================
 echo.
@@ -9,14 +9,22 @@ echo Questa procedura crea il collegamento sul Desktop di questo computer per ac
 echo a DossierLex in esecuzione sul Server principale dello studio.
 echo Non e' necessario installare Docker, Python o altri componenti pesanti.
 echo.
+echo ------------------------------------------------------------------------------
+echo   INDIRIZZO IP DEL SERVER DI STUDIO:
+echo   - In Studio (Wi-Fi o Cavo LAN):   192.168.1.31   [PREDEFINITO]
+echo   - Da Casa / Remoto (Tailscale):   100.80.46.116
+echo ------------------------------------------------------------------------------
+echo.
+set "SERVER_IP=192.168.1.31"
+set /p "USER_INPUT=Inserisci l'IP del Server [Premi INVIO per usare 192.168.1.31]: "
+if not "%USER_INPUT%"=="" set "SERVER_IP=%USER_INPUT%"
 
-set /p SERVER_IP="Inserisci l'indirizzo IP del PC Server (es. 192.168.1.150): "
-
-if "%SERVER_IP%"=="" (
-    echo [ERRORE] Indirizzo IP non inserito. Operazione annullata.
-    pause
-    exit /b 1
-)
+:: Pulizia da eventuali prefissi, suffissi o spazi digitati per errore
+set "SERVER_IP=%SERVER_IP:http://=%"
+set "SERVER_IP=%SERVER_IP:https://=%"
+set "SERVER_IP=%SERVER_IP::3001=%"
+set "SERVER_IP=%SERVER_IP:/=%"
+set "SERVER_IP=%SERVER_IP: =%"
 
 :: Salva l'icona in una cartella permanente del collega
 set "APP_DIR=%LOCALAPPDATA%\DossierLex"

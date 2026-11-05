@@ -1,0 +1,51 @@
+==============================================================================
+   DOSSIERLEX - GUIDA RAPIDA POSTAZIONI WINDOWS (PORTATILI E FISSI)
+   Studio Legale Avv. Aurelio Bentivegna
+==============================================================================
+
+Questa guida spiega come creare in 5 secondi il collegamento sul Desktop
+per accedere a DossierLex in esecuzione sul Server principale dello studio.
+
+Sul tuo computer NON serve installare Docker, Python né scaricare file pesanti.
+
+------------------------------------------------------------------------------
+COME CREARE IL COLLEGAMENTO SUL DESKTOP:
+------------------------------------------------------------------------------
+1. Assicurati di avere in questa cartella il file "DossierLex.ico".
+2. Fai doppio clic sul file:
+   "Crea_Collegamento_Colleghi.bat"
+
+3. Si aprirà una schermata che ti chiederà l'IP del Server:
+
+   • SE SEI IN STUDIO (Wi-Fi o Cavo LAN dell'ufficio):
+     Basta premere semplicemente il tasto [ INVIO ] sulla tastiera!
+     (Lo script userà automaticamente l'IP predefinito dello studio: 192.168.1.31)
+
+   • SE SEI A CASA / DA REMOTO:
+     Digita l'indirizzo fisso Tailscale:
+     100.80.46.116
+     e premi [ INVIO ].
+
+4. Sul tuo Desktop comparirà l'icona ufficiale "DossierLex".
+
+------------------------------------------------------------------------------
+UTILIZZO QUOTIDIANO:
+------------------------------------------------------------------------------
+Fai semplicemente doppio clic sull'icona "DossierLex" sul Desktop!
+Si aprirà il tuo browser (Google Chrome o Microsoft Edge) direttamente
+sulla schermata principale di gestione pratiche.
+
+------------------------------------------------------------------------------
+ACCESSO DIRETTO DAL BROWSER (Senza icona):
+------------------------------------------------------------------------------
+Puoi accedere anche digitando direttamente nella barra degli indirizzi di Chrome:
+• In Studio (Wi-Fi/LAN): http://192.168.1.31:3001
+• Da Remoto (Tailscale):  http://100.80.46.116:3001
+
+------------------------------------------------------------------------------
+REQUISITI PER FUNZIONARE:
+------------------------------------------------------------------------------
+1. In Studio: il tuo computer deve essere connesso al Wi-Fi o alla rete dello studio.
+2. Da Remoto: devi avere l'applicazione Tailscale attiva e connessa alla rete dello studio.
+3. Il PC Server principale dello studio (PC di Giuseppe) deve essere acceso con DossierLex avviato.
+==============================================================================
