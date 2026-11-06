@@ -412,14 +412,24 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
         row.cell("Parametro Societario")
         row.cell("Dato Rilevato da Fonti Ufficiali")
 
+        c2_fg = str(c2.get("forma_giuridica", "")).lower()
+        is_ditta_indiv = bool(c2.get("is_ditta_individuale")) or any(k in c2_fg for k in ("individuale", "ditta"))
+        cap_val = c2.get("capitale_sociale")
+        if is_ditta_indiv or cap_val is None or cap_val == 0.0 or cap_val == "—":
+            cap_disp = "Non applicabile (Impresa individuale: priva di capitale sociale ex lege)"
+        else:
+            cap_disp = _fmt_eur(cap_val)
+
         info_rows = [
-            ("Denominazione Sociale", c2.get("denominazione", "—")),
+            ("Denominazione Impresa / Ditta" if is_ditta_indiv else "Denominazione Sociale", c2.get("denominazione", "—")),
+            ("Titolare dell'Impresa" if is_ditta_indiv else "Legale Rappresentante", c2.get("titolare") or c2.get("denominazione", "—")),
             ("Forma Giuridica", c2.get("forma_giuridica", "—")),
             ("Codice Fiscale / P.IVA", c2.get("cf_piva", "—")),
             ("Numero R.E.A.", c2.get("rea", "—")),
             ("Sede Legale", c2.get("sede_legale", "—")),
-            ("Data Costituzione", c2.get("data_costituzione", "—")),
-            ("Capitale Sociale", _fmt_eur(c2.get("capitale_sociale"))),
+            ("Data Costituzione / Inizio Attività", c2.get("data_costituzione", "—")),
+            ("Capitale Sociale", cap_disp),
+            ("Regime di Responsabilità", c2.get("regime_patrimoniale", "Responsabilità illimitata ex art. 2740 c.c." if is_ditta_indiv else "Autonomia patrimoniale")),
             ("Codice ATECO", c2.get("codice_ateco", "—")),
             ("Attività Esercitata", c2.get("attivita_prevalente", "—")),
         ]
@@ -429,36 +439,73 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
             row.cell(str(val))
     pdf.ln(3)
 
-    # Tabella Soci
+    # Tabella Soci o Titolare
     soci = c2.get("soci", [])
     if soci:
-        pdf.section_heading("2.2 Compagine Sociale e Governance")
-        _reset_table_palette()
-        soci_w = (pdf.epw * 0.35, pdf.epw * 0.25, pdf.epw * 0.15, pdf.epw * 0.25)
-        with pdf.table(
-            col_widths=soci_w,
-            headings_style=header_style,
-            line_height=4.8,
-            padding=(1.5, 2),
-            borders_layout=TableBordersLayout.ALL,
-            cell_fill_mode=TableCellFillMode.NONE,
-            text_align=("LEFT", "LEFT", "CENTER", "LEFT"),
-        ) as table:
-            row = table.row()
-            row.cell("Nominativo Socio")
-            row.cell("Codice Fiscale")
-            row.cell("Quota %")
-            row.cell("Carica / Ruolo")
-
-            for s in soci:
+        if is_ditta_indiv:
+            pdf.section_heading("2.2 Titolare dell'Impresa e Regime di Responsabilità Patrimoniale")
+            _reset_table_palette()
+            soci_w = (pdf.epw * 0.30, pdf.epw * 0.22, pdf.epw * 0.22, pdf.epw * 0.26)
+            with pdf.table(
+                col_widths=soci_w,
+                headings_style=header_style,
+                line_height=4.8,
+                padding=(1.5, 2),
+                borders_layout=TableBordersLayout.ALL,
+                cell_fill_mode=TableCellFillMode.NONE,
+                text_align=("LEFT", "LEFT", "LEFT", "LEFT"),
+            ) as table:
                 row = table.row()
-                s_name = s.get("nome") or s.get("nominativo") or "—"
-                row.cell(str(s_name), style=bold_style)
-                s_cf = s.get("codice_fiscale") or s.get("cf") or "—"
-                row.cell(str(s_cf))
-                quota = s.get("quota_pct", 0)
-                row.cell(f"{quota}%" if quota else "—")
-                row.cell(str(s.get("ruolo", "Socio")))
+                row.cell("Nominativo Titolare")
+                row.cell("Codice Fiscale")
+                row.cell("Ruolo / Titolarità")
+                row.cell("Regime di Responsabilità")
+
+                for s in soci:
+                    row = table.row()
+                    s_name = s.get("nome") or s.get("nominativo") or "—"
+                    row.cell(str(s_name), style=bold_style)
+                    s_cf = s.get("codice_fiscale") or s.get("cf") or "—"
+                    row.cell(str(s_cf))
+                    row.cell(str(s.get("ruolo", "Titolare unico")))
+                    row.cell(str(s.get("regime_responsabilita", "Illimitata ex art. 2740 c.c.")))
+            pdf.ln(2)
+            pdf.callout_box(
+                "Regime Giuridico dell'Impresa Individuale (art. 2740 c.c.)",
+                "Trattandosi di impresa individuale, non sussiste autonomia patrimoniale perfetta né separazione tra patrimonio "
+                "aziendale e patrimonio personale: il titolare risponde dell'adempimento di tutte le obbligazioni d'impresa "
+                "con l'universalità dei propri beni presenti e futuri. Pertanto, l'eventuale capienza patrimoniale e gli "
+                "strumenti di tutela esecutiva involgono direttamente il compendio immobiliare e mobiliare personale.",
+                tone="warn",
+            )
+        else:
+            pdf.section_heading("2.2 Compagine Sociale e Governance")
+            _reset_table_palette()
+            soci_w = (pdf.epw * 0.35, pdf.epw * 0.25, pdf.epw * 0.15, pdf.epw * 0.25)
+            with pdf.table(
+                col_widths=soci_w,
+                headings_style=header_style,
+                line_height=4.8,
+                padding=(1.5, 2),
+                borders_layout=TableBordersLayout.ALL,
+                cell_fill_mode=TableCellFillMode.NONE,
+                text_align=("LEFT", "LEFT", "CENTER", "LEFT"),
+            ) as table:
+                row = table.row()
+                row.cell("Nominativo Socio")
+                row.cell("Codice Fiscale")
+                row.cell("Quota %")
+                row.cell("Carica / Ruolo")
+
+                for s in soci:
+                    row = table.row()
+                    s_name = s.get("nome") or s.get("nominativo") or "—"
+                    row.cell(str(s_name), style=bold_style)
+                    s_cf = s.get("codice_fiscale") or s.get("cf") or "—"
+                    row.cell(str(s_cf))
+                    quota = s.get("quota_pct", 0)
+                    row.cell(f"{quota}%" if quota else "—")
+                    row.cell(str(s.get("ruolo", "Socio")))
         pdf.ln(3)
 
     if c2.get("natura_crisi"):
@@ -820,6 +867,21 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
                 tone=tone,
             )
 
+        tp = c5.get("test_pratico_ministeriale")
+        if tp and isinstance(tp, dict):
+            pdf.section_heading("5.5 Test Pratico Ministeriale per la Composizione Negoziata (art. 13 CCII)")
+            tp_status = tp.get("status", "warn")
+            tp_tone = "ok" if tp_status == "ok" else ("warn" if tp_status == "warn" else "danger")
+            r_disp = f"{tp['rapporto']:.2f}" if tp.get("rapporto") is not None else "N/D (Flusso nullo o negativo)"
+            flusso_disp = _fmt_eur(tp.get("flusso_annuo_considerato")) if tp.get("flusso_annuo_considerato") is not None else "In attesa di formalizzazione dal cliente"
+            tp_text = (
+                f"• Debito Netto da Risanare: {_fmt_eur(tp.get('debito_netto_da_risanare'))}\n"
+                f"• Flusso Annuo a Regime al Servizio del Debito: {flusso_disp}\n"
+                f"• Rapporto Ministeriale: {r_disp} | Fascia di Risanabilità: {tp.get('fascia_risanabilita', '—')}\n"
+                f"• Valutazione ex Decreto Dirigenziale: {tp.get('descrizione_esito', '')}"
+            )
+            pdf.callout_box("Esito del Test Pratico Ministeriale (D.D. 28/09/2021 & Linee Guida CCII)", tp_text, tone=tp_tone)
+
     # -------------------------------------------------------------------------
     # CAPITOLO 6: PUNTI DA VERIFICARE
     # -------------------------------------------------------------------------
@@ -861,23 +923,67 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     # CAPITOLO 7: DIAGNOSI PRELIMINARE DELLA CRISI
     # -------------------------------------------------------------------------
     c7 = report_data.get("capitolo_7_diagnosi_crisi", {})
-    pdf.chapter_banner("7", "Diagnosi Preliminare della Crisi")
+    pdf.chapter_banner("7", "Diagnosi Preliminare della Crisi e Grado di Risanabilità")
+
+    # 7.1 Semaforo di Risanabilità e Affidabilità Documentale
+    sem = c7.get("diagnosi_semaforo")
+    if sem and isinstance(sem, dict):
+        s_val = sem.get("semaforo", "Incerta")
+        s_tone = "ok" if s_val == "Favorevole" else ("warn" if s_val == "Incerta" else "danger")
+        s_text = (
+            f"• Esito Semaforo di Risanabilità: {s_val.upper()}\n"
+            f"• Grado di Affidabilità Documentale: {sem.get('grado_affidabilita', 'Medio').upper()}\n"
+            f"• Giudizio Sintetico: {sem.get('motivazione', '')}\n"
+            f"• Limiti Informativi e Condizioni: {sem.get('motivo_affidabilita', '')}"
+        )
+        pdf.callout_box("Diagnosi di Risanabilità — Metodologia Semaforo dello Studio", s_text, tone=s_tone)
 
     favs = c7.get("elementi_favorevoli", [])
     if favs:
-        pdf.section_heading("7.1 Fattori di Solidità ed Elementi Favorevoli")
+        pdf.section_heading("7.2 Fattori di Solidità ed Elementi Favorevoli")
         pdf.bullet_list(favs)
 
-    if c7.get("principale_criticita"):
-        pdf.callout_box("7.2 Principale Criticità", c7.get("principale_criticita", ""), tone="danger")
+    # 7.3 Le Cinque Principali Criticità
+    crit5 = c7.get("cinque_principali_criticita", [])
+    if crit5:
+        pdf.section_heading("7.3 Le Cinque Principali Criticità (in ordine decrescente di gravità)")
+        _reset_table_palette()
+        crit_w = (pdf.epw * 0.08, pdf.epw * 0.28, pdf.epw * 0.14, pdf.epw * 0.50)
+        with pdf.table(
+            col_widths=crit_w,
+            headings_style=header_style,
+            line_height=4.6,
+            padding=(1.5, 2),
+            borders_layout=TableBordersLayout.ALL,
+            cell_fill_mode=TableCellFillMode.NONE,
+            text_align=("CENTER", "LEFT", "CENTER", "LEFT"),
+        ) as table:
+            head = table.row()
+            head.cell("N°")
+            head.cell("Criticità Rilevata")
+            head.cell("Gravità")
+            head.cell("Descrizione Contabile / Rimedio Giuridico")
+
+            for cr in crit5:
+                row = table.row()
+                row.cell(str(cr.get("priorita", "—")), style=bold_style)
+                row.cell(str(cr.get("titolo", "—")), style=bold_style)
+                grav = str(cr.get("gravita", "ALTA")).upper()
+                row.cell(grav, style=bold_style)
+                d_full = f"{cr.get('descrizione', '')}\n[Rimedio consigliato: {cr.get('rimedio_consigliato', '')}]"
+                row.cell(d_full)
+        pdf.ln(3)
+
+    if c7.get("principale_criticita") and not crit5:
+        pdf.callout_box("7.3 Principale Criticità", c7.get("principale_criticita", ""), tone="danger")
 
     if c7.get("sintesi_vitalita"):
-        pdf.callout_box("7.3 Giudizio di Vitalità Aziendale", c7.get("sintesi_vitalita", ""), tone="ok")
+        pdf.callout_box("7.4 Giudizio di Vitalità Aziendale", c7.get("sintesi_vitalita", ""), tone="ok")
 
-    # 7.4 Inquadramento Codice della Crisi d'Impresa (CCII)
+    # 7.5 Inquadramento Codice della Crisi d'Impresa (CCII)
     ccii_min = c7.get("inquadramento_ccii")
     if ccii_min and isinstance(ccii_min, dict):
-        pdf.section_heading("7.4 Inquadramento Giuridico CCII (art. 2 e art. 3 D.Lgs. 14/2019)")
+        pdf.section_heading("7.5 Inquadramento Giuridico CCII (art. 2 e art. 3 D.Lgs. 14/2019)")
         qual = ccii_min.get("qualifica_giuridica", "Inquadramento CCII")
         mot = ccii_min.get("motivo_superamento", "")
         procs = ccii_min.get("procedure_esperibili", [])
@@ -1063,11 +1169,39 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     # CAPITOLO 10: DOCUMENTAZIONE ANCORA NECESSARIA
     # -------------------------------------------------------------------------
     c10 = report_data.get("capitolo_10_documentazione", {})
-    pdf.chapter_banner("10", "Documentazione Ancora Necessaria")
+    pdf.chapter_banner("10", "Documentazione Ancora Necessaria e Documenti Indispensabili")
+
+    docs_indisp = c10.get("documenti_indispensabili_prioritari", [])
+    if docs_indisp:
+        pdf.section_heading("10.1 Documenti Integrativi Indispensabili (in ordine di priorità)")
+        _reset_table_palette()
+        di_w = (pdf.epw * 0.08, pdf.epw * 0.38, pdf.epw * 0.40, pdf.epw * 0.14)
+        with pdf.table(
+            col_widths=di_w,
+            headings_style=header_style,
+            line_height=4.6,
+            padding=(1.5, 2),
+            borders_layout=TableBordersLayout.ALL,
+            cell_fill_mode=TableCellFillMode.NONE,
+            text_align=("CENTER", "LEFT", "LEFT", "CENTER"),
+        ) as table:
+            head = table.row()
+            head.cell("Prio")
+            head.cell("Documento Richiesto")
+            head.cell("Finalità Giuridico-Economica")
+            head.cell("Urgenza")
+
+            for di in docs_indisp:
+                row = table.row()
+                row.cell(str(di.get("priorita", "—")), style=bold_style)
+                row.cell(str(di.get("documento", "—")), style=bold_style)
+                row.cell(str(di.get("finalita", "—")))
+                row.cell(str(di.get("urgenza", "ALTA")).upper(), style=bold_style)
+        pdf.ln(3)
 
     doc_mancanti = c10.get("documenti_mancanti", [])
-    if doc_mancanti:
-        pdf.section_heading("Documenti e Chiarimenti da Fornire prima dell'Accesso alla Procedura")
+    if doc_mancanti and not docs_indisp:
+        pdf.section_heading("Dati e Documenti Mancanti Rilevati")
         _reset_table_palette()
         dm_w = (pdf.epw * 0.38, pdf.epw * 0.47, pdf.epw * 0.15)
         with pdf.table(
@@ -1108,10 +1242,30 @@ def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "po
     if c11.get("giudizio_sintetico"):
         pdf.body_paragraph(c11.get("giudizio_sintetico", ""))
 
+    epist = c11.get("metodo_epistemologico")
+    if epist and isinstance(epist, dict):
+        pdf.section_heading("11.1 Metodo di Lavoro: Distinzione Rigorosa tra Fatto, Calcolo, Inferenza, Ipotesi")
+        for categoria in ("FATTO", "CALCOLO", "INFERENZA", "IPOTESI"):
+            items_cat = epist.get(categoria, [])
+            if items_cat:
+                pdf.set_font(pdf.font_family_name, "B", 9)
+                pdf.set_text_color(*COLOR_PRIMARY)
+                pdf.cell(pdf.epw, 5, f"[{categoria}]", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.bullet_list(items_cat)
+                pdf.ln(1)
+
     recs = c11.get("raccomandazioni", [])
     if recs:
-        pdf.section_heading("Raccomandazioni Operative per il Professionista")
+        pdf.section_heading("11.2 Raccomandazioni Operative per il Professionista")
         pdf.bullet_list(recs)
+
+    if c11.get("regola_finale_human_gate"):
+        pdf.ln(2)
+        pdf.callout_box(
+            "Regola Finale e Riserva Professionale (Human Gate)",
+            c11.get("regola_finale_human_gate", ""),
+            tone="ok",
+        )
 
     # Dicitura finale
     dicitura = c11.get("dicitura_finale") or f"PRIMA BOZZA DI ANALISI - ELABORATA IL {draft_date}"

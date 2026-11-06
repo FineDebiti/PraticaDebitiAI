@@ -413,3 +413,331 @@ def check_ccii_segnali_allarme_art3(
         "obbligo_adeguati_assetti": "L'imprenditore e gli organi societari hanno l'obbligo (art. 2086 c.c. e art. 3 CCII) di attivarsi senza indugio per l'adozione tempestiva di uno strumento di composizione della crisi." if has_alert else "Nessun segnale di allarme ex art. 3 co. 4 CCII attualmente conclamato.",
     }
 
+
+# =============================================================================
+# 4. TEST PRATICO MINISTERIALE COMPOSIZIONE NEGOZIATA (D.D. 28/09/2021 & AGG.)
+# =============================================================================
+
+def calculate_test_pratico_ministeriale(
+    debito_totale_da_risanare: float,
+    flusso_annuo_servizio_debito: Optional[float] = None,
+    ebitda_medio_annuo: Optional[float] = None,
+    attivo_disponibile_non_strumentale: float = 0.0,
+) -> Dict[str, Any]:
+    """Calcola il Test Pratico per la ragionevole perseguibilita del risanamento
+    previsto dalla Sezione I del Decreto Dirigenziale Ministero della Giustizia (art. 13 CCII).
+
+    Formula ministeriale:
+      Rapporto = (Debito netto da ristrutturare) / (Flusso annuo a regime al servizio del debito)
+
+    Fasce di Esito Ministeriale:
+      - R <= 1.0: Risanamento agevole / assenza di squilibrio strutturale.
+      - 1.0 < R <= 2.0: Difficolta contenuta / risanamento perseguibile con interventi ordinari di dilazione.
+      - 2.0 < R <= 3.0: Tensione significativa / risanamento con moratorie e accordi ordinari.
+      - 3.0 < R <= 5.0: Crisi conclamata / risanamento complesso: richiede misure protettive, transazione fiscale
+        ex art. 63 CCII o dilazione pluriennale (5-8 anni).
+      - R > 5.0: Squilibrio grave / risanamento altamente critico: presuppone falcidie sostanziali del debito
+        (concordato semplificato, accordo con stralcio elevato) o finanza straordinaria/esterna.
+      - Flusso <= 0: Non perseguibile in continuita diretta ordinaria senza apporto di finanza esterna o turnaround.
+    """
+    debito_lordo = round(_flt(debito_totale_da_risanare), 2)
+    attivo_deducibile = round(_flt(attivo_disponibile_non_strumentale), 2)
+    debito_netto = max(0.0, round(debito_lordo - attivo_deducibile, 2))
+
+    flusso = None
+    flusso_tipo = "non_formalizzato"
+    if flusso_annuo_servizio_debito is not None and flusso_annuo_servizio_debito > 0:
+        flusso = round(_flt(flusso_annuo_servizio_debito), 2)
+        flusso_tipo = "dichiarato_cliente"
+    elif ebitda_medio_annuo is not None:
+        flusso = round(_flt(ebitda_medio_annuo), 2)
+        flusso_tipo = "stimato_da_ebitda"
+
+    if debito_netto == 0.0:
+        return {
+            "rapporto": 0.0,
+            "debito_netto_da_risanare": 0.0,
+            "flusso_annuo_considerato": flusso,
+            "flusso_tipo": flusso_tipo,
+            "esito_codice": "assenza_debito",
+            "fascia_risanabilita": "Agevole",
+            "descrizione_esito": "Assenza di debito netto da ristrutturare: risanamento pienamente perseguibile.",
+            "status": "ok",
+            "normativa": "D.D. Ministero della Giustizia per la Composizione Negoziata (art. 13 CCII)",
+        }
+
+    if flusso is None or flusso <= 0.0:
+        return {
+            "rapporto": None,
+            "debito_netto_da_risanare": debito_netto,
+            "flusso_annuo_considerato": flusso,
+            "flusso_tipo": flusso_tipo,
+            "esito_codice": "flusso_negativo_o_assente",
+            "fascia_risanabilita": "Non perseguibile in continuita diretta",
+            "descrizione_esito": (
+                "Flusso annuo a servizio del debito nullo o negativo. La gestione ordinaria non genera cassa "
+                "sufficiente a rimborsare il debito (€ {:,.2f}). Il risanamento richiede una profonda ristrutturazione "
+                "industriale, apporto di finanza esterna, o strumenti liquidatori/concordatari (es. Concordato Semplificato)."
+            ).format(debito_netto),
+            "status": "danger",
+            "normativa": "D.D. Ministero della Giustizia per la Composizione Negoziata (art. 13 CCII)",
+        }
+
+    ratio = round(debito_netto / flusso, 2)
+
+    if ratio <= 1.0:
+        esito = "Agevole (R <= 1.0): Debito riassorbibile in meno di un anno di flussi operativi."
+        fascia = "Favorevole"
+        st = "ok"
+    elif ratio <= 2.0:
+        esito = f"Contenuta (R={ratio:.2f}): Debito riassorbibile in circa {ratio:.1f} anni mediante dilazioni ordinarie."
+        fascia = "Favorevole"
+        st = "ok"
+    elif ratio <= 3.0:
+        esito = f"Tensione significativa (R={ratio:.2f}): Necessita di moratorie o accordi di ristrutturazione a medio termine (3-4 anni)."
+        fascia = "Incerta"
+        st = "warn"
+    elif ratio <= 5.0:
+        esito = f"Crisi conclamata (R={ratio:.2f}): Risanamento complesso. Richiede misure protettive, transazione fiscale ex art. 63 CCII o dilazione a lungo termine (5-8 anni)."
+        fascia = "Critica"
+        st = "danger"
+    else:
+        esito = f"Squilibrio strutturale grave (R={ratio:.2f} > 5.0): Risanamento possibile solo previa rilevante falcidia del debito (stralcio fiscale/bancario) o finanza straordinaria/esterna."
+        fascia = "Critica"
+        st = "danger"
+
+    return {
+        "rapporto": ratio,
+        "debito_netto_da_risanare": debito_netto,
+        "flusso_annuo_considerato": flusso,
+        "flusso_tipo": flusso_tipo,
+        "esito_codice": f"fascia_{ratio:.1f}",
+        "fascia_risanabilita": fascia,
+        "descrizione_esito": esito,
+        "status": st,
+        "normativa": "D.D. Ministero della Giustizia per la Composizione Negoziata (art. 13 CCII)",
+    }
+
+
+# =============================================================================
+# 5. DIAGNOSI DI RISANABILITA: SEMAFORO, 5 CRITICITA E DOCUMENTI INDISPENSABILI
+# =============================================================================
+
+def evaluate_risanabilita_diagnosi(
+    ebitda_ultimo: float,
+    ebitda_penultimo: Optional[float],
+    pfn_ebitda_ratio: Optional[float],
+    test_pratico_ratio: Optional[float],
+    ha_sofferenze_cr: bool,
+    debito_tributario_scaduto: float,
+    flusso_annuo_formalizzato: bool,
+    ha_patrimonio_immobiliare: bool = False,
+) -> Dict[str, Any]:
+    """Determina il Semaforo di Risanabilita (Favorevole, Incerta, Critica, Non valutabile)
+    e il relativo Grado di Affidabilita (Basso, Medio, Alto)."""
+
+    # Valutazione Semaforo
+    if ebitda_ultimo <= 0.0 or (pfn_ebitda_ratio is not None and pfn_ebitda_ratio > 10.0):
+        if ha_patrimonio_immobiliare or (ebitda_penultimo is not None and ebitda_penultimo > 0):
+            semaforo = "Incerta"
+            motivazione = (
+                "Marginalita operativa dell'ultimo esercizio negativa o fortemente compressa, "
+                "ma compensata da patrimonio immobiliare aggredibile e da pregressa capacita storica "
+                "di generare reddito. Il risanamento dipende da un accordo di ristrutturazione del debito erariale."
+            )
+        else:
+            semaforo = "Critica"
+            motivazione = (
+                "Marginalita operativa negativa, assenza di cassa libera prospettica e squilibrio "
+                "finanziario grave. Prospettive di risanamento in continuita diretta altamente problematiche "
+                "in assenza di nuova finanza o radicale ristrutturazione debitoria."
+            )
+    elif pfn_ebitda_ratio is not None and pfn_ebitda_ratio <= 3.0 and not ha_sofferenze_cr:
+        semaforo = "Favorevole"
+        motivazione = "Parametri di redditivita e indebitamento ampiamente sostenibili nei limiti ordinari."
+    elif pfn_ebitda_ratio is not None and pfn_ebitda_ratio <= 6.0:
+        semaforo = "Incerta"
+        motivazione = "Indebitamento significativo che richiede monitoraggio e rimodulazione del debito a medio termine."
+    else:
+        semaforo = "Critica"
+        motivazione = "Rapporto debito/redditivita critico con elevata esposizione erariale scaduta."
+
+    # Grado di Affidabilita
+    if flusso_annuo_formalizzato and ebitda_ultimo is not None and ebitda_penultimo is not None:
+        affidabilita = "Alto"
+        motivo_aff = "Disponibilita di bilanci pluriennali comparabili e flusso di cassa validato."
+    elif ebitda_ultimo is not None:
+        affidabilita = "Medio"
+        motivo_aff = (
+            "Dati contabili ed estratti debitori disponibili, ma in assenza di quantificazione formale "
+            "del flusso prospettico a 12 mesi da parte dell'imprenditore (DSCR da stimare)."
+        )
+    else:
+        affidabilita = "Basso"
+        motivo_aff = "Dati frammentari o lacunosi che impongono verifiche contabili integrative."
+
+    return {
+        "semaforo": semaforo,
+        "grado_affidabilita": affidabilita,
+        "motivazione": motivazione,
+        "motivo_affidabilita": motivo_aff,
+    }
+
+
+def classify_cinque_criticita(
+    debito_ader_scaduto: float,
+    ebitda_storico: float,
+    ebitda_ultimo: float,
+    utile_ultimo: float,
+    pfn_totale: float,
+    pfn_eval_status: str,
+    is_ditta_individuale: bool,
+    ha_dati_infrannuali: bool,
+    ha_sofferenze_cr: bool,
+    procedure_ader_attive: int = 0,
+) -> List[Dict[str, Any]]:
+    """Identifica e ordina rigorosamente per gravita decrescente le 5 Principali Criticita della posizione."""
+    items = []
+
+    # 1. Debito Fiscale / AdER
+    if debito_ader_scaduto > 50000.0 or procedure_ader_attive > 0:
+        desc = (
+            f"Esposizione debitoria tributaria ed esattoriale verso Agenzia delle Entrate - Riscossione "
+            f"pari a € {debito_ader_scaduto:,.2f}"
+        )
+        if procedure_ader_attive > 0:
+            desc += f", con {procedure_ader_attive} procedure esecutive/cautelari (fermi/ipoteche) formalizzate"
+        desc += ". Tale passivita supera le soglie di allarme ex art. 25-novies CCII e richiede un intervento di regolazione immediato."
+        items.append({
+            "priorita": 1,
+            "titolo": "Esposizione debitoria erariale e procedure AdER",
+            "gravita": "Critica",
+            "descrizione": desc,
+            "rimedio_consigliato": "Accesso tempestivo a misure protettive ex art. 18 CCII e formulazione di Transazione Fiscale con rateizzazione straordinaria ex art. 63 CCII.",
+        })
+
+    # 2. Inversione Marginalita / Perdita d'Esercizio
+    if ebitda_ultimo <= 0.0 or utile_ultimo < 0.0:
+        desc = (
+            f"Flessione della redditivita operativa nell'ultimo esercizio con Margine Operativo Lordo (MOL/EBITDA) "
+            f"pari a € {ebitda_ultimo:,.2f} (a fronte di € {ebitda_storico:,.2f} dell'esercizio precedente) "
+            f"e perdita netta pari a € {utile_ultimo:,.2f}. La gestione caratteristica recente assorbe liquidita anziche generarla."
+        )
+        items.append({
+            "priorita": 2,
+            "titolo": "Inversione della redditivita operativa e perdita d'esercizio",
+            "gravita": "Alta",
+            "descrizione": desc,
+            "rimedio_consigliato": "Intervento di riequilibrio dei costi operativi (B) e verifica della tenuta dei margini commerciali sui dati infra-annuali correnti.",
+        })
+
+    # 3. Sostenibilita Debito Finanziario / PFN
+    desc_pfn = (
+        f"Posizione Finanziaria Netta complessiva stimata in € {pfn_totale:,.2f}. "
+        "A fronte di un EBITDA recente compresso o negativo, il debito complessivo non puo essere riassorbito "
+        "tramite i soli flussi ordinari di cassa nei tempi standard di tolleranza bancaria (PFN/EBITDA > soglie ordinarie)."
+    )
+    items.append({
+        "priorita": 3,
+        "titolo": "Tensione finanziaria e sostenibilita del debito complessivo",
+        "gravita": "Alta" if pfn_eval_status in ("danger", "warn") else "Media",
+        "descrizione": desc_pfn,
+        "rimedio_consigliato": "Consolidamento e allungamento delle scadenze bancarie e rimodulazione dell'indebitamento a medio/lungo termine.",
+    })
+
+    # 4. Profilo Giuridico: Responsabilita Patrimoniale Illimitata
+    if is_ditta_individuale:
+        desc_resp = (
+            "Forma giuridica di Impresa Individuale priva di autonomia patrimoniale perfetta e di capitale sociale: "
+            "ai sensi dell'art. 2740 c.c., il titolare risponde dell'adempimento di tutte le obbligazioni d'impresa "
+            "con il proprio patrimonio personale presente e futuro, esponendo ad aggressione esecutiva i beni immobili censiti."
+        )
+        items.append({
+            "priorita": 4,
+            "titolo": "Responsabilita patrimoniale personale illimitata (art. 2740 c.c.)",
+            "gravita": "Alta",
+            "descrizione": desc_resp,
+            "rimedio_consigliato": "Attivazione di misure protettive del patrimonio individuale tramite la Composizione Negoziata della Crisi o istituti CCII a tutela del patrimonio personale.",
+        })
+    else:
+        items.append({
+            "priorita": 4,
+            "titolo": "Impegni di garanzia personale e fideiussioni",
+            "gravita": "Media",
+            "descrizione": "Esposizione degli organi sociali o garanti a fideiussioni e garanzie personali a supporto degli affidamenti bancari.",
+            "rimedio_consigliato": "Rinegoziazione contestuale delle garanzie fideiussorie in sede di accordo con il ceto bancario.",
+        })
+
+    # 5. Asimmetria Informativa e Documentazione Infra-annuale
+    items.append({
+        "priorita": 5,
+        "titolo": "Asimmetria informativa contabile e necessita di attestazione flussi",
+        "gravita": "Media",
+        "descrizione": (
+            "I dati economici infra-annuali piu recenti costituiscono risultanze contabili provvisorie non asseverate, "
+            "e manca allo stato l'indicazione formalizzata del flusso di cassa prospettico a 12 mesi (DSCR) "
+            "che il debitore puo ragionevolmente destinare al risanamento."
+        ),
+        "rimedio_consigliato": "Formalizzazione del budget di cassa prospettico e asseverazione contabile della situazione economico-patrimoniale aggiornata.",
+    })
+
+    # Ordina per priorita
+    items.sort(key=lambda x: x["priorita"])
+    return items[:5]
+
+
+def identify_documenti_indispensabili(
+    has_fs_recent: bool = True,
+    has_tax_return: bool = False,
+    has_cr: bool = True,
+    has_ader_statement: bool = True,
+    has_dscr_projection: bool = False,
+    has_bank_contracts: bool = False,
+    has_real_estate_appraisal: bool = False,
+) -> List[Dict[str, Any]]:
+    """Elenca i documenti integrativi indispensabili per la conclusione della diagnosi, ordinati per priorita."""
+    docs = []
+
+    if not has_tax_return:
+        docs.append({
+            "priorita": 1,
+            "documento": "Dichiarazione dei redditi (Modello Redditi PF / SC / SP) ultimo esercizio con ricevuta telematica Entratel",
+            "finalita": "Riscontro ufficiale del fatturato, dei costi deducibili e delle perdite fiscali riportabili.",
+            "urgenza": "Massima",
+        })
+
+    if not has_dscr_projection:
+        docs.append({
+            "priorita": 2,
+            "documento": "Budget di cassa previsionale a 12 mesi e stima del flusso annuo destinabile al piano",
+            "finalita": "Calcolo rigoroso del DSCR (Debt Service Coverage Ratio) e quantificazione della proposta ai creditori ex CCII.",
+            "urgenza": "Massima",
+        })
+
+    docs.append({
+        "priorita": 3,
+        "documento": "Situazione contabile aggiornata con mastrini clienti/fornitori ed estratti conto bancari ultimi 6 mesi",
+        "finalita": "Verifica del capitale circolante netto (CCN), liquidita effettiva e debiti fornitore scaduti da oltre 90 giorni.",
+        "urgenza": "Alta",
+    })
+
+    if not has_bank_contracts:
+        docs.append({
+            "priorita": 4,
+            "documento": "Copia integrale contratti di mutuo/finanziamento bancario e lettere di fideiussione personale",
+            "finalita": "Accertamento clausole di decadenza dal beneficio del termine, tassi applicati e garanzie personali dei soci/titolare.",
+            "urgenza": "Media",
+        })
+
+    if not has_real_estate_appraisal:
+        docs.append({
+            "priorita": 5,
+            "documento": "Perizia di stima asseverata o relazione tecnica aggiornata sul valore venale del compendio immobiliare",
+            "finalita": "Valutazione della capienza patrimoniale per il ceto creditorio nel test di convenienza rispetto alla liquidazione giudiziale.",
+            "urgenza": "Media",
+        })
+
+    docs.sort(key=lambda x: x["priorita"])
+    return docs
+
+

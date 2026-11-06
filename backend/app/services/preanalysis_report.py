@@ -31,6 +31,10 @@ from app.services.statutory_knowledge import (
     evaluate_pfn_ebitda,
     check_ccii_soglie_impresa_minore,
     check_ccii_segnali_allarme_art3,
+    calculate_test_pratico_ministeriale,
+    evaluate_risanabilita_diagnosi,
+    classify_cinque_criticita,
+    identify_documenti_indispensabili,
 )
 
 
@@ -117,8 +121,40 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     now = datetime.now()
     mese_anno_corrente = now.strftime("%B %Y").upper()
 
-    client_display = (company.name if company and company.name else case.client_name) or "CLIENTE"
-    client_tax_code = (company.vat or company.tax_code if company else case.client_tax_code) or ""
+    # Rilevamento Impresa / Ditta Individuale vs Società
+    is_individual = False
+    if company:
+        lf = (company.legal_form or "").lower()
+        ct = (company.company_type or "").lower()
+        if any(k in lf for k in ("individuale", "ditta", "persona fisica", "libero professionista")) or any(k in ct for k in ("individuale", "ditta")):
+            is_individual = True
+    if debtor and (debtor.client_type or "").lower() in ("ditta_individuale", "privato"):
+        if not company or any(k in (company.legal_form or "").lower() for k in ("individuale", "ditta")):
+            is_individual = True
+
+    titolare_nominativo = (f"{debtor.first_name} {debtor.last_name}".strip() if debtor and debtor.first_name else (case.client_name or "")).strip()
+    ditta_denominazione = (company.name if company and company.name else titolare_nominativo) or "CLIENTE"
+    client_display = ditta_denominazione
+    client_tax_code = (company.vat or company.tax_code if company else (debtor.tax_code if debtor else case.client_tax_code)) or ""
+
+    # REA con sigla provincia CCIAA (es. PA - 409999)
+    rea_val = (company.rea if company else "") or ""
+    cciaa_val = (company.cciaa if company else "") or ""
+    if rea_val and rea_val != "—":
+        if cciaa_val and not rea_val.upper().startswith(cciaa_val.upper()[:2]):
+            prov_sigla = "PA" if "palermo" in cciaa_val.lower() else (cciaa_val[:2].upper() if len(cciaa_val) == 2 else cciaa_val)
+            rea_display = f"{prov_sigla} - {rea_val}"
+        else:
+            rea_display = rea_val
+    else:
+        rea_display = "—"
+
+    if is_individual:
+        capitale_sociale_val = None
+        capitale_sociale_display = "Non applicabile (Impresa individuale: priva di capitale sociale ex lege)"
+    else:
+        capitale_sociale_val = float(company.capital or 10000.0) if company else 10000.0
+        capitale_sociale_display = _fmt_eur(capitale_sociale_val)
 
     # =========================================================================
     # CAP. 1: PREMESSA E DOCUMENTI UTILIZZATI
@@ -183,12 +219,33 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
             continue
         if key:
             seen_soci.add(key)
+        
+        if is_individual:
+            ruolo_str = "Titolare dell'impresa / Legale rappresentante"
+            quota_val = 100.0
+            resp_str = "Responsabilità illimitata ex art. 2740 c.c."
+        else:
+            ruolo_str = m.roles or ("Legale rappresentante" if m.is_legal_rep else "Socio")
+            quota_val = m.quota_percent
+            resp_str = "Limitata al capitale sociale conferito"
+
         soci_list.append({
             "nome": m.name,
             "codice_fiscale": m.tax_code or None,
-            "quota_pct": m.quota_percent,
-            "ruolo": m.roles or ("Legale rappresentante" if m.is_legal_rep else "Socio"),
+            "quota_pct": quota_val,
+            "ruolo": ruolo_str,
             "garante": m.is_client or "garante" in (m.roles or "").lower(),
+            "regime_responsabilita": resp_str,
+        })
+
+    if not soci_list and is_individual and titolare_nominativo:
+        soci_list.append({
+            "nome": titolare_nominativo.upper(),
+            "codice_fiscale": (debtor.tax_code if debtor else case.client_tax_code) or None,
+            "quota_pct": 100.0,
+            "ruolo": "Titolare dell'impresa individuale",
+            "garante": True,
+            "regime_responsabilita": "Responsabilità illimitata ex art. 2740 c.c.",
         })
 
     # =========================================================================
@@ -680,6 +737,53 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     ratio_val = pfn_eval.get("ratio")
     pfn_ratio_str = f"{ratio_val:.2f}" if ratio_val is not None else "critico"
 
+    ebitda_ultimo_ex = esercizi_economici[-1]["mol"] if esercizi_economici else 0.0
+    ebitda_penultimo_ex = esercizi_economici[-2]["mol"] if len(esercizi_economici) >= 2 else None
+
+    # Test Pratico Ministeriale Composizione Negoziata (art. 13 CCII / D.D. 28/09/2021)
+    debito_tot_risanabile = (pfn_obj.get("totale_passivita_finanziarie_e_assimilate") or tot_massa_stimata) or 0.0
+    test_pratico_obj = calculate_test_pratico_ministeriale(
+        debito_totale_da_risanare=debito_tot_risanabile,
+        flusso_annuo_servizio_debito=None,
+        ebitda_medio_annuo=ebitda_ultimo_ex if ebitda_ultimo_ex > 0 else (ebitda_penultimo_ex if (ebitda_penultimo_ex or 0) > 0 else None),
+        attivo_disponibile_non_strumentale=0.0,
+    )
+
+    # Diagnosi Semaforo e 5 Principali Criticità
+    diagnosi_semaforo = evaluate_risanabilita_diagnosi(
+        ebitda_ultimo=ebitda_ultimo_ex,
+        ebitda_penultimo=ebitda_penultimo_ex,
+        pfn_ebitda_ratio=pfn_eval.get("ratio"),
+        test_pratico_ratio=test_pratico_obj.get("rapporto"),
+        ha_sofferenze_cr=bool(cr and cr.has_sofferenze),
+        debito_tributario_scaduto=tot_ader_scad,
+        flusso_annuo_formalizzato=False,
+        ha_patrimonio_immobiliare=bool(real_estates),
+    )
+
+    cinque_criticita = classify_cinque_criticita(
+        debito_ader_scaduto=tot_ader_scad,
+        ebitda_storico=ebitda_penultimo_ex or 0.0,
+        ebitda_ultimo=ebitda_ultimo_ex,
+        utile_ultimo=esercizi_economici[-1]["utile_perdita"] if esercizi_economici else 0.0,
+        pfn_totale=pfn_obj.get("pfn_totale", 0.0),
+        pfn_eval_status=pfn_eval.get("status", "warn"),
+        is_ditta_individuale=is_individual,
+        ha_dati_infrannuali=bool(dato_infrannuale),
+        ha_sofferenze_cr=bool(cr and cr.has_sofferenze),
+        procedure_ader_attive=sum(1 for it in (s.items for s in statements) if it.proc_attive) if statements else 0,
+    )
+
+    documenti_indispensabili = identify_documenti_indispensabili(
+        has_fs_recent=bool(fss),
+        has_tax_return=any("redditi" in d.original_filename.lower() or "dichiarazione" in d.original_filename.lower() for d in docs),
+        has_cr=bool(cr or exposures),
+        has_ader_statement=bool(statements or any("saldare" in d.original_filename.lower() for d in docs)),
+        has_dscr_projection=False,
+        has_bank_contracts=any("contratto" in d.original_filename.lower() or "mutuo" in d.original_filename.lower() for d in docs),
+        has_real_estate_appraisal=any("perizia" in d.original_filename.lower() for d in docs),
+    )
+
     # Inquadramento CCII: soglie art. 2 e segnali allarme art. 3 co. 4
     attivi_tri = [float(f.total_assets or 0.0) for f in fss if f.total_assets]
     ricavi_tri = [float(f.revenues or 0.0) for f in fss if f.revenues]
@@ -768,7 +872,8 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
         "header": {
             "titolo": "PREANALISI ECONOMICO-FINANZIARIA E IPOTESI DI RISANAMENTO",
             "cliente": client_display,
-            "forma_giuridica": (company.legal_form if company else "Società a responsabilità limitata") or "SRL",
+            "titolare": titolare_nominativo,
+            "forma_giuridica": ("Impresa individuale" if is_individual else (company.legal_form if company else "Società a responsabilità limitata")) or "Impresa individuale",
             "codice_fiscale": client_tax_code,
             "sottotitolo": "Composizione Negoziata della Crisi — Ipotesi preliminare di proposta al ceto creditorio",
             "riservatezza": f"Documento di lavoro riservato - {mese_anno_corrente}",
@@ -790,19 +895,26 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
         },
         "capitolo_2_profilo": {
             "denominazione": client_display,
-            "forma_giuridica": (company.legal_form if company else "SRL") or "SRL",
+            "titolare": titolare_nominativo,
+            "forma_giuridica": ("Impresa individuale" if is_individual else (company.legal_form if company else "SRL")) or "Impresa individuale",
+            "is_ditta_individuale": is_individual,
             "cf_piva": client_tax_code,
-            "rea": (company.rea if company else "") or "—",
+            "rea": rea_display,
             "sede_legale": (company.legal_address if company else "") or "—",
             "data_costituzione": (company.constitution_date if company else "") or "—",
-            "capitale_sociale": float(company.capital or 10000.0) if company else 10000.0,
+            "capitale_sociale": capitale_sociale_val,
+            "capitale_sociale_display": capitale_sociale_display,
+            "regime_patrimoniale": (
+                "Responsabilità personale illimitata ex art. 2740 c.c. (assenza di autonomia patrimoniale o capitale sociale: "
+                "il titolare risponde dell'adempimento delle obbligazioni con tutti i propri beni presenti e futuri)."
+            ) if is_individual else "Autonomia patrimoniale perfetta.",
             "codice_ateco": (company.ateco if company else "") or "—",
             "attivita_prevalente": (company.business_summary if company else "") or "Attività commerciale e industriale",
             "soci": soci_list,
             "natura_crisi": (
-                f"L'analisi documentale condotta su {client_display} evidenzia una situazione debitoria "
-                f"derivante principalmente dall'accumulo di passività verso l'Erario ({_fmt_eur(tot_ader_scad)}) e "
-                f"verso il sistema bancario/commerciale, a fronte di una gestione caratteristica che richiede "
+                f"L'analisi documentale condotta su {client_display} ({'Impresa individuale' if is_individual else 'Società'}) "
+                f"evidenzia una situazione debitoria derivante principalmente dall'accumulo di passività verso l'Erario ({_fmt_eur(tot_ader_scad)}) "
+                f"e verso il sistema bancario/commerciale, a fronte di una gestione caratteristica che richiede "
                 f"un tempestivo intervento di regolazione per ristabilire l'equilibrio economico-finanziario."
             ),
         },
@@ -845,6 +957,7 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
             },
             "tabella_pfn_esma": pfn_obj,
             "valutazione_pfn_ebitda": pfn_eval,
+            "test_pratico_ministeriale": test_pratico_obj,
             "cautele_sintesi": (
                 "La stima della massa debitoria è costruita incrociando le banche dati esterne (AdER, Centrale Rischi, CRIF/CTC) "
                 "con la contabilità societaria per eliminare ogni duplicazione. "
@@ -867,6 +980,8 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
             ),
             "inquadramento_ccii": ccii_minore,
             "segnali_allarme_art3": ccii_art3,
+            "diagnosi_semaforo": diagnosi_semaforo,
+            "cinque_principali_criticita": cinque_criticita,
         },
         "capitolo_8_patrimonio": {
             "immobili": immobili_table,
@@ -895,6 +1010,7 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
         },
         "capitolo_10_documentazione": {
             "documenti_mancanti": doc_mancanti,
+            "documenti_indispensabili_prioritari": documenti_indispensabili,
             "flusso_richiesto": "Indicazione del cliente in merito al flusso annuo di cassa ragionevolmente destinabile al risanamento, necessaria per quantificare la proposta ai creditori.",
         },
         "capitolo_11_conclusione": {
@@ -904,7 +1020,36 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
                 f"(circa € {tot_massa_stimata:,.2f}), a fronte di un patrimonio netto positivo e di un fatturato stabile, "
                 f"è compatibile con una manovra di risanamento in continuità guidata."
             ),
+            "metodo_epistemologico": {
+                "FATTO": [
+                    f"Dati anagrafici e R.E.A. certificati da Visura Camerale CCIAA ({rea_display}, sede legale in {(company.legal_address if company else '') or '—'}).",
+                    f"Carichi esattoriali e cartelle iscritte a ruolo AdER per complessivi {_fmt_eur(tot_ader_scad)}.",
+                    f"Dati contabili registrati nelle situazioni economiche (Ricavi 2024 € {esercizi_economici[0]['ricavi_a1']:,.2f}; Ricavi 2025 € {esercizi_economici[-1]['ricavi_a1']:,.2f})." if esercizi_economici else "Dati contabili estratti.",
+                    f"Unità immobiliari censite al Catasto Fabbricati ({len(real_estates)} unità) per valore catastale di {_fmt_eur(tot_catastale)}.",
+                ],
+                "CALCOLO": [
+                    f"Margine Operativo Lordo (MOL / EBITDA ex OIC 12 - CNDCEC marzo 2024): 2024 pari a {_fmt_eur(esercizi_economici[0]['mol'] if esercizi_economici else 0)}; 2025 pari a {_fmt_eur(ebitda_ultimo_ex)}.",
+                    f"Posizione Finanziaria Netta ex ESMA 2021 n. 39: {_fmt_eur(pfn_obj.get('pfn_totale'))}.",
+                    f"Test Pratico Ministeriale per la Composizione Negoziata (art. 13 CCII): debito netto {_fmt_eur(test_pratico_obj.get('debito_netto_da_risanare'))}.",
+                ],
+                "INFERENZA": [
+                    f"Inquadramento dimensionale CCII: {ccii_minore['qualifica_giuridica']} ({ccii_minore['motivo_superamento']}).",
+                    "Sussistenza dei presupposti soggettivi e oggettivi per l'accesso a strumenti di regolazione della crisi ex CCII.",
+                    "Necessità di accordo di ristrutturazione o transazione fiscale ex art. 63 CCII con dilazione e falcidia sanzioni/interessi.",
+                ],
+                "IPOTESI": [
+                    "Flusso annuo di cassa a regime destinabile al servizio del debito (in attesa di attestazione formale del cliente).",
+                    "Percentuale di stralcio del debito erariale ottenibile in sede di composizione o transazione fiscale.",
+                ],
+            },
             "raccomandazioni": raccomandazioni,
+            "regola_finale_human_gate": (
+                "La presente relazione costituisce pre-analisi economico-finanziaria rigorosa e indipendente a supporto "
+                "dello Studio Legale. Non ha la finalità di dimostrare aprioristicamente la risanabilità dell'impresa, bensì di "
+                "verificare se essa produca reddito, generi cassa sufficiente e possa sostenere il debito. "
+                "La valutazione conclusiva sulla fattibilità strategica e la scelta definitiva dello strumento giuridico "
+                "rimangono riservate in via esclusiva all'Avv. Aurelio Bentivegna (Human Gate)."
+            ),
             "dicitura_finale": f"PRIMA BOZZA DI ANALISI - ELABORATA IL {now.strftime('%d/%m/%Y').upper()}",
         },
         "studio_rules": [

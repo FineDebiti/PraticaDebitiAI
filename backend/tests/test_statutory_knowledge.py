@@ -6,6 +6,10 @@ from app.services.statutory_knowledge import (
     evaluate_pfn_ebitda,
     check_ccii_soglie_impresa_minore,
     check_ccii_segnali_allarme_art3,
+    calculate_test_pratico_ministeriale,
+    evaluate_risanabilita_diagnosi,
+    classify_cinque_criticita,
+    identify_documenti_indispensabili,
 )
 
 
@@ -134,4 +138,82 @@ def test_ccii_segnali_allarme_art3():
     )
     assert alert["ha_segnali_allarme_art3"] is True
     assert alert["segnali"][0]["codice"] == "art25_novies_ader"
+
+
+def test_calculate_test_pratico_ministeriale():
+    # 1. Debito estinguibile con flusso positivo (R <= 2.0 -> Favorevole)
+    res_ok = calculate_test_pratico_ministeriale(
+        debito_totale_da_risanare=100000.0,
+        flusso_annuo_servizio_debito=60000.0,
+    )
+    assert res_ok["status"] == "ok"
+    assert res_ok["rapporto"] == 1.67
+    assert res_ok["fascia_risanabilita"] == "Favorevole"
+
+    # 2. Debito elevato con flusso debole (R > 5.0 -> Critica)
+    res_crit = calculate_test_pratico_ministeriale(
+        debito_totale_da_risanare=350000.0,
+        flusso_annuo_servizio_debito=40000.0,
+    )
+    assert res_crit["status"] == "danger"
+    assert res_crit["rapporto"] == 8.75
+    assert res_crit["fascia_risanabilita"] == "Critica"
+
+    # 3. Flusso negativo o nullo (Non perseguibile in continuità diretta)
+    res_neg = calculate_test_pratico_ministeriale(
+        debito_totale_da_risanare=300000.0,
+        flusso_annuo_servizio_debito=None,
+        ebitda_medio_annuo=-20000.0,
+    )
+    assert res_neg["status"] == "danger"
+    assert res_neg["rapporto"] is None
+    assert "Non perseguibile" in res_neg["fascia_risanabilita"]
+
+
+def test_diagnosi_risanabilita_and_criticita():
+    diag = evaluate_risanabilita_diagnosi(
+        ebitda_ultimo=-43000.0,
+        ebitda_penultimo=147000.0,
+        pfn_ebitda_ratio=None,
+        test_pratico_ratio=None,
+        ha_sofferenze_cr=False,
+        debito_tributario_scaduto=200000.0,
+        flusso_annuo_formalizzato=False,
+        ha_patrimonio_immobiliare=True,
+    )
+    assert diag["semaforo"] == "Incerta"
+    assert diag["grado_affidabilita"] == "Medio"
+
+    critiche = classify_cinque_criticita(
+        debito_ader_scaduto=201000.0,
+        ebitda_storico=147000.0,
+        ebitda_ultimo=-43000.0,
+        utile_ultimo=-63000.0,
+        pfn_totale=330000.0,
+        pfn_eval_status="danger",
+        is_ditta_individuale=True,
+        ha_dati_infrannuali=True,
+        ha_sofferenze_cr=False,
+        procedure_ader_attive=1,
+    )
+    assert len(critiche) == 5
+    assert critiche[0]["priorita"] == 1
+    assert "erariale" in critiche[0]["titolo"].lower()
+    # Verifica che la ditta individuale abbia la priorità sulla responsabilità personale
+    resp_crit = next(c for c in critiche if "responsabilita" in c["titolo"].lower())
+    assert "2740" in resp_crit["descrizione"]
+
+
+def test_identify_documenti_indispensabili():
+    docs = identify_documenti_indispensabili(
+        has_fs_recent=True,
+        has_tax_return=False,
+        has_cr=True,
+        has_ader_statement=True,
+        has_dscr_projection=False,
+    )
+    assert len(docs) >= 3
+    assert any("redditi" in d["documento"].lower() for d in docs)
+    assert any("budget" in d["documento"].lower() for d in docs)
+
 

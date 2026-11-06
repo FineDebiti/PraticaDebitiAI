@@ -83,23 +83,45 @@ def _reconcile_company_profile(
     costituzione = vis_imp.get("data_costituzione") or vis_sec.get("data_costituzione")
     capitale = vis_imp.get("capitale_conferimenti") or vis_imp.get("capitale_sociale")
 
+    # Aggiorna anche la riga Company nel DB per coerenza persistente
+    company = db.query(Company).filter_by(case_id=case_id).first()
+
+    # Rilevamento Impresa Individuale e verifica regola Divieto Capitale Sociale
+    cap2_fg = (cap2.get("forma_giuridica") or "").lower()
+    comp_lf = ((company.legal_form or "") if company else "").lower()
+    is_individual = (
+        bool(cap2.get("is_ditta_individuale"))
+        or any(k in cap2_fg for k in ("individuale", "ditta"))
+        or any(k in comp_lf for k in ("individuale", "ditta"))
+    )
+    has_cap_ban = any("capitale" in (r.rule_title or "").lower() or "ditta" in (r.rule_title or "").lower() for r in rules)
+
+    if is_individual or has_cap_ban:
+        cap2["capitale_sociale"] = None
+        cap2["capitale_sociale_display"] = "Non applicabile (Impresa individuale: priva di capitale sociale ex lege)"
+        if company:
+            company.capital = 0.0
+            db.add(company)
+    elif capitale and (not cap2.get("capitale_sociale") or cap2.get("capitale_sociale") in (0, 0.0, "—")):
+        try:
+            cap2["capitale_sociale"] = float(capitale)
+        except Exception:
+            pass
+
     # Se non c'erano in cap2 o erano '—', valorizziamo dalla visura
     if rea and (not cap2.get("rea") or cap2.get("rea") == "—"):
-        cap2["rea"] = rea
+        if company and company.cciaa and not str(rea).upper().startswith(company.cciaa.upper()[:2]):
+            prov_sigla = "PA" if "palermo" in company.cciaa.lower() else (company.cciaa[:2].upper() if len(company.cciaa) == 2 else company.cciaa)
+            cap2["rea"] = f"{prov_sigla} - {rea}"
+        else:
+            cap2["rea"] = rea
     if sede and (not cap2.get("sede_legale") or cap2.get("sede_legale") == "—"):
         cap2["sede_legale"] = sede
     if ateco and (not cap2.get("codice_ateco") or cap2.get("codice_ateco") == "—"):
         cap2["codice_ateco"] = ateco
     if costituzione and (not cap2.get("data_costituzione") or cap2.get("data_costituzione") == "—"):
         cap2["data_costituzione"] = str(costituzione)
-    if capitale and (not cap2.get("capitale_sociale") or cap2.get("capitale_sociale") in (0, 0.0, "—")):
-        try:
-            cap2["capitale_sociale"] = float(capitale)
-        except Exception:
-            pass
 
-    # Aggiorna anche la riga Company nel DB per coerenza persistente
-    company = db.query(Company).filter_by(case_id=case_id).first()
     if company:
         if rea and (not company.rea or company.rea.strip() == ""):
             company.rea = rea
@@ -109,7 +131,7 @@ def _reconcile_company_profile(
             company.ateco = ateco
         if costituzione and not company.constitution_date:
             company.constitution_date = str(costituzione)
-        if capitale and not company.capital:
+        if capitale and not company.capital and not (is_individual or has_cap_ban):
             try:
                 company.capital = float(capitale)
             except Exception:
