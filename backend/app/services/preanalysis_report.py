@@ -194,9 +194,37 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     # =========================================================================
     # CAP. 3: ANALISI ECONOMICA PLURIENNALE (3.1, 3.2, 3.3)
     # =========================================================================
+    def _clean_date_and_year(date_str: str) -> tuple[str, str, str]:
+        if not date_str:
+            return ("", "", "")
+        s = str(date_str).strip()
+        if "/" in s:
+            parts = s.split("/")
+            if len(parts) == 3:
+                if len(parts[2]) == 4:
+                    return (f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}", parts[2], f"{parts[0]}/{parts[1]}/{parts[2][2:]}")
+                elif len(parts[0]) == 4:
+                    return (f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}", parts[0], f"{parts[2]}/{parts[1]}/{parts[0][2:]}")
+        if "-" in s:
+            parts = s.split("-")
+            if len(parts) == 3 and len(parts[0]) == 4:
+                return (s, parts[0], f"{parts[2]}/{parts[1]}/{parts[0][2:]}")
+        y = s[:4] if len(s) >= 4 and s[:4].isdigit() else (s[-4:] if len(s) >= 4 and s[-4:].isdigit() else s)
+        return (s, y, s)
+
+    def _is_interim_fs(statement) -> bool:
+        dt = str(statement.fiscal_year_end or "").strip()
+        st = str(statement.statement_type or "").lower()
+        if any(k in st for k in ("provvisori", "infrannual", "interim")):
+            return True
+        iso, _, _ = _clean_date_and_year(dt)
+        if iso and not (iso.endswith("-12-31") or iso.endswith("-12")):
+            return True
+        return False
+
     # Considera solo i bilanci d'esercizio annuali completi (esclusi infrannuali)
-    annual_fss = [fs for fs in fss if not ("provvisorio" in fs.statement_type.lower() or fs.fiscal_year_end.endswith("-06-30") or fs.fiscal_year_end.endswith("-09-30"))]
-    annual_fss = sorted(annual_fss, key=lambda x: x.fiscal_year_end)[-3:] # ultimi 3 esercizi
+    annual_fss = [fs for fs in fss if not _is_interim_fs(fs)]
+    annual_fss = sorted(annual_fss, key=lambda x: _clean_date_and_year(x.fiscal_year_end)[0])[-3:] # ultimi 3 esercizi
 
     esercizi_economici = []
     for fs in annual_fss:
@@ -211,7 +239,7 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
         mol_pct = eb["ebitda_margin_pct"]
         utile_perdita = _num(ce.get("utile_perdita") or fs.net_result)
 
-        anno_str = fs.fiscal_year_end[:4]
+        _, anno_str, _ = _clean_date_and_year(fs.fiscal_year_end)
         esercizi_economici.append({
             "anno": anno_str,
             "data_chiusura": fs.fiscal_year_end,
@@ -230,7 +258,8 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     # =========================================================================
     # CAP. 4: IL DATO INFRA-ANNUALE
     # =========================================================================
-    interim_fs = next((fs for fs in reversed(fss) if "provvisorio" in fs.statement_type.lower() or fs.fiscal_year_end.endswith("-06-30") or fs.fiscal_year_end.endswith("-09-30")), None)
+    sorted_all_fss = sorted(fss, key=lambda x: _clean_date_and_year(x.fiscal_year_end)[0])
+    interim_fs = next((fs for fs in reversed(sorted_all_fss) if _is_interim_fs(fs)), None)
     dato_infrannuale = None
     if interim_fs:
         ce = interim_fs.raw_extraction.get("conto_economico") or {}
@@ -243,8 +272,9 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
         mol = eb_int["ebitda_standard"]
         utile_perdita = _num(ce.get("utile_perdita") or interim_fs.net_result)
         oneri_fin = _num(ce.get("oneri_finanziari"))
+        iso_int, _, dt_it_int = _clean_date_and_year(interim_fs.fiscal_year_end)
         dato_infrannuale = {
-            "periodo": interim_fs.fiscal_year_end,
+            "periodo": f"al {dt_it_int}" if dt_it_int else interim_fs.fiscal_year_end,
             "ricavi_a1": a1,
             "altri_ricavi_a2_a5": altri_ricavi,
             "valore_produzione_a": val_prod,
@@ -261,18 +291,16 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     # CAP. 5.1: DEBITI RISULTANTI DAI BILANCI (DINAMICA DAI BILANCI EFFETTIVI)
     # =========================================================================
     # Colonne cronologiche di tutti i bilanci e situazioni disponibili
-    ordered_fss = sorted(fss, key=lambda x: x.fiscal_year_end)
+    ordered_fss = sorted(fss, key=lambda x: _clean_date_and_year(x.fiscal_year_end)[0])
     cols = []
     for fs in ordered_fss:
-        is_interim = ("provvisorio" in fs.statement_type.lower() or fs.fiscal_year_end.endswith("-06-30") or fs.fiscal_year_end.endswith("-09-30"))
-        year = fs.fiscal_year_end[:4]
-        dt_parts = fs.fiscal_year_end.split("-")
-        dt_it = f"{dt_parts[2]}/{dt_parts[1]}/{dt_parts[0][2:]}" if len(dt_parts) == 3 else fs.fiscal_year_end
+        is_interim = _is_interim_fs(fs)
+        iso_dt, year, dt_it = _clean_date_and_year(fs.fiscal_year_end)
         title = f"Situazione {year}" if is_interim else f"Bilancio {year}"
         date_lbl = f"al {dt_it}"
         lbl = f"{title} ({date_lbl})"
         cols.append({
-            "key": fs.fiscal_year_end,
+            "key": iso_dt or fs.fiscal_year_end,
             "label": lbl,
             "title": title,
             "date": date_lbl,

@@ -43,18 +43,46 @@ class ExtractionResult:
 
 
 def parse_json(raw: str):
-    """Estrae il primo oggetto JSON dalla risposta (togliendo eventuali fence)."""
+    """Estrae il primo oggetto JSON dalla risposta (togliendo eventuali fence, commenti e virgole residue)."""
     if not raw:
         return None
+    # 1. Rimuove blocchi thinking/reasoning
     raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
+    # 2. Rimuove markdown fences
     raw = re.sub(r"```(?:json)?", "", raw)
+    # 3. Rimuove commenti stile C++/JS (es. // A1, // Totale A) che mandano in crash json.loads
+    raw = re.sub(r"(?<!:)\s*//[^\n\r]*", "", raw)
+
     m = re.search(r"\{.*\}", raw, re.DOTALL)
     if not m:
         return None
+    candidate = m.group(0).strip()
+
+    # Tentativo 1: parsing diretto
     try:
-        return json.loads(m.group(0))
+        return json.loads(candidate)
     except Exception:
-        return None
+        pass
+
+    # Tentativo 2: pulizia trailing commas (es. {"a": 1,} o [1, 2,])
+    try:
+        no_trailing = re.sub(r',\s*([\]}])', r'\1', candidate)
+        return json.loads(no_trailing)
+    except Exception:
+        pass
+
+    # Tentativo 3: bilanciamento graffe aperte se l'output e' stato troncato alla fine
+    try:
+        open_b = candidate.count("{")
+        close_b = candidate.count("}")
+        if open_b > close_b:
+            repaired = candidate + ("}" * (open_b - close_b))
+            repaired = re.sub(r',\s*([\]}])', r'\1', repaired)
+            return json.loads(repaired)
+    except Exception:
+        pass
+
+    return None
 
 
 class LLMProvider:

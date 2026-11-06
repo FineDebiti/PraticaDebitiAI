@@ -230,12 +230,23 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     "(A - B) + B10a + B10b + B10c", section="impresa",
                     status=("ok" if (eb_val or 0) > 0 else "danger") if eb_val is not None else "na"))
 
-    liq_val = sp_dict.get("disponibilita_liquide")
-    liq_num = float(liq_val.get("corrente", 0.0)) if isinstance(liq_val, dict) else (float(liq_val or 0.0))
-    deb_banc = float((deb_dict.get("banche") or {}).get("importo", 0.0) if isinstance(deb_dict.get("banche"), dict) else 0.0)
-    deb_ml = float(sp_dict.get("debiti_oltre", {}).get("corrente", 0.0) if isinstance(sp_dict.get("debiti_oltre"), dict) else 0.0)
-    tfr_val = float(sp_dict.get("tfr", {}).get("corrente", 0.0) if isinstance(sp_dict.get("tfr"), dict) else 0.0)
-    soc_fin = float((deb_dict.get("soci_finanziamenti") or {}).get("importo", 0.0) if isinstance(deb_dict.get("soci_finanziamenti"), dict) else 0.0)
+    def _val_num(obj, key="corrente") -> float:
+        if isinstance(obj, dict):
+            v = obj.get(key)
+            if v is None and key != "importo":
+                v = obj.get("importo")
+        else:
+            v = obj
+        try:
+            return float(v) if v is not None else 0.0
+        except (ValueError, TypeError):
+            return 0.0
+
+    liq_num = _val_num(sp_dict.get("disponibilita_liquide"), "corrente")
+    deb_banc = _val_num(deb_dict.get("banche"), "importo")
+    deb_ml = _val_num(sp_dict.get("debiti_oltre"), "corrente")
+    tfr_val = _val_num(sp_dict.get("tfr"), "corrente")
+    soc_fin = _val_num(deb_dict.get("soci_finanziamenti"), "importo")
 
     pfn_calc = calculate_pfn_esma(
         debiti_bancari_breve=deb_banc,

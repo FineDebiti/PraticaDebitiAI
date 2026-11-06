@@ -377,19 +377,15 @@ def regenerate_preanalysis_report(
 
     client_name = case.client_name or "Cliente"
 
-    # Recupera il report più recente come base
+    # Ricostruisce sempre i dati aggiornati direttamente dal database e dai documenti del fascicolo
+    current_data = build_preanalysis_report(db, case_id)
     latest_record = (
         db.query(CasePreanalysisReport)
         .filter_by(case_id=case_id)
         .order_by(CasePreanalysisReport.version.desc())
         .first()
     )
-    if latest_record and latest_record.report_data:
-        current_data = copy.deepcopy(latest_record.report_data)
-        current_version = latest_record.version
-    else:
-        current_data = build_preanalysis_report(db, case_id)
-        current_version = 0
+    current_version = latest_record.version if latest_record else 0
 
     # Recupera tutte le regole attive pertinenti
     all_active_rules = get_active_rules(db)

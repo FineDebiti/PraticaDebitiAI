@@ -278,8 +278,15 @@ def _parse_ocr_text_deterministic(text: str, doc_type: str, client_cf: str) -> D
             "sede": "",
             "capitale_sociale": 0.0,
         }
+        # Data chiusura: controlla prima "SITUAZIONE ECONOMICA DAL ... AL GG/MM/AAAA"
+        sit_m = re.search(r'SITUAZIONE\s+ECONOMICA\s+DAL\s+[\d/]+\s+AL\s+(\d{2})/(\d{2})/(\d{4})', text, re.I)
+        if sit_m:
+            data_chiusura = f"{sit_m.group(3)}-{sit_m.group(2)}-{sit_m.group(1)}"
+        else:
+            data_chiusura = f"{anno}-12-31"
+
         out["esercizio"] = {
-            "data_chiusura": f"31/12/{anno}",
+            "data_chiusura": data_chiusura,
             "tipo": "abbreviato" if "abbreviato" in text_lower else "ordinario"
         }
 
@@ -296,23 +303,54 @@ def _parse_ocr_text_deterministic(text: str, doc_type: str, client_cf: str) -> D
             m = re.search(pat, text, re.I)
             if m:
                 c = _pnum(m.group(1))
-                p = _pnum(m.group(2)) if m.group(2) else 0.0
+                p = _pnum(m.group(2)) if len(m.groups()) >= 2 and m.group(2) else 0.0
                 return {"corrente": c, "precedente": p}
             return None
 
-        tot_att = _extract_pair(r'Totale\s+attivo\s+([\d\.]+)\s+([\d\.]+)')
-        tot_imm = _extract_pair(r'Totale\s+immobilizzazioni\s*(?:\(B\))?\s+([\d\.]+)\s+([\d\.]+)')
-        tot_cir = _extract_pair(r'Totale\s+attivo\s+circolante\s*(?:\(C\))?\s+([\d\.]+)\s+([\d\.]+)')
-        disp_l = _extract_pair(r'Disponibilit[àa]\s+liquide\s+([\d\.]+)\s+([\d\.]+)')
-        pn = _extract_pair(r'Totale\s+patrimonio\s+netto\s+([\d\.]+)\s+([\d\.]+)')
-        tot_d = _extract_pair(r'Totale\s+debiti\s+([\d\.]+)\s+([\d\.]+)')
-        deb_e = _extract_pair(r'esigibili\s+entro\s+l[\'\’]esercizio\s+successivo\s+([\d\.]+)\s+([\d\.]+)')
-        deb_o = _extract_pair(r'esigibili\s+oltre\s+l[\'\’]esercizio\s+successivo\s+([\d\.]+)\s+([\d\.]+)')
-        ric_v = _extract_pair(r'ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni\s+([\d\.]+)\s+([\d\.]+)')
-        val_p = _extract_pair(r'Totale\s+valore\s+della\s+produzione\s+([\d\.]+)\s+([\d\.]+)')
-        dif_vc = _extract_pair(r'Differenza\s+tra\s+valore\s+e\s+costi\s+della\s+produzione[^\d]*([\d\.]+)\s+([\d\.]+)')
-        ut_per = _extract_pair(r'21\)\s*Utile\s+\(perdita\)\s+dell[\'\’]esercizio\s+([\d\.]+)\s+([\d\.]+)')
-        on_fin = _extract_pair(r'Totale\s+interessi\s+e\s+altri\s+oneri\s+finanziari\s+([\d\.]+)\s+([\d\.]+)')
+        tot_att = _extract_pair(r'Totale\s+attivo\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        tot_imm = _extract_pair(r'Totale\s+immobilizzazioni\s*(?:\(B\))?\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        tot_cir = _extract_pair(r'Totale\s+attivo\s+circolante\s*(?:\(C\))?\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        disp_l = _extract_pair(r'Disponibilit[àa]\s+liquide\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        pn = _extract_pair(r'Totale\s+patrimonio\s+netto\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        tot_d = _extract_pair(r'Totale\s+debiti\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        deb_e = _extract_pair(r'esigibili\s+entro\s+l[\'\’]esercizio\s+successivo\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        deb_o = _extract_pair(r'esigibili\s+oltre\s+l[\'\’]esercizio\s+successivo\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+
+        # Ricavi e Costi (standard CEE e mastrino contabile)
+        ric_v = _extract_pair(r'ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        val_p = _extract_pair(r'Totale\s+valore\s+della\s+produzione\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        tot_ric = _extract_pair(r'TOTALE\s+RICAVI\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        tot_cos = _extract_pair(r'TOTALE\s+COSTI\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        amm_alt = _extract_pair(r'AMMORTAMENTI\s+E\s+SVALUTAZIONI\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        on_fin_alt = _extract_pair(r'ONERI\s+FINANZIARI\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        dif_vc = _extract_pair(r'Differenza\s+tra\s+valore\s+e\s+costi\s+della\s+produzione[^\d]*([\d\.,]+)(?:\s+([\d\.,]+))?')
+        ut_per = _extract_pair(r'21\)\s*Utile\s+\(perdita\)\s+dell[\'\’]esercizio\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        on_fin = _extract_pair(r'Totale\s+interessi\s+e\s+altri\s+oneri\s+finanziari\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        ut_alt = _extract_pair(r'(?:^|\n)\s*UTILE\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+        per_alt = _extract_pair(r'(?:^|\n)\s*PERDITA\s+([\d\.,]+)(?:\s+([\d\.,]+))?')
+
+        final_val_p = val_p or tot_ric or {"corrente": 0.0, "precedente": 0.0}
+        final_ric_v = ric_v or final_val_p
+        final_costi_p = tot_cos or {"corrente": 0.0, "precedente": 0.0}
+        final_amm = amm_alt or {"corrente": 0.0, "precedente": 0.0}
+        final_on_fin = on_fin or on_fin_alt or {"corrente": 0.0, "precedente": 0.0}
+
+        if per_alt and per_alt.get("corrente", 0.0) > 0:
+            final_ut = {"corrente": -abs(per_alt["corrente"]), "precedente": -abs(per_alt.get("precedente", 0.0))}
+        elif ut_per:
+            final_ut = ut_per
+        elif ut_alt:
+            final_ut = ut_alt
+        elif final_val_p.get("corrente", 0.0) or final_costi_p.get("corrente", 0.0):
+            diff = final_val_p.get("corrente", 0.0) - final_costi_p.get("corrente", 0.0)
+            final_ut = {"corrente": round(diff, 2), "precedente": 0.0}
+        else:
+            final_ut = {"corrente": 0.0, "precedente": 0.0}
+
+        final_dif_vc = dif_vc or {
+            "corrente": round(final_val_p.get("corrente", 0.0) - final_costi_p.get("corrente", 0.0), 2),
+            "precedente": round(final_val_p.get("precedente", 0.0) - final_costi_p.get("precedente", 0.0), 2),
+        }
 
         out["stato_patrimoniale"] = {
             "totale_attivo": tot_att or {"corrente": 0.0, "precedente": 0.0},
@@ -326,11 +364,13 @@ def _parse_ocr_text_deterministic(text: str, doc_type: str, client_cf: str) -> D
             "debiti_oltre": deb_o or {"corrente": 0.0, "precedente": 0.0},
         }
         out["conto_economico"] = {
-            "ricavi_vendite": ric_v or {"corrente": 0.0, "precedente": 0.0},
-            "valore_produzione": val_p or {"corrente": 0.0, "precedente": 0.0},
-            "differenza_valore_costi": dif_vc or {"corrente": 0.0, "precedente": 0.0},
-            "oneri_finanziari": on_fin or {"corrente": 0.0, "precedente": 0.0},
-            "utile_perdita": ut_per or {"corrente": 0.0, "precedente": 0.0},
+            "ricavi_vendite": final_ric_v,
+            "valore_produzione": final_val_p,
+            "costi_produzione": final_costi_p,
+            "ammortamenti": final_amm,
+            "differenza_valore_costi": final_dif_vc,
+            "oneri_finanziari": final_on_fin,
+            "utile_perdita": final_ut,
         }
         out["debiti_per_natura"] = {
             "tributari": {"importo": 0.0, "entro": 0.0, "oltre": 0.0, "di_cui_privilegi": 0.0},
@@ -640,7 +680,15 @@ def _save_financial_statement(db: Session, doc: Document, data: Dict[str, Any], 
     stmt.company_id = company.id
     stmt.case_id = doc.case_id
     es_dict = data.get("esercizio") if isinstance(data.get("esercizio"), dict) else {}
-    stmt.fiscal_year_end = es_dict.get("data_chiusura") or stmt.fiscal_year_end or ""
+    raw_date = str(es_dict.get("data_chiusura") or stmt.fiscal_year_end or "").strip()
+    if "/" in raw_date:
+        dp = raw_date.split("/")
+        if len(dp) == 3:
+            if len(dp[2]) == 4:
+                raw_date = f"{dp[2]}-{dp[1].zfill(2)}-{dp[0].zfill(2)}"
+            elif len(dp[0]) == 4:
+                raw_date = f"{dp[0]}-{dp[1].zfill(2)}-{dp[2].zfill(2)}"
+    stmt.fiscal_year_end = raw_date
     stmt.statement_type = es_dict.get("tipo") or stmt.statement_type or "abbreviato"
     stmt.ateco = ateco or company.ateco or ""
     stmt.raw_extraction = data

@@ -22,8 +22,8 @@ class LMStudioProvider(LLMProvider):
                     "role": "system",
                     "content": (
                         "Sei un assistente specializzato nell'analisi documentale tributaria, bancaria e societaria. "
-                        "Estrai con la massima precisione i dati richiesti e rispondi ESCLUSIVAMENTE con un oggetto JSON valido, "
-                        "senza testo introduttivo, conclusioni o blocchi descrittivi extra."
+                        "IMPORTANTE: Non fare ragionamenti lunghi, inizia IMMEDIATAMENTE a scrivere "
+                        "direttamente l'oggetto JSON valido richiesto, senza testo introduttivo, conclusioni o blocchi descrittivi extra."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -31,6 +31,7 @@ class LMStudioProvider(LLMProvider):
             "temperature": 0.0,
             "seed": 7,
             "stream": False,
+            "max_tokens": 8192,
         }
 
         timeout = getattr(settings, "lmstudio_timeout", 240)
@@ -43,6 +44,10 @@ class LMStudioProvider(LLMProvider):
                 return ExtractionResult({}, self.name, target_model, False, "Risposta vuota da LM Studio")
 
             txt = choices[0].get("message", {}).get("content", "")
+            if not txt or not txt.strip():
+                # Fallback se il modello ha inserito il JSON o parte di esso in reasoning_content
+                txt = choices[0].get("message", {}).get("reasoning_content", "") or ""
+
             # Rimuove blocchi reasoning se presenti (<think>...</think>)
             cleaned = re.sub(r"<think>.*?</think>", "", txt or "", flags=re.DOTALL).strip()
             data = parse_json(cleaned)
