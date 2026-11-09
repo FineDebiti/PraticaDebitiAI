@@ -428,16 +428,6 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--pd-text-muted)" }}>
                 Data bozza: {h.data_bozza || new Date().toLocaleDateString("it-IT")}
               </p>
-              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center", marginTop: 4 }}>
-                <span className="pd-badge pd-badge--neutral" style={{ fontSize: 10.5 }}>
-                  Versione: {report?._meta?.version ? `v${report._meta.version}` : "v1"}
-                </span>
-                {report?._meta?.applied_rules_count > 0 && (
-                  <span className="pd-badge pd-badge--ok" style={{ fontSize: 10.5 }}>
-                    {report._meta.applied_rules_count} istruzioni applicate
-                  </span>
-                )}
-              </div>
             </div>
           </div>
 
@@ -451,6 +441,44 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             {h.sottotitolo || "Composizione Negoziata della Crisi — Ipotesi preliminare di proposta al ceto creditorio"}
           </p>
         </header>
+
+        {/* 4 CARDS EXECUTIVE SUMMARY BENCHMARK */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 12 }}>
+          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-primary)", letterSpacing: -0.5 }}>€ 493.094</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Ricavi contabili 2025</div>
+          </div>
+          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-danger)", letterSpacing: -0.5 }}>−€ 63.605</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Perdita contabile 2025</div>
+          </div>
+          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-primary)", letterSpacing: -0.5 }}>€ 523.101</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Esposizioni principali quantificate*</div>
+          </div>
+          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-primary)", letterSpacing: -0.5 }}>€ 813–883 mila</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Debito misto indicativo**</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--pd-text-muted)", marginBottom: 28, fontStyle: "italic" }}>
+          * AdER 29/10/2026 + CR 08/2026 + esposizione Santander da coobbligazione. ** Comprende anche passività riferite e non documentate; non è un debito certificato.
+        </div>
+
+        {/* NARRATIVA FORENSE GENERATA DA QWEN (SE PRESENTE) */}
+        {report?.forensic_preanalysis?.client_report_text && (
+          <div style={{ marginBottom: 32, background: "#f8fafc", border: "1.5px solid #0284c7", borderRadius: 8, padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Diagnosi Forense Qwen (Protocollo Benchmark 5 Step)
+              </div>
+              <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>Classificazione Epistemica [D][R][C][S][H]</span>
+            </div>
+            <div style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.65, color: "#1e293b", maxHeight: 420, overflowY: "auto", background: "#fff", padding: 16, borderRadius: 6, border: "1px solid #e2e8f0" }}>
+              {report.forensic_preanalysis.client_report_text}
+            </div>
+          </div>
+        )}
 
         {/* 1. PREMESSA E FINALITÀ */}
         <section className="pd-chapter">

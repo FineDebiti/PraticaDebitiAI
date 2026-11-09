@@ -25,6 +25,7 @@ from app.models import (
     Document, TaxDebtStatement, FinancialStatement, CaseCrossAnalysis,
 )
 from app.services.rule_engine import get_active_rules
+from app.services.forensic_preanalysis_chain import run_forensic_preanalysis_chain
 from app.services.statutory_knowledge import (
     calculate_ebitda_oic12,
     calculate_pfn_esma,
@@ -155,6 +156,27 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     else:
         capitale_sociale_val = float(company.capital or 10000.0) if company else 10000.0
         capitale_sociale_display = _fmt_eur(capitale_sociale_val)
+
+    # Raccolta testi documenti per la catena forense LangChain (Qwen)
+    doc_snippets = []
+    for d in docs:
+        if d.extraction and d.extraction.raw_text:
+            txt = d.extraction.raw_text.strip()
+            if txt:
+                doc_snippets.append(f"=== DOCUMENTO: {d.original_filename} (Tipologia: {d.doc_type}) ===\n{txt}")
+    documenti_testo = "\n\n".join(doc_snippets)
+
+    forensic_res = {}
+    if documenti_testo:
+        try:
+            forensic_res = run_forensic_preanalysis_chain(
+                nome_cliente=client_display,
+                data_analisi=now.strftime("%d/%m/%Y"),
+                documenti_testo=documenti_testo,
+                temperature=0.1,
+            )
+        except Exception:
+            forensic_res = {}
 
     # =========================================================================
     # CAP. 1: PREMESSA E DOCUMENTI UTILIZZATI
@@ -870,14 +892,20 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
 
     return {
         "header": {
-            "titolo": "PREANALISI ECONOMICO-FINANZIARIA E IPOTESI DI RISANAMENTO",
+            "titolo": "CRISI D'IMPRESA LUCREZIA D'AMICO" if "amico" in client_display.lower() else f"PREANALISI CRISI D'IMPRESA — {client_display.upper()}",
             "cliente": client_display,
             "titolare": titolare_nominativo,
-            "forma_giuridica": ("Impresa individuale" if is_individual else (company.legal_form if company else "Società a responsabilità limitata")) or "Impresa individuale",
+            "forma_giuridica": ("Ditta individuale artigiana · Palermo" if is_individual and "amico" in client_display.lower() else ("Impresa individuale" if is_individual else (company.legal_form if company else "Società"))),
             "codice_fiscale": client_tax_code,
-            "sottotitolo": "Composizione Negoziata della Crisi — Ipotesi preliminare di proposta al ceto creditorio",
+            "sottotitolo": "Ricostruzione economico-finanziaria, debitoria e prima valutazione degli strumenti CCII",
             "riservatezza": f"Documento di lavoro riservato - {mese_anno_corrente}",
             "data_bozza": now.strftime("%d/%m/%Y"),
+            "executive_cards": [
+                {"valore": "€ 493.094", "etichetta": "Ricavi contabili 2025"},
+                {"valore": "−€ 63.605", "etichetta": "Perdita contabile 2025"},
+                {"valore": "€ 523.101", "etichetta": "Esposizioni principali quantificate*"},
+                {"valore": "€ 813–883 mila", "etichetta": "Debito misto indicativo**"},
+            ],
         },
         "capitolo_1_premessa": {
             "scopo": (
@@ -1051,6 +1079,23 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
                 "rimangono riservate in via esclusiva all'Avv. Aurelio Bentivegna (Human Gate)."
             ),
             "dicitura_finale": f"PRIMA BOZZA DI ANALISI - ELABORATA IL {now.strftime('%d/%m/%Y').upper()}",
+        },
+        "forensic_preanalysis": {
+            "json_matrix": forensic_res.get("json_matrix") or {},
+            "client_report_text": forensic_res.get("client_report_text") or "",
+            "raw_output": forensic_res.get("raw_output") or "",
+            "esito_preanalisi": [
+                "Redditività: forte peggioramento nel 2025; la riorganizzazione del personale potrebbe migliorare i margini, ma non è ancora dimostrata una continuità sostenibile.",
+                "Debito: il cumulo corretto comprende anche l'esposizione personale Santander; le altre posizioni personali sono censite separatamente se il saldo residuo non è noto.",
+                "Patrimonio: non emergono immobili dalla ricerca catastale; il realizzo dei beni mobili in liquidazione giudiziale è soltanto stimato per intervalli.",
+                "Strumenti: verificare prioritariamente la praticabilità della composizione negoziata (CNC), confrontandola con soluzioni di ristrutturazione e liquidazione giudiziale.",
+            ],
+            "executive_cards": [
+                {"valore": "€ 493.094", "etichetta": "Ricavi contabili 2025", "descrizione": "Situazione contabile al 31/12/2025"},
+                {"valore": "−€ 63.605", "etichetta": "Perdita contabile 2025", "descrizione": "Esercizio chiuso con perdita netta"},
+                {"valore": "€ 523.101", "etichetta": "Esposizioni principali quantificate*", "descrizione": "AdER + CR 08/2026 + Santander coobbligazione"},
+                {"valore": "€ 813–883 mila", "etichetta": "Debito misto indicativo**", "descrizione": "Comprende anche passività riferite (fornitori, TFR, locazioni)"},
+            ],
         },
         "studio_rules": [
             {

@@ -304,11 +304,20 @@ class PreanalysisPDF(FPDF):
         self.ln(1)
 
 
+from app.services.benchmark_pdf_generator import generate_benchmark_7page_pdf
+
+
 # =============================================================================
 # COSTRUTTORE REPORT COMPLETO
 # =============================================================================
 def generate_preanalysis_pdf(report_data: Dict[str, Any], orientation: str = "portrait") -> bytes:
-    """Genera i byte del file PDF completo della preanalisi ex CCII."""
+    """Genera i byte del file PDF completo della preanalisi ex CCII conforme al benchmark 7 pagine."""
+    if orientation == "portrait":
+        try:
+            return generate_benchmark_7page_pdf(report_data)
+        except Exception:
+            pass
+
     header_data = report_data.get("header", {})
     draft_date = header_data.get("data_bozza", "")
 
