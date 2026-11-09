@@ -3,14 +3,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   getPreanalysisReport,
   getPreanalysisReportPdfUrl,
-  regeneratePreanalysisReport,
-  resetPreanalysisReport,
-  learnStudioRule,
-  synthesizeStudioRule,
-  createStudioRule,
-  listStudioRules,
-  updateStudioRule,
-  deleteStudioRule,
 } from "../../../api";
 
 function eurFull(v) {
@@ -238,424 +230,10 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
   );
 }
 
-// ============================================================================
-// MODULO REVISIONE E ADDESTRAMENTO CONTINUO (STILE DOSSIERLEX)
-// ============================================================================
-
-function AntigravityReviewDropdown({
-  isOpen,
-  onClose,
-  caseId,
-  clientName,
-  onInstructionSaved,
-}) {
-  const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
-  const [error, setError] = useState(null);
-
-  if (!isOpen) return null;
-
-  const handleSubmit = async () => {
-    if (!comment.trim()) {
-      setError("Inserisci un messaggio o istruzione.");
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await learnStudioRule({
-        case_id: caseId,
-        client_name: clientName,
-        scope: "global",
-        scope_title: "Direttive Generali Fascicolo & Studio",
-        user_comment: comment.trim(),
-        current_context_text: `Fascicolo ${clientName || ""}`,
-        author: "Responsabile Analisi",
-      });
-      setMsg("✓ Istruzione appresa da DossierLex!");
-      setComment("");
-      if (onInstructionSaved) onInstructionSaved(res);
-      setTimeout(() => {
-        setMsg(null);
-        onClose();
-      }, 1200);
-    } catch (err) {
-      setError(err.message || "Errore durante il salvataggio.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div
-      className="no-print"
-      style={{
-        position: "absolute",
-        top: "calc(100% + 6px)",
-        right: 0,
-        width: 360,
-        background: "var(--pd-surface)",
-        border: "1px solid var(--pd-border)",
-        borderTop: "3.5px solid var(--pd-primary)",
-        borderRadius: "var(--pd-radius-lg)",
-        padding: "16px 18px",
-        boxShadow: "0 10px 28px rgba(45, 54, 40, 0.16)",
-        zIndex: 1000,
-        textAlign: "left",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <strong style={{ fontSize: 13.5, color: "var(--pd-primary)", fontWeight: 700 }}>
-          Submit comment
-        </strong>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ background: "none", border: "none", color: "var(--pd-text-muted)", cursor: "pointer", padding: 0 }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-        </button>
-      </div>
-
-      <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--pd-text-muted)", lineHeight: 1.4 }}>
-        Istruzioni generali sull'intero report o seleziona un paragrafo con [+] per commentare.
-      </p>
-
-      {error && (
-        <div style={{ background: "var(--pd-danger-bg)", border: "1px solid var(--pd-danger)", color: "var(--pd-danger)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
-          {error}
-        </div>
-      )}
-      {msg && (
-        <div style={{ background: "var(--pd-ok-bg)", border: "1px solid var(--pd-ok)", color: "var(--pd-ok)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
-          {msg}
-        </div>
-      )}
-
-      <textarea
-        rows={3}
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="Add a message..."
-        style={{
-          width: "100%",
-          background: "var(--pd-surface-low)",
-          border: "1px solid var(--pd-border)",
-          borderRadius: "var(--pd-radius)",
-          color: "var(--pd-text)",
-          padding: "8px 10px",
-          fontSize: 13,
-          resize: "vertical",
-          boxSizing: "border-box",
-          outline: "none",
-          marginBottom: 10,
-        }}
-      />
-
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={loading}
-          style={{
-            background: "var(--pd-accent)",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: "var(--pd-radius)",
-            padding: "6px 16px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: loading ? "default" : "pointer",
-            opacity: loading ? 0.7 : 1,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            transition: "background 0.12s",
-          }}
-        >
-          {loading ? "Salvataggio..." : "Submit"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AntigravitySectionPlus({ scopeKey, scopeTitle, isOpen, onToggle }) {
-  return (
-    <button
-      type="button"
-      className="pd-antigravity-plus no-print"
-      onClick={onToggle}
-      title={`Aggiungi commento o istruzione per ${scopeTitle}`}
-      style={{
-        width: 22,
-        height: 22,
-        minWidth: 22,
-        background: isOpen ? "var(--pd-accent)" : "var(--pd-primary)",
-        color: "#ffffff",
-        border: "none",
-        borderRadius: 4,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        fontSize: 16,
-        fontWeight: 700,
-        lineHeight: 1,
-        boxShadow: isOpen ? "0 0 0 2px var(--pd-accent-soft)" : "none",
-        transition: "all 0.15s ease",
-      }}
-    >
-      {isOpen ? "−" : "+"}
-    </button>
-  );
-}
-
-function AntigravitySectionCommentBox({
-  scopeKey,
-  scopeTitle,
-  contextSnippet,
-  caseId,
-  clientName,
-  onClose,
-  onCommentAdded,
-}) {
-  const [comment, setComment] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null);
-  const [error, setError] = useState(null);
-
-  const handleAddComment = async () => {
-    if (!comment.trim()) {
-      setError("Inserisci un commento o istruzione.");
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await learnStudioRule({
-        case_id: caseId,
-        client_name: clientName,
-        scope: scopeKey,
-        scope_title: scopeTitle,
-        user_comment: comment.trim(),
-        current_context_text: typeof contextSnippet === "string" ? contextSnippet : JSON.stringify(contextSnippet || ""),
-        author: "Responsabile Analisi",
-      });
-      setMsg("✓ Istruzione appresa da DossierLex!");
-      setComment("");
-      if (onCommentAdded) onCommentAdded(res);
-      setTimeout(() => {
-        setMsg(null);
-        onClose();
-      }, 1200);
-    } catch (err) {
-      setError(err.message || "Errore durante il salvataggio.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div
-      className="pd-antigravity-popover no-print"
-      style={{
-        background: "var(--pd-surface)",
-        border: "1px solid var(--pd-border)",
-        borderLeft: "4px solid var(--pd-primary)",
-        borderRadius: "var(--pd-radius-lg)",
-        padding: "12px 16px",
-        boxShadow: "0 8px 24px rgba(45, 54, 40, 0.10)",
-        maxWidth: 520,
-        width: "100%",
-        margin: "8px 0 16px",
-        color: "var(--pd-text)",
-        position: "relative",
-        zIndex: 50,
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>
-          Commento per: <strong style={{ color: "var(--pd-primary)" }}>{scopeTitle}</strong>
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ background: "none", border: "none", color: "var(--pd-text-muted)", cursor: "pointer", padding: 0 }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-        </button>
-      </div>
-
-      {error && (
-        <div style={{ background: "var(--pd-danger-bg)", border: "1px solid var(--pd-danger)", color: "var(--pd-danger)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
-          {error}
-        </div>
-      )}
-      {msg && (
-        <div style={{ background: "var(--pd-ok-bg)", border: "1px solid var(--pd-ok)", color: "var(--pd-ok)", padding: "6px 8px", borderRadius: 6, fontSize: 12, marginBottom: 8 }}>
-          {msg}
-        </div>
-      )}
-
-      <textarea
-        rows={3}
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="Leave a comment..."
-        style={{
-          width: "100%",
-          background: "var(--pd-surface-low)",
-          border: "1px solid var(--pd-border)",
-          borderRadius: "var(--pd-radius)",
-          color: "var(--pd-text)",
-          padding: "8px 10px",
-          fontSize: 13,
-          resize: "vertical",
-          boxSizing: "border-box",
-          outline: "none",
-          marginBottom: 8,
-        }}
-      />
-
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={loading}
-          style={{
-            background: "transparent",
-            color: "var(--pd-text-muted)",
-            border: "none",
-            fontSize: 13,
-            cursor: "pointer",
-            padding: "5px 10px",
-          }}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleAddComment}
-          disabled={loading}
-          style={{
-            background: "var(--pd-accent)",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: "var(--pd-radius)",
-            padding: "6px 16px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: loading ? "default" : "pointer",
-            opacity: loading ? 0.7 : 1,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            transition: "background 0.12s",
-          }}
-        >
-          {loading ? "Salvataggio..." : "Add Comment"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ProceedModal({ isOpen, onClose, learnedCount, onPrint, reportVersion }) {
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="no-print"
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(45, 54, 40, 0.45)",
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          background: "var(--pd-surface)",
-          border: "1px solid var(--pd-border)",
-          borderTop: "4px solid var(--pd-primary)",
-          borderRadius: "var(--pd-radius-lg)",
-          maxWidth: 500,
-          width: "100%",
-          padding: 24,
-          boxShadow: "0 20px 25px -5px rgba(45, 54, 40, 0.2)",
-          color: "var(--pd-text)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--pd-primary)", display: "flex", alignItems: "center", gap: 8 }}>
-            <span className="material-symbols-outlined" style={{ color: "var(--pd-accent)", fontSize: 24 }}>
-              auto_awesome
-            </span>
-            Report Rigenerato {reportVersion ? `(v${reportVersion})` : ""}
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: "none", border: "none", color: "var(--pd-text-muted)", cursor: "pointer", fontSize: 18 }}
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-
-        <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--pd-text-muted)", lineHeight: 1.55 }}>
-          Le modifiche e le regole operative dello studio sono state applicate con successo ai dati del report e memorizzate nel database.
-          <br /><br />
-          <strong>I dati e le tabelle sono aggiornati a video.</strong> Puoi continuare a revisionare il report a schermo, aggiungere altri commenti sui capitoli e rigenerare quante volte desideri. Quando il risultato rispecchierà esattamente ciò che ti serve, potrai procedere all&apos;esportazione in PDF.
-        </p>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            onClick={onClose}
-            className="pd-btn pd-btn--secondary"
-            style={{ minHeight: 36, padding: "6px 14px", fontSize: 13 }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 17 }}>visibility</span>
-            Continua a revisionare a video
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onPrint();
-            }}
-            className="pd-btn pd-btn--primary"
-            style={{ minHeight: 36, padding: "6px 16px", fontSize: 13 }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>picture_as_pdf</span>
-            Stampa / Esporta PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
-  const [feedbackBanner, setFeedbackBanner] = useState(null);
   const [printOrientation, setPrintOrientation] = useState("portrait");
-  const [activeCommentScope, setActiveCommentScope] = useState(null);
-  const [isReviewDropdownOpen, setIsReviewDropdownOpen] = useState(false);
-  const [isProceedModalOpen, setIsProceedModalOpen] = useState(false);
-  const [sessionLearnedCount, setSessionLearnedCount] = useState(0);
 
   const fetchReport = useCallback(() => {
     if (!caseId) return;
@@ -674,82 +252,6 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
     if (!caseId) return;
     const url = getPreanalysisReportPdfUrl(caseId, printOrientation, action);
     window.open(url, "_blank");
-  };
-
-  const handleRegenerate = async () => {
-    if (!caseId || regenerating) return;
-    setRegenerating(true);
-    try {
-      const res = await regeneratePreanalysisReport(caseId);
-      if (res && res.report) {
-        setReport(res.report);
-        const count = res.applied_rules_count || sessionLearnedCount || 0;
-        setFeedbackBanner({
-          version: res.version,
-          rulesCount: count,
-          message: `Report aggiornato alla versione v${res.version}. Applicate ${count} istruzioni dello studio. Dati e tabelle sincronizzati a video.`,
-        });
-        setSessionLearnedCount(0);
-        setIsProceedModalOpen(true);
-      }
-    } catch (err) {
-      console.error("Errore rigenerazione report:", err);
-      alert("Errore durante la rigenerazione: " + (err.message || String(err)));
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  const handleResetBaseline = async () => {
-    if (!caseId || regenerating) return;
-    if (!window.confirm("Vuoi ripristinare il report alla versione base originale calcolata direttamente dai documenti?")) return;
-    setRegenerating(true);
-    try {
-      const res = await resetPreanalysisReport(caseId);
-      if (res && res.report) {
-        setReport(res.report);
-        setFeedbackBanner({
-          version: res.version,
-          rulesCount: 0,
-          message: "Report ripristinato alla baseline iniziale dai documenti.",
-        });
-      }
-    } catch (err) {
-      console.error("Errore ripristino report:", err);
-      alert("Errore durante il ripristino: " + (err.message || String(err)));
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  const renderPlusButton = (scopeKey, scopeTitle) => {
-    const isOpen = activeCommentScope === scopeKey;
-    return (
-      <AntigravitySectionPlus
-        scopeKey={scopeKey}
-        scopeTitle={scopeTitle}
-        isOpen={isOpen}
-        onToggle={() => setActiveCommentScope(isOpen ? null : scopeKey)}
-      />
-    );
-  };
-
-  const renderSectionCommentBox = (scopeKey, scopeTitle, contextSnippet = "") => {
-    if (activeCommentScope !== scopeKey) return null;
-    return (
-      <AntigravitySectionCommentBox
-        scopeKey={scopeKey}
-        scopeTitle={scopeTitle}
-        contextSnippet={contextSnippet}
-        caseId={caseId}
-        clientName={title}
-        onClose={() => setActiveCommentScope(null)}
-        onCommentAdded={() => {
-          setSessionLearnedCount((c) => c + 1);
-          fetchReport();
-        }}
-      />
-    );
   };
 
   const h = report?.header || {};
@@ -814,16 +316,9 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             position: static !important;
             box-shadow: none !important;
           }
-          .pd-review-btn, .pd-review-box, .pd-general-review-card, .pd-antigravity-plus, .pd-antigravity-popover {
-            display: none !important;
-          }
           h1, h2, h3, h4 {
             page-break-after: avoid;
           }
-        }
-        .pd-antigravity-plus:hover {
-          background: var(--pd-accent) !important;
-          transform: scale(1.08);
         }
         .sticky-col {
           position: sticky;
@@ -892,133 +387,6 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <p>Dossier completo conforme al template dello studio legale Avv. Aurelio Bentivegna.</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* REVIEW DROPDOWN (STILE DOSSIERLEX) */}
-          <div style={{ position: "relative" }}>
-            <button
-              type="button"
-              onClick={() => setIsReviewDropdownOpen((v) => !v)}
-              title="Aggiungi istruzioni generali per l'intero report"
-              style={{
-                background: isReviewDropdownOpen ? "var(--pd-primary-600)" : "var(--pd-primary)",
-                color: "#ffffff",
-                border: "1px solid var(--pd-primary-600)",
-                borderRadius: "var(--pd-radius)",
-                padding: "7px 14px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                boxShadow: "var(--pd-shadow)",
-                transition: "all 0.15s ease",
-              }}
-            >
-              <span>Review</span>
-              <span style={{ fontSize: 11, opacity: 0.85 }}>▼</span>
-              {sessionLearnedCount > 0 && (
-                <span
-                  style={{
-                    background: "var(--pd-accent)",
-                    color: "#ffffff",
-                    borderRadius: "50%",
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    width: 18,
-                    height: 18,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginLeft: 2,
-                  }}
-                >
-                  {sessionLearnedCount}
-                </span>
-              )}
-            </button>
-
-            <AntigravityReviewDropdown
-              isOpen={isReviewDropdownOpen}
-              onClose={() => setIsReviewDropdownOpen(false)}
-              caseId={caseId}
-              clientName={title}
-              onInstructionSaved={() => {
-                setSessionLearnedCount((c) => c + 1);
-                fetchReport();
-              }}
-            />
-          </div>
-
-          {/* BOTTONE RIGENERA REPORT CON MODIFICHE */}
-          <button
-            type="button"
-            onClick={handleRegenerate}
-            disabled={regenerating || loading}
-            title="Rigenera il report applicando le istruzioni e le regole apprese dello studio ai dati e alle tabelle"
-            style={{
-              background: "var(--pd-accent)",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "var(--pd-radius)",
-              padding: "7px 18px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: (regenerating || loading) ? "default" : "pointer",
-              opacity: (regenerating || loading) ? 0.7 : 1,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              boxShadow: "var(--pd-shadow)",
-              transition: "all 0.15s ease",
-            }}
-          >
-            {regenerating ? (
-              <>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>sync</span>
-                <span>Rigenerazione in corso...</span>
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined" style={{ fontSize: 17 }}>auto_fix_high</span>
-                <span>Rigenera Report</span>
-                {sessionLearnedCount > 0 && (
-                  <span
-                    style={{
-                      background: "#ffffff",
-                      color: "var(--pd-accent)",
-                      borderRadius: "50%",
-                      fontSize: 10,
-                      fontWeight: 800,
-                      width: 17,
-                      height: 17,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginLeft: 2,
-                    }}
-                  >
-                    {sessionLearnedCount}
-                  </span>
-                )}
-              </>
-            )}
-          </button>
-
-          {/* BOTTONE RIPRISTINA BASELINE */}
-          <button
-            type="button"
-            onClick={handleResetBaseline}
-            disabled={regenerating || loading}
-            className="pd-btn pd-btn--secondary"
-            title="Ripristina il report allo stato iniziale calcolato direttamente dai documenti grezzi"
-            style={{ padding: "7px 12px", fontSize: 12 }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>restart_alt</span>
-            Ripristina
-          </button>
-
-          <span style={{ height: 20, width: 1, background: "var(--pd-border)", margin: "0 4px" }} />
-
           <button
             type="button"
             className="pd-btn pd-btn--secondary"
@@ -1042,42 +410,6 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
       </div>
 
       <article className="pd-report-paper" style={{ padding: "36px 44px", background: "#fff", maxWidth: 1140, margin: "0 auto", boxShadow: "var(--pd-shadow-md)", borderRadius: 8 }}>
-        {/* BANNER NOTIFICA RIGENERAZIONE */}
-        {feedbackBanner && (
-          <div
-            className="no-print"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px 18px",
-              marginBottom: 24,
-              borderRadius: "var(--pd-radius)",
-              background: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              color: "#166534",
-              fontSize: 13.5,
-              boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="material-symbols-outlined" style={{ color: "#16a34a", fontSize: 22 }}>
-                check_circle
-              </span>
-              <div>
-                <strong>Report Aggiornato (v{feedbackBanner.version}):</strong> {feedbackBanner.message}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setFeedbackBanner(null)}
-              style={{ background: "none", border: "none", color: "#166534", cursor: "pointer" }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-            </button>
-          </div>
-        )}
-
         {/* HEADER FORMALE DEL TEMPLATE */}
         <header style={{ borderBottom: "2px solid var(--pd-primary)", paddingBottom: 24, marginBottom: 36 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -1122,14 +454,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 1. PREMESSA E FINALITÀ */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">1</span>
-              Premessa e finalità della preanalisi
-            </div>
-            {renderPlusButton("cap_1", "1. Premessa e finalità")}
+          <div className="pd-chapter-title">
+            <span className="num">1</span>
+            Premessa e finalità della preanalisi
           </div>
-          {renderSectionCommentBox("cap_1", "1. Premessa e finalità", c1.scopo || "")}
           <p className="pd-report-text">
             {c1.scopo || `La presente preanalisi ha lo scopo di fotografare, sulla base della documentazione allo stato disponibile, la situazione economica, patrimoniale e debitoria di ${title}, al fine di comprendere se sussistano i presupposti per un percorso di risanamento e quale, tra gli strumenti previsti dal Codice della Crisi d'Impresa e dell'Insolvenza (CCII), appaia in prima battuta più coerente con il caso specifico.`}
           </p>
@@ -1163,14 +491,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 2. PROFILO DELL'IMPRESA E NATURA DELLA CRISI */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">2</span>
-              Profilo dell'impresa e natura della crisi
-            </div>
-            {renderPlusButton("cap_2", "2. Profilo dell'impresa e soci")}
+          <div className="pd-chapter-title">
+            <span className="num">2</span>
+            Profilo dell'impresa e natura della crisi
           </div>
-          {renderSectionCommentBox("cap_2", "2. Profilo dell'impresa e soci", c2.denominazione || title)}
           <div className="pd-grid pd-grid--2" style={{ marginBottom: 16 }}>
             <ReportField label="Denominazione" value={c2.denominazione || title} />
             <ReportField label="Forma giuridica" value={c2.forma_giuridica || "SRL"} />
@@ -1210,14 +534,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 3. ANALISI ECONOMICA PLURIENNALE */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">3</span>
-              Analisi economica pluriennale
-            </div>
-            {renderPlusButton("cap_3", "3. Analisi economica pluriennale")}
+          <div className="pd-chapter-title">
+            <span className="num">3</span>
+            Analisi economica pluriennale
           </div>
-          {renderSectionCommentBox("cap_3", "3. Analisi economica pluriennale", JSON.stringify(c3.esercizi || []))}
           <p className="pd-report-text">
             I risultati economici degli ultimi tre esercizi approvati evidenziano l'andamento della produzione, dei costi operativi e della marginalità (MOL):
           </p>
@@ -1271,14 +591,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         {/* 4. IL DATO DELL'ANNO CORRENTE E PRUDENZA */}
         {c4.dato && (
           <section className="pd-chapter">
-            <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="num">4</span>
-                Il dato {c4.dato.periodo?.slice(0, 4) || "infrannuale"} e la necessità di prudenza
-              </div>
-              {renderPlusButton("cap_4", "4. Il dato dell'anno corrente")}
+            <div className="pd-chapter-title">
+              <span className="num">4</span>
+              Il dato {c4.dato.periodo?.slice(0, 4) || "infrannuale"} e la necessità di prudenza
             </div>
-            {renderSectionCommentBox("cap_4", "4. Il dato dell'anno corrente", JSON.stringify(c4.dato || {}))}
             <div className="pd-table-wrap" style={{ maxWidth: 540, marginBottom: 14 }}>
               <table className="pd-table">
                 <thead><tr><th>Voce Conto Economico ({c4.dato.periodo})</th><th className="pd-num">Importo</th></tr></thead>
@@ -1307,24 +623,16 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 5. ANALISI DELL'INDEBITAMENTO */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">5</span>
-              Analisi dell'indebitamento
-            </div>
-            {renderPlusButton("cap_5", "5. Analisi dell'indebitamento")}
+          <div className="pd-chapter-title">
+            <span className="num">5</span>
+            Analisi dell'indebitamento
           </div>
-          {renderSectionCommentBox("cap_5", "5. Analisi dell'indebitamento", "Ponte debitorio complessivo")}
           <p className="pd-report-text">
             L'indagine procede in tre passaggi: i debiti risultanti dalla contabilità sociale (5.1), i debiti censiti dalle banche dati esterne (5.2) e la stima di sintesi della massa debitoria senza duplicazioni (5.3).
           </p>
 
           {/* 5.1 DEBITI DA BILANCIO DINAMICA EFFETTIVA */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, marginBottom: 6 }}>
-            <h3 className="pd-subchapter-title" style={{ margin: 0 }}>5.1 I debiti risultanti dai bilanci (struttura effettiva da bilancio)</h3>
-            {renderPlusButton("cap_5_1", "5.1 Debiti risultanti dai bilanci")}
-          </div>
-          {renderSectionCommentBox("cap_5_1", "5.1 Debiti risultanti dai bilanci", JSON.stringify(t51.righe || []))}
+          <h3 className="pd-subchapter-title" style={{ marginTop: 20, marginBottom: 6 }}>5.1 I debiti risultanti dai bilanci (struttura effettiva da bilancio)</h3>
           <p className="pd-report-text" style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>
             La tabella che segue è strutturata a partire dalle voci di debito effettive estratte dai bilanci e dalle situazioni contabili disponibili. La variazione è calcolata tra la situazione più recente ({t51.situazione_recente}) e l'ultimo bilancio approvato ({t51.base_confronto}). Restano rigorosamente esclusi patrimonio netto, fondi ammortamento e risconti passivi.
           </p>
@@ -1395,11 +703,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           </p>
 
           {/* 5.2 BANCHE DATI ESTERNE */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 8 }}>
-            <h3 className="pd-subchapter-title" style={{ margin: 0 }}>5.2 I debiti risultanti dalle banche dati esterne</h3>
-            {renderPlusButton("cap_5_2", "5.2 Banche dati AdER e Centrale Rischi")}
-          </div>
-          {renderSectionCommentBox("cap_5_2", "5.2 Banche dati AdER e Centrale Rischi", JSON.stringify(t52A))}
+          <h3 className="pd-subchapter-title" style={{ marginTop: 24, marginBottom: 8 }}>5.2 I debiti risultanti dalle banche dati esterne</h3>
           <p className="pd-report-text">
             <strong>Posizione Agenzia delle Entrate-Riscossione (AdER):</strong>
           </p>
@@ -1452,11 +756,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           </div>
 
           {/* 5.3 SINTESI MASSA DEBITORIA SENZA DUPLICAZIONI */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 8 }}>
-            <h3 className="pd-subchapter-title" style={{ margin: 0 }}>5.3 Sintesi: stima della massa debitoria complessiva (senza duplicazioni)</h3>
-            {renderPlusButton("cap_5_3", "5.3 Stima sintetica massa debitoria")}
-          </div>
-          {renderSectionCommentBox("cap_5_3", "5.3 Stima sintetica massa debitoria", JSON.stringify(t53.righe || []))}
+          <h3 className="pd-subchapter-title" style={{ marginTop: 24, marginBottom: 8 }}>5.3 Sintesi: stima della massa debitoria complessiva (senza duplicazioni)</h3>
           <p className="pd-report-text">
             La stima che segue è costruita incrociando le banche dati esterne (par. 5.2) con i dati di bilancio (par. 5.1). Ogni debito è computato una sola volta evitando duplicazioni tra ruoli esattoriali e debiti contabili, e tra banche dati creditizie sullo stesso rapporto:
           </p>
@@ -1502,14 +802,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 6. PUNTI DA VERIFICARE */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">6</span>
-              Punti da verificare
-            </div>
-            {renderPlusButton("cap_6", "6. Punti da verificare")}
+          <div className="pd-chapter-title">
+            <span className="num">6</span>
+            Punti da verificare
           </div>
-          {renderSectionCommentBox("cap_6", "6. Punti da verificare", JSON.stringify(c6 || []))}
           <p className="pd-report-text">
             Punti emersi dai documenti che non risultano chiariti e che vanno sciolti prima di consolidare il piano industriale e di risanamento:
           </p>
@@ -1535,14 +831,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 7. DIAGNOSI PRELIMINARE DELLA CRISI */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">7</span>
-              Diagnosi preliminare della crisi
-            </div>
-            {renderPlusButton("cap_7", "7. Diagnosi preliminare della crisi")}
+          <div className="pd-chapter-title">
+            <span className="num">7</span>
+            Diagnosi preliminare della crisi
           </div>
-          {renderSectionCommentBox("cap_7", "7. Diagnosi preliminare della crisi", c7.diagnosi || c7.sintesi_vitalita || "")}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 16 }}>
             <div style={{ background: "rgba(16, 185, 129, 0.06)", border: "1px solid var(--pd-ok)", borderRadius: 8, padding: 14 }}>
               <h4 style={{ margin: "0 0 8px", color: "var(--pd-ok)", fontSize: 14, textTransform: "uppercase" }}>
@@ -1568,14 +860,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 8. PATRIMONIO */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">8</span>
-              Patrimonio
-            </div>
-            {renderPlusButton("cap_8", "8. Patrimonio e garanzie")}
+          <div className="pd-chapter-title">
+            <span className="num">8</span>
+            Patrimonio
           </div>
-          {renderSectionCommentBox("cap_8", "8. Patrimonio e garanzie", JSON.stringify(c8 || {}))}
 
           <h3 className="pd-subchapter-title">8.1 Patrimonio immobiliare</h3>
           <p className="pd-report-text">
@@ -1653,14 +941,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 9. ORIENTAMENTO VERSO UNA SOLUZIONE DI RISANAMENTO */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">9</span>
-              Orientamento verso una soluzione di risanamento ex CCII
-            </div>
-            {renderPlusButton("cap_9", "9. Orientamento per il risanamento CCII")}
+          <div className="pd-chapter-title">
+            <span className="num">9</span>
+            Orientamento verso una soluzione di risanamento ex CCII
           </div>
-          {renderSectionCommentBox("cap_9", "9. Orientamento per il risanamento CCII", c9.proposta_coerente || "")}
           <p className="pd-report-text">
             Valutazione comparativa degli strumenti previsti dal Codice della Crisi d'Impresa e dell'Insolvenza alla luce delle caratteristiche dimensionali, debitorie e patrimoniali dell'impresa:
           </p>
@@ -1695,14 +979,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 10. DOCUMENTAZIONE ANCORA NECESSARIA */}
         <section className="pd-chapter">
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">10</span>
-              Documentazione ancora necessaria prima di procedere
-            </div>
-            {renderPlusButton("cap_10", "10. Documentazione necessaria")}
+          <div className="pd-chapter-title">
+            <span className="num">10</span>
+            Documentazione ancora necessaria prima di procedere
           </div>
-          {renderSectionCommentBox("cap_10", "10. Documentazione necessaria", JSON.stringify(c10.documenti_mancanti || []))}
           <p className="pd-report-text">
             Per consentire il passaggio dalla presente preanalisi alla redazione del piano attestato o della proposta formale ai creditori, è indispensabile acquisire:
           </p>
@@ -1729,14 +1009,10 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
 
         {/* 11. CONCLUSIONE PROVVISORIA */}
         <section className="pd-chapter" style={{ borderTop: "2px solid var(--pd-primary)", paddingTop: 20 }}>
-          <div className="pd-chapter-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="num">11</span>
-              Conclusione (provvisoria)
-            </div>
-            {renderPlusButton("cap_11", "11. Conclusione e raccomandazioni")}
+          <div className="pd-chapter-title">
+            <span className="num">11</span>
+            Conclusione (provvisoria)
           </div>
-          {renderSectionCommentBox("cap_11", "11. Conclusione e raccomandazioni", c11.giudizio_sintetico || "")}
           <p className="pd-report-text" style={{ fontSize: 14.5, lineHeight: 1.7, fontWeight: 500 }}>
             {c11.giudizio_sintetico}
           </p>
@@ -1756,15 +1032,6 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           </footer>
         </section>
       </article>
-
-      {/* MODALE CONFERMA E PROCEDIMENTO (PROCEED) */}
-      <ProceedModal
-        isOpen={isProceedModalOpen}
-        onClose={() => setIsProceedModalOpen(false)}
-        learnedCount={feedbackBanner?.rulesCount || sessionLearnedCount}
-        reportVersion={report?._meta?.version}
-        onPrint={() => handleExportPdf("download")}
-      />
     </div>
   );
 }
