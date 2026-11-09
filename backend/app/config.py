@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     gcs_bucket: str = ""                  # (futuro) bucket UE per GCS
 
     # Provider switch
-    ocr_provider: str = "tesseract"   # "docai" | "tesseract"
+    ocr_provider: str = "paddleocr"   # "paddleocr" | "tesseract" | "docai"
     llm_provider: str = "stub"        # "gemini" | "openai" | "anthropic" | "stub"
     llm_model: str = ""               # (legacy) modello fisso; se vuoto si usano i due sotto
     # Routing modello per doc_type: Pro sui documenti ad alta posta, Flash per gli altri.

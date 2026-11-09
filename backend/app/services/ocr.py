@@ -1,12 +1,17 @@
 """
-Astrazione OCR. Due implementazioni:
-- tesseract: 100% locale/offline (default per test senza account cloud)
-- docai: Google Document AI (cloud, consigliato in produzione su doc anonimizzati)
+Astrazione OCR. Tre implementazioni:
+- paddleocr: 100% locale/offline (default raccomandato, alta precisione su tabelle e documenti inclinati/scansionati)
+- tesseract: 100% locale/offline (fallback legacy)
+- docai: Google Document AI (cloud, opzionale in produzione su doc anonimizzati)
 
 Distingue PDF nativi (testo selezionabile -> nessun OCR, gratis) da scansioni.
 """
 import io
+import os
+import logging
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def extract_text(file_path: str) -> tuple[str, int]:
@@ -19,7 +24,9 @@ def extract_text(file_path: str) -> tuple[str, int]:
     # 2) Altrimenti OCR vero, secondo il provider scelto
     if settings.ocr_provider == "docai":
         return _ocr_docai(file_path)
-    return _ocr_tesseract(file_path)
+    if settings.ocr_provider == "tesseract":
+        return _ocr_tesseract(file_path)
+    return _ocr_paddle(file_path)
 
 
 def _try_native_pdf(file_path: str) -> tuple[str, int]:
@@ -35,6 +42,39 @@ def _try_native_pdf(file_path: str) -> tuple[str, int]:
         return "\n".join(out), n
     except Exception:
         return "", 0
+
+
+def _ocr_paddle(file_path: str) -> tuple[str, int]:
+    """OCR con PaddleOCR (PP-OCR), ideale per tabelle, scansioni, timbri e testi ruotati.
+    100% offline e locale, senza bisogno di GPU."""
+    try:
+        os.environ["FLAGS_use_mkldnn"] = "0"
+        os.environ["PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"] = "0"
+        from paddleocr import PaddleOCR
+        import numpy as np
+
+        ocr = PaddleOCR(lang="it", enable_mkldnn=False)
+
+        if file_path.lower().endswith(".pdf"):
+            from pdf2image import convert_from_path
+            images = convert_from_path(file_path, dpi=200)
+            pages_text = []
+            for img in images:
+                res = ocr.predict(np.array(img))
+                page_lines = []
+                for r in res:
+                    page_lines.extend(r.get("rec_texts", []))
+                pages_text.append("\n".join(page_lines))
+            return "\n\n".join(pages_text), len(images)
+
+        res = ocr.predict(file_path)
+        page_lines = []
+        for r in res:
+            page_lines.extend(r.get("rec_texts", []))
+        return "\n".join(page_lines), 1
+    except Exception as e:
+        logger.warning(f"PaddleOCR fallito ({e}), fallback a Tesseract")
+        return _ocr_tesseract(file_path)
 
 
 def _ocr_tesseract(file_path: str) -> tuple[str, int]:
