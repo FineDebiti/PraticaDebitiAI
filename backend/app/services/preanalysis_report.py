@@ -17,6 +17,7 @@ Conforme al template professionale dello studio legale Avv. Aurelio Bentivegna:
 - 11. Conclusione provvisoria
 """
 from datetime import datetime
+from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -76,7 +77,7 @@ def _num(v) -> float:
         return 0.0
 
 
-def build_preanalysis_report(db: Session, case_id: str) -> dict:
+def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optional[dict] = None) -> dict:
     case = db.get(Case, case_id)
     if not case:
         return {}
@@ -187,7 +188,9 @@ def build_preanalysis_report(db: Session, case_id: str) -> dict:
     documenti_testo = "\n\n".join(doc_snippets)[:12000]
 
     forensic_res = {}
-    if documenti_testo:
+    if cached_forensic and isinstance(cached_forensic, dict) and (cached_forensic.get("client_report_text") or cached_forensic.get("json_matrix")):
+        forensic_res = cached_forensic
+    elif documenti_testo:
         try:
             forensic_res = run_forensic_preanalysis_chain(
                 nome_cliente=client_display,

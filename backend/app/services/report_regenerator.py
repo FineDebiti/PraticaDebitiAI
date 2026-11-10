@@ -348,31 +348,36 @@ RISPONDI ESCLUSIVAMENTE con il JSON valido aggiornato della sezione, senza testo
 
 
 def get_or_create_preanalysis_report(db: Session, case_id: str) -> Tuple[CasePreanalysisReport, Dict[str, Any]]:
-    """Restituisce il report persistito corrente, oppure lo inizializza (v1) calcolandolo dai dati."""
+    """Restituisce il report preanalisi, garantendo l'allineamento live dei dati dal DB."""
     existing = (
         db.query(CasePreanalysisReport)
         .filter_by(case_id=case_id)
         .order_by(CasePreanalysisReport.version.desc())
         .first()
     )
-    if existing and existing.report_data:
-        return existing, existing.report_data
+    cached_forensic = (existing.report_data or {}).get("forensic_preanalysis") or (existing.report_data or {}).get("forensic_protocol") if existing else None
+    fresh_data = build_preanalysis_report(db, case_id, cached_forensic=cached_forensic)
 
-    # Inizializza il report baseline
-    base_data = build_preanalysis_report(db, case_id)
-    # Se ci sono già regole attive nel DB, riconcilia subito il profilo d'impresa
     rules = get_active_rules(db)
     case_rules = [r for r in rules if r.case_id == case_id or r.case_id is None]
-    if base_data.get("capitolo_2_profilo"):
-        base_data["capitolo_2_profilo"] = _reconcile_company_profile(
-            db, case_id, base_data["capitolo_2_profilo"], case_rules
+    if fresh_data.get("capitolo_2_profilo"):
+        fresh_data["capitolo_2_profilo"] = _reconcile_company_profile(
+            db, case_id, fresh_data["capitolo_2_profilo"], case_rules
         )
-    _apply_proforma_debt_rule(base_data, case_rules)
+    _apply_proforma_debt_rule(fresh_data, case_rules)
 
+    if existing:
+        existing.report_data = fresh_data
+        existing.status = "generated"
+        db.commit()
+        db.refresh(existing)
+        return existing, existing.report_data
+
+    # Inizializza il report baseline se non esisteva
     report_record = CasePreanalysisReport(
         case_id=case_id,
         version=1,
-        report_data=base_data,
+        report_data=fresh_data,
         status="generated",
         applied_rules_count=len(case_rules),
         last_instructions="Generazione iniziale automatica",
