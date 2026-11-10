@@ -256,9 +256,11 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
   };
 
   const h = report?.header || {};
-  const clientName = h.cliente || title || "PIU' D'AMICO LUCREZIA";
+  const clientName = "LUCREZIA D'AMICO";
+  const displayClientName = "Lucrezia D'Amico";
   const formaGiuridica = h.forma_giuridica || "Ditta individuale artigiana · Palermo";
-  const draftDate = h.data_bozza || "10/11/2026";
+  const draftDate = "09.11.2026";
+  const coverDate = "9 NOVEMBRE 2026";
 
   return (
     <div className="pd-grid">
@@ -407,14 +409,14 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
       {/* ========================================================================= */}
       <article className="pd-benchmark-sheet">
         <div style={{ fontSize: 11, fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>
-          RELAZIONE FINALE DI PRE-ANALISI | {draftDate}
+          RELAZIONE FINALE DI PRE-ANALISI | {coverDate}
         </div>
 
         <div style={{ fontSize: 26, fontWeight: 900, color: "#102a43", lineHeight: 1.15 }}>
           Crisi d'impresa
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, color: "#102a43", margin: "4px 0 10px" }}>
-          {clientName}
+          {displayClientName}
         </div>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#475569", marginBottom: 4 }}>
           {formaGiuridica}
@@ -924,6 +926,8 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
       <article className="pd-benchmark-sheet">
         <div className="pd-page-breadcrumb">RELAZIONE DI PRE-ANALISI / VERSIONE DEFINITIVA</div>
         <div className="pd-chapter-code">06 / CONCLUSIONI E PROPOSTA DI INCARICO</div>
+
+        <div className="pd-sec-title" style={{ marginTop: 0, marginBottom: 12 }}>Indirizzo preliminare</div>
 
         {/* BANNER PROPOSTA CNC */}
         <div style={{ background: "#f8fafc", border: "1.5px solid #cbd5e1", borderRadius: 6, padding: "14px 18px", marginBottom: 18 }}>
