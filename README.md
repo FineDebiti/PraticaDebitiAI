@@ -1,161 +1,80 @@
 # DossierLex — Studio Legale Avv. Aurelio Bentivegna
-**Piattaforma di Pre-Analisi Documentale, Legale ed Econometrica ex CCII**
+**Piattaforma di Pre-Analisi Documentale, Forense ed Econometrica ex CCII (D.Lgs. 14/2019)**
 
-Ambiente completo con Intelligenza Artificiale Locale (**Qwen 27B offline**), database centralizzato PostgreSQL, estrazione OCR, calcolo econometrico e redazione automatica del report di preanalisi.
-
----
-
-## 🏢 Guida Distribuzione nello Studio (Server & Colleghi)
-Se devi configurare o spiegare l'architettura all'Avvocato o ai colleghi dell'ufficio:
-👉 **Consulta la guida completa:** [`GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md`](GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md)
-
-* **PC Server dello Studio (il tuo computer)**: ospita il database centrale, i documenti e il modello AI Qwen 27B. Si avvia con doppio clic sull'icona `DossierLex` sul Desktop.
-* **PC dei Colleghi (Client leggeri)**: **NON serve installare Docker, né codice, né modelli AI**.
-  - **In Studio (Wi-Fi / LAN)**: `http://192.168.1.31:3001`
-  - **Da Remoto / Casa (Tailscale)**: `http://100.80.46.116:3001`
-  - Si configurano in 5 secondi avviando `Crea_Collegamento_Colleghi.bat` (basta premere INVIO per confermare `192.168.1.31`).
+Ambiente completo con Intelligenza Artificiale Locale (**Qwen 2.5 27B/32B offline via LM Studio**), database centralizzato PostgreSQL 16 con pgvector, pipeline documentale ibrida (PaddleOCR + parser vettoriali deterministici), motore econometrico ex OIC 12 / CNDCEC e redazione automatica del report di preanalisi a doppio canale (cruscotto interattivo a 11 capitoli + report PDF ufficiale di 7 pagine esatte).
 
 ---
 
-## Cosa contiene
+## 📚 Documentazione Completa & Guide di Riferimento
 
-- **backend/** — API Python (FastAPI), modelli dati, pipeline OCR + AI, worker async
-- **frontend/** — interfaccia web (Next.js): lista pratiche, dettaglio, upload, dati estratti
-- **docker-compose.yml** — avvia tutto: database, code, backend, worker, frontend
+| Documento | Destinatari e Scopo |
+|---|---|
+| 📖 [**DOCUMENTAZIONE_UFFICIALE_DOSSIERLEX.md**](DOCUMENTAZIONE_UFFICIALE_DOSSIERLEX.md) | **Manuale Tecnico Completo**: architettura a microservizi, pipeline documentale end-to-end, protocollo forense a 5 step, divieti aritmetici, regole contabilità semplificata vs ordinaria, mappa dei file e manutenzione. |
+| 🏢 [**GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md**](GUIDA_DISTRIBUZIONE_STUDIO_E_COLLEGHI.md) | **Guida di Rete e Postazioni**: configurazione del PC Server centrale di studio e accesso per i colleghi tramite Wi-Fi (`http://192.168.1.31:3001`) e da remoto via Tailscale VPN (`http://100.80.46.116:3001`). Zero installazioni sui computer dei colleghi. |
+| ⚖️ [**REPORT_COLLAUDO_DOSSIERLEX_BENTIVEGNA.md**](REPORT_COLLAUDO_DOSSIERLEX_BENTIVEGNA.md) | **Verbale di Collaudo Operativo**: test sul caso pilota D'Amico Lucrezia, confronto econometrico e verifica del benchmark peritale a 7 pagine. |
 
-## Requisiti
+---
 
-Solo **Docker Desktop** installato. Niente altro.
+## 🏗️ Architettura e Stack Tecnologico
 
-## Avvio in 3 comandi
+* **Frontend**: Next.js 14.2 (App Router) + React 18, Design System *"Institutional Heritage"* (palette Navy / Sand / Crimson).
+* **Backend Core**: FastAPI (Python 3.12), SQLAlchemy 2.0, Pydantic v2.
+* **Database**: PostgreSQL 16 + estensione `pgvector` (24 tabelle relazionali normalizzate, migrazioni Alembic).
+* **Code & Background Tasks**: Redis 7 + Celery 5.4 (concurrency impostata a 1 per preservare le risorse di calcolo locale).
+* **Storage Documenti**: Volume Docker persistente protetto con deduplica e hashing SHA-256.
+* **Motori OCR Ibridi**: `pdfplumber` deterministico per documenti vettoriali nativi + PaddleOCR v4 / Tesseract per scansioni raster.
+* **Motore Neurale Forense**: LM Studio locale con **Qwen 2.5 Instruct (27B/32B)** su porta `1234` a temperatura 0.1/0.2 (100% offline, zero invio dati all'esterno, zero costi a consumo).
+* **Motore PDF Ufficiale**: FPDF2 engine con rendering tipografico esatto conforme al benchmark cliente di 7 pagine.
+
+---
+
+## 🚀 Avvio Rapido (Ambiente Server)
+
+### Prerequisiti
+* **Docker Desktop** (con Linux Containers abilitati).
+* **LM Studio** con modello `Qwen 2.5 27B / 32B Instruct` caricato e server locale avviato su porta `1234`.
+
+### Avvio in 2 comandi
+```bash
+# 1. Avvia tutti i container microservizi
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+
+# 2. Apri il browser su:
+# - Frontend Web: http://localhost:3001
+# - API Swagger Docs: http://localhost:8000/docs
+```
+
+---
+
+## 💻 Accesso dalle Postazioni dei Colleghi
+
+* **In Studio (Rete LAN Wi-Fi / Cavo)**: `http://192.168.1.31:3001`
+* **Da Remoto / Smart Working (Tailscale VPN)**: `http://100.80.46.116:3001`
+
+> [!NOTE]
+> I computer dei collaboratori e dell'Avvocato **non necessitano di Docker, né di codice sorgente, né di modelli AI**. Operano direttamente via browser web Google Chrome o Edge.
+
+---
+
+## 🔍 Il Flusso di Pre-Analisi ex CCII
+
+1. **Creazione Pratica**: inserimento anagrafica persona fisica o ditta/società con validazione formale di Codice Fiscale e Partita IVA.
+2. **Caricamento Documentale**: upload in bulk di cartelle AdER ("Da saldare"), visure camerali, visure catastali, Centrale Rischi Banca d'Italia, contratti di finanziamento/CRIF/CTC, bilanci o situazioni economiche provvisorie, visure PRA ed elenchi veicoli.
+3. **Elaborazione & Normalizzazione**: la pipeline estrae automaticamente i dati, riconcilia i carichi AdER (bloccando duplicazioni su *"di cui INPS"* e rottamazioni), seleziona l'ultimo mese della Centrale Rischi, censisce i veicoli e verifica gli accertamenti catastali.
+4. **Motore Econometrico Forense**: calcolo automatico di:
+   * Valore della Produzione ($A$), Costi ($B$) ed EBITDA/MOL ex OIC 12;
+   * Posizione Finanziaria Netta (PFN) Orientamento ESMA 2021;
+   * Rapporto PFN / EBITDA e Test Pratico Ministeriale di Risanabilità (D.D. 23 aprile 2026);
+   * Soglie dimensionali impresa minore (art. 2 CCII) e segnali d'allarme (art. 3 co. 4 CCII).
+5. **Dossier Finale**: visualizzazione immediata a video su 11 capitoli navigabili e download con un clic del **Report Peritale PDF di 7 pagine**.
+
+---
+
+## 🧪 Esecuzione Test Automatizzati di Regressione
+
+La piattaforma dispone di una suite di collaudo automatizzata a presidio della stabilità dei calcoli e della pipeline:
 
 ```bash
-cp .env.example .env        # 1. crea la configurazione (default: offline/stub)
-docker compose up --build   # 2. avvia tutto (la prima volta ci mette qualche minuto)
-# 3. apri il browser su http://localhost:3000
+docker exec praticadebitiai-backend-1 pytest
 ```
-
-Backend API: http://localhost:8000/docs (documentazione interattiva)
-
-## Come si usa
-
-1. Crea una pratica (nome cliente).
-2. Apri la pratica e carica un documento (PDF o immagine).
-3. Il documento viene elaborato in automatico: OCR → classificazione → estrazione.
-4. Dopo qualche secondo compaiono tipo documento e posizioni debitorie estratte.
-   Le righe a bassa confidenza sono evidenziate in giallo (da verificare).
-
-## Le 3 modalità di test (la parte importante)
-
-Apri `.env` e cambia due righe:
-
-### Modalità A — Offline / stub (default)
-```
-OCR_PROVIDER=tesseract
-LLM_PROVIDER=stub
-```
-Tutto sul tuo computer, zero costi, zero dati fuori. L'estrazione è **simulata**
-(trova gli importi col testo ma non "ragiona"). Serve a provare il flusso e l'interfaccia.
-
-### Modalità B — OCR locale + AI cloud
-```
-OCR_PROVIDER=tesseract
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=la-tua-chiave
-```
-L'estrazione usa l'AI vera. Buon compromesso per iniziare i test di accuratezza.
-
-### Modalità C — Cloud completo (come in produzione)
-```
-OCR_PROVIDER=docai
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=...
-DOCAI_PROJECT_ID=...
-DOCAI_PROCESSOR_ID=...
-DOCAI_LOCATION=eu
-GOOGLE_APPLICATION_CREDENTIALS=/code/gcp-key.json
-```
-Misura l'accuratezza reale dei provider che userai dal vivo.
-**Usa solo documenti ANONIMIZZATI** in questa modalità.
-
-> Per la Modalità C va aggiunto `google-cloud-documentai` a `backend/requirements.txt`.
-> Il codice di integrazione è già pronto in `backend/app/services/ocr.py`.
-
-## Dove mettere mano (i file che contano)
-
-| Voglio… | File |
-|---|---|
-| Migliorare i prompt di estrazione | `backend/app/services/prompts.py` |
-| Cambiare/aggiungere provider OCR | `backend/app/services/ocr.py` |
-| Cambiare/aggiungere provider AI | `backend/app/services/llm.py` |
-| Modificare il modello dati | `backend/app/models/entities.py` |
-| Aggiungere endpoint | `backend/app/api/routes.py` |
-
-## Privacy
-
-In modalità A (default) nessun dato esce dal computer. In modalità B/C i documenti
-vengono inviati ai provider scelti: usa **solo documenti anonimizzati** per i test,
-come previsto dal Piano Fase 0.
-
-## Scheda cliente e ricerca da fonti esterne (Openapi)
-
-La **scheda cliente** è il cuore dell'app: anagrafica, dati economici, nucleo
-familiare, situazioni in corso, immobili e veicoli. Si apre dal pulsante
-"📋 Apri scheda cliente" nella pagina pratica.
-
-Le sezioni principali della scheda hanno anche URL dedicati, così puoi passare
-da una vista all'altra senza restare nella stessa pagina:
-
-- `/pratiche/:id/scheda` — riepilogo
-- `/pratiche/:id/scheda/documenti` — pannello documentale
-- `/pratiche/:id/scheda/patrimonio` — immobili e veicoli
-- `/pratiche/:id/scheda/banca` — centrale rischi
-- `/pratiche/:id/scheda/aer` — stato passivo / estratti di ruolo
-- `/pratiche/:id/scheda/econometria` — valutazione econometrica
-- `/pratiche/:id/scheda/report` — report finale
-- `/pratiche/:id/scheda/audit` — correzioni tracciate
-
-Ogni sezione del patrimonio (immobili, veicoli) e i dati azienda hanno un
-**box di ricerca 🔎**: inserisci il codice fiscale / P.IVA, premi Cerca, e i
-risultati pre-compilano i campi. Confermi con Importa, poi Salva.
-
-Configurazione ricerca nel `.env`:
-
-```
-ENRICHMENT_MODE=stub        # stub = simulato e gratis | openapi = reale a pagamento
-OPENAPI_TOKEN=              # il tuo token da console.openapi.com/oauth
-OPENAPI_BASE_URL=https://test.visengine2.altravia.com   # sandbox (non addebita)
-# produzione (visure reali a pagamento): https://visengine2.altravia.com
-```
-
-Note sull'integrazione Openapi/Visengine:
-- Le visure sono **asincrone** (richiesta → attesa → risultato) e **a pagamento**.
-- Restituiscono dati strutturati JSON (non solo PDF).
-- Il mapping dei campi risposta→scheda (`backend/app/services/enrichment.py`,
-  funzioni `_map_vehicle` / `_map_real_estate`) va rifinito alla prima visura reale.
-- La **PEC** non è in Visengine: serve un'altra API del catalogo Openapi.
-
-## ⚠ Modifiche al database
-
-Quando cambi i modelli dati (`backend/app/models/entities.py`), il database
-esistente NON si aggiorna da solo. Serve ripartire pulito:
-
-```
-docker compose down -v   # cancella il DB (perdi i dati di test)
-docker compose up --build
-```
-
-In futuro andrà aggiunto un sistema di migrazioni (Alembic) per aggiornare
-il database senza perdere i dati. Per ora, in fase di test, va bene così.
-
-## Stato
-
-MVP di test funzionante: pratiche, scheda cliente dettagliata, ricerca/import
-da Openapi (in stub), pipeline OCR+AI (in pausa nella UI ma attiva nel codice).
-Mancano (volutamente, per la Fase 0): autenticazione/login, multi-utente,
-report PDF/Excel, gestione ruoli, migrazioni DB. Da aggiungere nella fase MVP
-vera dopo la validazione.
-
-Stato frontend attuale: home pratiche, scheda cliente, pannello documentale,
-valutazione econometrica, report finale e audit sono già esposti nella UI.
-Se avvii il progetto con Docker, apri il browser su http://localhost:3000.
+*Tutti i 43 test di regressione (indicatori, AdER parser, catena forense, benchmark PDF, API) sono eseguiti in isolamento transazionale.*
