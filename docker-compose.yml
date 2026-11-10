@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: pratica
       POSTGRES_DB: pratica_debiti
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
