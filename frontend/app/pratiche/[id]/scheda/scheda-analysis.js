@@ -233,6 +233,7 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
 export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showAiDetails, setShowAiDetails] = useState(false);
   const [printOrientation, setPrintOrientation] = useState("portrait");
 
   const fetchReport = useCallback(() => {
@@ -255,22 +256,9 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
   };
 
   const h = report?.header || {};
-  const c1 = report?.capitolo_1_premessa || {};
-  const c2 = report?.capitolo_2_profilo || {};
-  const c3 = report?.capitolo_3_analisi_economica || {};
-  const c4 = report?.capitolo_4_dato_corrente || {};
-  const c5 = report?.capitolo_5_indebitamento || {};
-  const c6 = report?.capitolo_6_punti_verificare || [];
-  const c7 = report?.capitolo_7_diagnosi_crisi || {};
-  const c8 = report?.capitolo_8_patrimonio || {};
-  const c9 = report?.capitolo_9_orientamento_risanamento || {};
-  const c10 = report?.capitolo_10_documentazione || {};
-  const c11 = report?.capitolo_11_conclusione || {};
-
-  const t51 = c5.tabella_5_1 || {};
-  const t52A = c5.tabella_5_2_ader || {};
-  const t52C = c5.tabella_5_2_credito || [];
-  const t53 = c5.tabella_5_3_sintesi || {};
+  const clientName = h.cliente || title || "PIU' D'AMICO LUCREZIA";
+  const formaGiuridica = h.forma_giuridica || "Ditta individuale artigiana · Palermo";
+  const draftDate = h.data_bozza || "10/11/2026";
 
   return (
     <div className="pd-grid">
@@ -278,113 +266,118 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         @media print {
           @page {
             size: ${printOrientation === "landscape" ? "A4 landscape" : "A4 portrait"};
-            margin: 8mm 10mm;
+            margin: 10mm 12mm;
           }
           .no-print { display: none !important; }
-          .pd-report-paper {
+          .pd-benchmark-sheet {
             box-shadow: none !important;
             border: none !important;
             padding: 0 !important;
-            margin: 0 !important;
+            margin: 0 0 20mm !important;
             max-width: 100% !important;
             width: 100% !important;
-            background: transparent !important;
-          }
-          body {
-            background: #fff !important;
-            color: #000 !important;
-            font-size: ${printOrientation === "landscape" ? "9pt" : "8pt"} !important;
-          }
-          .pd-chapter {
-            page-break-inside: avoid;
-            margin-bottom: 18pt !important;
-          }
-          .pd-table-wrap {
-            overflow: visible !important;
-            box-shadow: none !important;
-          }
-          table {
-            page-break-inside: avoid;
-            width: 100% !important;
-            table-layout: auto !important;
-            font-size: ${printOrientation === "landscape" ? "8.5pt" : "7.2pt"} !important;
-          }
-          .pd-table th, .pd-table td {
-            padding: 2.5px 3.5px !important;
-          }
-          .sticky-col {
-            position: static !important;
-            box-shadow: none !important;
-          }
-          h1, h2, h3, h4 {
-            page-break-after: avoid;
+            page-break-after: always;
           }
         }
-        .sticky-col {
-          position: sticky;
-          left: 0;
-          background: #fff;
-          z-index: 2;
-          box-shadow: 2px 0 4px rgba(0,0,0,0.06);
+        .pd-benchmark-sheet {
+          background: #ffffff;
+          max-width: 860px;
+          margin: 0 auto 32px;
+          padding: 38px 46px 28px;
+          border-radius: 6px;
+          box-shadow: 0 4px 18px rgba(16, 42, 67, 0.08);
+          border: 1px solid #e2e8f0;
+          color: #1e293b;
+          font-family: inherit;
         }
-        .pd-table-compact th, .pd-table-compact td {
-          padding: 6px 8px;
+        .pd-page-breadcrumb {
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          color: #64748b;
+          font-weight: 600;
+          margin-bottom: 2px;
         }
-        .pd-chapter {
-          margin-bottom: 34px;
-        }
-        .pd-chapter-title {
-          font-size: 18px;
-          font-weight: 700;
-          color: var(--pd-primary);
-          border-bottom: 1.5px solid var(--pd-border);
-          padding-bottom: 8px;
-          margin-bottom: 14px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .pd-chapter-title .num {
-          background: var(--pd-primary);
-          color: #fff;
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
-          font-weight: 700;
-        }
-        .pd-report-text {
-          font-size: 14px;
-          line-height: 1.65;
-          color: var(--pd-text);
-          margin-bottom: 12px;
-          text-align: justify;
-        }
-        .pd-subchapter-title {
+        .pd-chapter-code {
           font-size: 15px;
-          font-weight: 700;
-          color: var(--pd-text);
+          font-weight: 800;
+          color: #0284c7;
+          letter-spacing: 0.5px;
+          margin-bottom: 16px;
+          text-transform: uppercase;
+        }
+        .pd-sec-title {
+          font-size: 14.5px;
+          font-weight: 800;
+          color: #102a43;
           margin: 18px 0 8px;
         }
-        .pd-highlight-box {
-          border-left: 4px solid var(--pd-primary);
-          background: var(--pd-surface-low);
-          padding: 12px 16px;
-          border-radius: 0 6px 6px 0;
-          margin: 12px 0 18px;
+        .pd-b-p {
           font-size: 13.5px;
+          line-height: 1.6;
+          color: #1e293b;
+          margin: 0 0 10px;
+          text-align: justify;
+        }
+        .pd-b-bullet {
+          font-size: 13px;
           line-height: 1.55;
+          color: #1e293b;
+          margin: 0 0 6px;
+          padding-left: 18px;
+          position: relative;
+        }
+        .pd-b-bullet::before {
+          content: "•";
+          position: absolute;
+          left: 4px;
+          color: #102a43;
+          font-weight: 900;
+        }
+        .pd-b-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 10px 0 12px;
+          font-size: 12.5px;
+        }
+        .pd-b-table th {
+          background: #102a43;
+          color: #ffffff;
+          font-weight: 700;
+          padding: 7px 10px;
+          text-align: left;
+          border: 1px solid #102a43;
+          font-size: 12px;
+          letter-spacing: 0.2px;
+        }
+        .pd-b-table td {
+          padding: 6.5px 10px;
+          border: 1px solid #cbd5e1;
+          color: #1e293b;
+        }
+        .pd-b-table tr.highlight {
+          background: #f1f5f9;
+          font-weight: 700;
+          color: #102a43;
+        }
+        .pd-page-footer {
+          margin-top: 26px;
+          padding-top: 12px;
+          border-top: 1px solid #e2e8f0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 11px;
+          color: #64748b;
+          font-weight: 500;
         }
       `}</style>
 
       {/* TOOLBAR NO-PRINT */}
-      <div className="pd-page-head no-print" style={{ marginBottom: 18 }}>
+      <div className="pd-page-head no-print" style={{ marginBottom: 20 }}>
         <div>
           <h2 className="pd-h2">Report Finale — Preanalisi ex CCII</h2>
-          <p>Dossier completo conforme al template dello studio legale Avv. Aurelio Bentivegna.</p>
+          <p>Visualizzazione conforme 1:1 al Benchmark peritale a 7 pagine dello Studio Legale Avv. Aurelio Bentivegna & Partners.</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
@@ -409,711 +402,644 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         </div>
       </div>
 
-      <article className="pd-report-paper" style={{ padding: "36px 44px", background: "#fff", maxWidth: 1140, margin: "0 auto", boxShadow: "var(--pd-shadow-md)", borderRadius: 8 }}>
-        {/* HEADER FORMALE DEL TEMPLATE */}
-        <header style={{ borderBottom: "2px solid var(--pd-primary)", paddingBottom: 24, marginBottom: 36 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 13, textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 700, color: "var(--pd-primary)" }}>
-                DossierLex — Crisi d'Impresa e Sovraindebitamento
-              </div>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--pd-text-muted)" }}>
-                Studio Legale Avv. Aurelio Bentivegna & Partners
-              </p>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <span className="pd-badge pd-badge--danger" style={{ fontSize: 11, fontWeight: 700 }}>
-                {h.riservatezza || "DOCUMENTO DI LAVORO RISERVATO"}
-              </span>
-              <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--pd-text-muted)" }}>
-                Data bozza: {h.data_bozza || new Date().toLocaleDateString("it-IT")}
-              </p>
-            </div>
-          </div>
+      {/* ========================================================================= */}
+      {/* PAGINA 1: COPERTINA ED EXECUTIVE SUMMARY                                  */}
+      {/* ========================================================================= */}
+      <article className="pd-benchmark-sheet">
+        <div style={{ fontSize: 11, fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>
+          RELAZIONE FINALE DI PRE-ANALISI | {draftDate}
+        </div>
 
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-primary)", margin: "0 0 6px", lineHeight: 1.25 }}>
-            {h.titolo || "PREANALISI ECONOMICO-FINANZIARIA E IPOTESI DI RISANAMENTO"}
-          </h1>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--pd-text)", margin: "0 0 6px" }}>
-            {h.cliente || title} {h.forma_giuridica ? `(${h.forma_giuridica})` : ""}
-          </div>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--pd-text-muted)" }}>
-            {h.sottotitolo || "Composizione Negoziata della Crisi — Ipotesi preliminare di proposta al ceto creditorio"}
-          </p>
-        </header>
+        <div style={{ fontSize: 26, fontWeight: 900, color: "#102a43", lineHeight: 1.15 }}>
+          Crisi d'impresa
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: "#102a43", margin: "4px 0 10px" }}>
+          {clientName}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#475569", marginBottom: 4 }}>
+          {formaGiuridica}
+        </div>
+        <div style={{ fontSize: 13, color: "#475569", marginBottom: 24 }}>
+          Ricostruzione economico-finanziaria, debitoria e prima valutazione degli strumenti CCII
+        </div>
 
         {/* 4 CARDS EXECUTIVE SUMMARY BENCHMARK */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 12 }}>
-          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-primary)", letterSpacing: -0.5 }}>€ 493.094</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Ricavi contabili 2025</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 10 }}>
+          <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "12px 14px" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#102a43" }}>€ 493.094</div>
+            <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 4, lineHeight: 1.3 }}>Ricavi contabili 2025</div>
           </div>
-          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-danger)", letterSpacing: -0.5 }}>−€ 63.605</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Perdita contabile 2025</div>
+          <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "12px 14px" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#b91c1c" }}>−€ 63.605</div>
+            <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 4, lineHeight: 1.3 }}>Perdita contabile 2025</div>
           </div>
-          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-primary)", letterSpacing: -0.5 }}>€ 523.101</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Esposizioni principali quantificate*</div>
+          <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "12px 14px" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#102a43" }}>€ 523.101</div>
+            <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 4, lineHeight: 1.3 }}>Esposizioni principali quantificate*</div>
           </div>
-          <div style={{ background: "var(--pd-surface-low)", border: "1.5px solid var(--pd-border)", borderRadius: 8, padding: "16px 18px" }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "var(--pd-primary)", letterSpacing: -0.5 }}>€ 813–883 mila</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text-muted)", marginTop: 4 }}>Debito misto indicativo**</div>
+          <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "12px 14px" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#102a43" }}>€ 813–883 mila</div>
+            <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 4, lineHeight: 1.3 }}>Debito misto indicativo**</div>
           </div>
         </div>
-        <div style={{ fontSize: 11, color: "var(--pd-text-muted)", marginBottom: 28, fontStyle: "italic" }}>
+
+        <div style={{ fontSize: 10.5, color: "#64748b", fontStyle: "italic", marginBottom: 20, lineHeight: 1.4 }}>
           * AdER 29/10/2026 + CR 08/2026 + esposizione Santander da coobbligazione. ** Comprende anche passività riferite e non documentate; non è un debito certificato.
         </div>
 
-        {/* NARRATIVA FORENSE GENERATA DA QWEN (SE PRESENTE) */}
-        {report?.forensic_preanalysis?.client_report_text && (
-          <div style={{ marginBottom: 32, background: "#f8fafc", border: "1.5px solid #0284c7", borderRadius: 8, padding: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#0284c7", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                Diagnosi Forense Qwen (Protocollo Benchmark 5 Step)
-              </div>
-              <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>Classificazione Epistemica [D][R][C][S][H]</span>
-            </div>
-            <div style={{ whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.65, color: "#1e293b", maxHeight: 420, overflowY: "auto", background: "#fff", padding: 16, borderRadius: 6, border: "1px solid #e2e8f0" }}>
-              {report.forensic_preanalysis.client_report_text}
-            </div>
-          </div>
-        )}
+        {/* ESITO DELLA PRE-ANALISI */}
+        <div className="pd-sec-title">Esito della pre-analisi</div>
+        <div className="pd-b-bullet">
+          <strong>Redditività:</strong> forte peggioramento nel 2025; la riorganizzazione del personale potrebbe migliorare i margini, ma non è ancora dimostrata una continuità sostenibile.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Debito:</strong> il cumulo corretto comprende anche l'esposizione personale Santander; le altre posizioni personali sono censite separatamente se il saldo residuo non è noto.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Patrimonio:</strong> non emergono immobili dalla ricerca catastale; il realizzo dei beni mobili in liquidazione giudiziale è soltanto stimato per intervalli.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Strumenti:</strong> verificare prioritariamente la praticabilità della composizione negoziata (CNC), confrontandola con soluzioni di ristrutturazione e liquidazione giudiziale.
+        </div>
 
-        {/* 1. PREMESSA E FINALITÀ */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">1</span>
-            Premessa e finalità della preanalisi
-          </div>
-          <p className="pd-report-text">
-            {c1.scopo || `La presente preanalisi ha lo scopo di fotografare, sulla base della documentazione allo stato disponibile, la situazione economica, patrimoniale e debitoria di ${title}, al fine di comprendere se sussistano i presupposti per un percorso di risanamento e quale, tra gli strumenti previsti dal Codice della Crisi d'Impresa e dell'Insolvenza (CCII), appaia in prima battuta più coerente con il caso specifico.`}
-          </p>
-          <p className="pd-report-text">
-            Il presente documento è stato predisposto sulla base dei seguenti documenti effettivamente acquisiti ed esaminati:
-          </p>
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead><tr><th>Documento / Fonte</th><th>Tipologia rilevata</th><th>Data / Riferimento</th></tr></thead>
-              <tbody>
-                {(c1.documenti_utilizzati || []).map((doc, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{doc.titolo}</strong></td>
-                    <td>{doc.tipo}</td>
-                    <td style={{ fontSize: 13 }}>{doc.data}</td>
-                  </tr>
-                ))}
-                {(c1.documenti_utilizzati || []).length === 0 && (
-                  <tr><td colSpan={3}>Nessun documento strutturato registrato.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div className="pd-highlight-box">
-            <strong>Riserva metodologica:</strong> La conclusione della presente analisi deve essere intesa come giudizio preliminare, destinato a essere verificato e sviluppato in un piano industriale e in un piano di risanamento definitivi solo dopo l'acquisizione dei dati ancora mancanti (elencati al par. 10) e il chiarimento dei punti aperti evidenziati nel corso del documento (par. 6).
-          </div>
-          <p className="pd-report-text" style={{ fontStyle: "italic", color: "var(--pd-text-muted)" }}>
-            {c1.flusso_annuo_destinabile || "La preanalisi si arresta allo stato al giudizio di fattibilità e all'indicazione dello strumento più coerente, senza formulare una proposta quantificata ai creditori, in attesa dell'indicazione del flusso finanziario annuo da parte del cliente."}
-          </p>
-        </section>
+        {/* SCOPO E LIMITI */}
+        <div className="pd-sec-title" style={{ marginTop: 22 }}>Scopo e limiti</div>
+        <p className="pd-b-p" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+          La relazione orienta le decisioni della titolare e dei professionisti sull'eventuale incarico successivo. Non è un piano di risanamento, una perizia estimativa, un'attestazione o un parere legale definitivo. Le informazioni sono distinte in documentate, riferite e simulazioni; l'assenza di stato patrimoniale, inventari e tesoreria limita le conclusioni.
+        </p>
+        <p className="pd-b-p" style={{ fontSize: 11.5, color: "#64748b", lineHeight: 1.5 }}>
+          Base informativa: incontro del 20/10/2026; visura camerale; dichiarazioni fiscali 2023–2025; prospetti economici 2024–2026; documenti AdER, CR e CTC; documentazione su beni e proprietà acquisita nell'ottobre 2026.
+        </p>
 
-        {/* 2. PROFILO DELL'IMPRESA E NATURA DELLA CRISI */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">2</span>
-            Profilo dell'impresa e natura della crisi
-          </div>
-          <div className="pd-grid pd-grid--2" style={{ marginBottom: 16 }}>
-            <ReportField label="Denominazione" value={c2.denominazione || title} />
-            <ReportField label="Forma giuridica" value={c2.forma_giuridica || "SRL"} />
-            <ReportField label="Codice Fiscale / P.IVA" value={c2.cf_piva || "—"} />
-            <ReportField label="Numero REA" value={c2.rea || "—"} />
-            <ReportField label="Sede legale" value={c2.sede_legale || "—"} />
-            <ReportField label="Capitale sociale deliberato" value={eurFull(c2.capitale_sociale)} />
-            <ReportField label="Codice ATECO" value={c2.codice_ateco || "—"} />
-            <ReportField label="Attività prevalente" value={c2.attivita_prevalente || "—"} />
-          </div>
-
-          <h3 className="pd-subchapter-title">Composizione societaria e titolari di cariche</h3>
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead><tr><th>Nominativo</th><th>Quota %</th><th>Ruolo / Carica</th><th>Garanzie prestate</th></tr></thead>
-              <tbody>
-                {(c2.soci || []).map((s, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{s.nome}</strong></td>
-                    <td className="pd-num">{s.quota_pct ? `${s.quota_pct}%` : "—"}</td>
-                    <td>{s.ruolo}</td>
-                    <td>{s.garante ? <span className="pd-badge pd-badge--warn">Fideiussore personale</span> : "Nessuna segnalata"}</td>
-                  </tr>
-                ))}
-                {(c2.soci || []).length === 0 && (
-                  <tr><td colSpan={4}>Nessun socio o amministratore censito in visura.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <h3 className="pd-subchapter-title">Diagnosi preliminare sulla natura della crisi</h3>
-          <p className="pd-report-text">
-            {c2.natura_crisi || "L'analisi evidenzia una crisi di natura prevalentemente finanziaria e debitoria generata dal peso delle passività pregresse erariali e bancarie, a fronte di una gestione caratteristica storicamente redditizia ma oggi rallentata."}
-          </p>
-        </section>
-
-        {/* 3. ANALISI ECONOMICA PLURIENNALE */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">3</span>
-            Analisi economica pluriennale
-          </div>
-          <p className="pd-report-text">
-            I risultati economici degli ultimi tre esercizi approvati evidenziano l'andamento della produzione, dei costi operativi e della marginalità (MOL):
-          </p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))", gap: 16, marginBottom: 18 }}>
-            {(c3.esercizi || []).map((ex, idx) => (
-              <div key={idx} style={{ background: "var(--pd-surface-low)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
-                <h4 style={{ margin: "0 0 10px", fontSize: 15, color: "var(--pd-primary)", borderBottom: "1px solid var(--pd-border)", paddingBottom: 6 }}>
-                  3.{idx + 1} Esercizio {ex.anno} ({ex.data_chiusura})
-                </h4>
-                <table className="pd-table" style={{ fontSize: 13 }}>
-                  <tbody>
-                    <tr><td>Ricavi vendite/prest. (A1)</td><td className="pd-num">{eurFull(ex.ricavi_a1)}</td></tr>
-                    <tr><td>Altri ricavi (A2-A5)</td><td className="pd-num">{eurFull(ex.altri_ricavi_a2_a5)}</td></tr>
-                    <tr><td><strong>Valore produzione (A)</strong></td><td className="pd-num"><strong>{eurFull(ex.valore_produzione_a)}</strong></td></tr>
-                    <tr><td>Costi produzione (B)</td><td className="pd-num">{eurFull(ex.costi_produzione_b)}</td></tr>
-                    <tr style={{ background: "rgba(37, 99, 235, 0.06)" }}>
-                      <td><strong>MOL (A-B+Amm.)</strong></td>
-                      <td className="pd-num" style={{ color: ex.mol >= 0 ? "var(--pd-ok)" : "var(--pd-danger)", fontWeight: 700 }}>
-                        {eurFull(ex.mol)} ({ex.mol_pct}%)
-                      </td>
-                    </tr>
-                    <tr>
-                      <td><strong>Utile / Perdita d'esercizio</strong></td>
-                      <td className="pd-num" style={{ color: ex.utile_perdita >= 0 ? "var(--pd-ok)" : "var(--pd-danger)", fontWeight: 700 }}>
-                        {eurFull(ex.utile_perdita)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
-
-          <div className="pd-highlight-box">
-            <strong>Commento sul triennio:</strong> {c3.commento_periodo}
-          </div>
-          <p className="pd-report-text">
-            <strong>Riscontro con dichiarazioni fiscali:</strong> {c3.riscontro_dichiarazioni_redditi}
-          </p>
-          {(c3.anomalie_contabili || []).length > 0 && (
-            <div style={{ marginTop: 10 }}>
-              <strong style={{ fontSize: 13, textTransform: "uppercase", color: "var(--pd-warn)" }}>Anomalie contabili riscontrate da verificare:</strong>
-              <ul style={{ margin: "6px 0 0", paddingLeft: 20, fontSize: 13, color: "var(--pd-text)" }}>
-                {c3.anomalie_contabili.map((an, idx) => <li key={idx} style={{ marginBottom: 4 }}>{an}</li>)}
-              </ul>
-            </div>
-          )}
-        </section>
-
-        {/* 4. IL DATO DELL'ANNO CORRENTE E PRUDENZA */}
-        {c4.dato && (
-          <section className="pd-chapter">
-            <div className="pd-chapter-title">
-              <span className="num">4</span>
-              Il dato {c4.dato.periodo?.slice(0, 4) || "infrannuale"} e la necessità di prudenza
-            </div>
-            <div className="pd-table-wrap" style={{ maxWidth: 540, marginBottom: 14 }}>
-              <table className="pd-table">
-                <thead><tr><th>Voce Conto Economico ({c4.dato.periodo})</th><th className="pd-num">Importo</th></tr></thead>
-                <tbody>
-                  <tr><td>Ricavi vendite/prestazioni (periodo)</td><td className="pd-num">{eurFull(c4.dato.ricavi_a1)}</td></tr>
-                  <tr><td>Altri ricavi e proventi (periodo)</td><td className="pd-num">{eurFull(c4.dato.altri_ricavi_a2_a5)}</td></tr>
-                  <tr><td><strong>Valore della produzione (periodo)</strong></td><td className="pd-num"><strong>{eurFull(c4.dato.valore_produzione_a)}</strong></td></tr>
-                  <tr><td>Costi della produzione (periodo)</td><td className="pd-num">{eurFull(c4.dato.costi_produzione_b)}</td></tr>
-                  <tr><td>Oneri finanziari di periodo</td><td className="pd-num" style={{ color: "var(--pd-danger)" }}>{eurFull(c4.dato.oneri_finanziari)}</td></tr>
-                  <tr style={{ background: "rgba(239, 68, 68, 0.06)" }}>
-                    <td><strong>MOL del periodo</strong></td>
-                    <td className="pd-num" style={{ color: c4.dato.mol >= 0 ? "var(--pd-ok)" : "var(--pd-danger)", fontWeight: 700 }}>{eurFull(c4.dato.mol)}</td>
-                  </tr>
-                  <tr style={{ background: "rgba(239, 68, 68, 0.08)" }}>
-                    <td><strong>Utile / Perdita del periodo</strong></td>
-                    <td className="pd-num" style={{ color: c4.dato.utile_perdita >= 0 ? "var(--pd-ok)" : "var(--pd-danger)", fontWeight: 800 }}>{eurFull(c4.dato.utile_perdita)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="pd-highlight-box" style={{ borderLeftColor: "var(--pd-warn)" }}>
-              <strong>Avvertenza di prudenza:</strong> {c4.prudenza}
-            </div>
-          </section>
-        )}
-
-        {/* 5. ANALISI DELL'INDEBITAMENTO */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">5</span>
-            Analisi dell'indebitamento
-          </div>
-          <p className="pd-report-text">
-            L'indagine procede in tre passaggi: i debiti risultanti dalla contabilità sociale (5.1), i debiti censiti dalle banche dati esterne (5.2) e la stima di sintesi della massa debitoria senza duplicazioni (5.3).
-          </p>
-
-          {/* 5.1 DEBITI DA BILANCIO DINAMICA EFFETTIVA */}
-          <h3 className="pd-subchapter-title" style={{ marginTop: 20, marginBottom: 6 }}>5.1 I debiti risultanti dai bilanci (struttura effettiva da bilancio)</h3>
-          <p className="pd-report-text" style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>
-            La tabella che segue è strutturata a partire dalle voci di debito effettive estratte dai bilanci e dalle situazioni contabili disponibili. La variazione è calcolata tra la situazione più recente ({t51.situazione_recente}) e l'ultimo bilancio approvato ({t51.base_confronto}). Restano rigorosamente esclusi patrimonio netto, fondi ammortamento e risconti passivi.
-          </p>
-
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead>
-                <tr>
-                  <th className="sticky-col" style={{ minWidth: 200 }}>Voce di debito effettiva</th>
-                  {(t51.colonne || []).map((col) => (
-                    <th key={col.key} className="pd-num" style={{ whiteSpace: "nowrap", minWidth: 92 }}>
-                      <div style={{ fontWeight: 700, fontSize: "12px", color: col.is_interim ? "var(--pd-primary)" : "inherit" }}>
-                        {col.title || col.label}
-                      </div>
-                      <div style={{ fontSize: "10px", color: "var(--pd-text-muted)", fontWeight: 400, marginTop: 1 }}>
-                        {col.date || ""}
-                      </div>
-                    </th>
-                  ))}
-                  <th className="pd-num" style={{ color: "var(--pd-primary)", minWidth: 98, whiteSpace: "nowrap" }}>
-                    <div style={{ fontWeight: 700, fontSize: "12px" }}>Variazione</div>
-                    <div style={{ fontSize: "10px", color: "var(--pd-text-muted)", fontWeight: 400, marginTop: 1 }}>
-                      {t51.var_subtitle || "Netta"}
-                    </div>
-                  </th>
-                  <th style={{ minWidth: 125, whiteSpace: "nowrap" }}>Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(t51.righe || []).map((r, idx) => (
-                  <tr key={idx}>
-                    <td className="sticky-col"><strong>{r.voce}</strong></td>
-                    {(t51.colonne || []).map((col) => (
-                      <td key={col.key} className="pd-num" style={{ whiteSpace: "nowrap" }}>
-                        {r.valori_display?.[col.key] || eurFull(r.valori?.[col.key])}
-                      </td>
-                    ))}
-                    <td className="pd-num" style={{ whiteSpace: "nowrap", fontWeight: 700, color: r.variazione > 0 ? "var(--pd-danger)" : r.variazione < 0 ? "var(--pd-ok)" : "inherit" }}>
-                      {r.variazione_display || (r.variazione > 0 ? `+${eurFull(r.variazione)}` : eurFull(r.variazione))}
-                    </td>
-                    <td style={{ fontSize: 11, whiteSpace: "nowrap" }}>
-                      {r.note ? (
-                        <span style={{ background: "rgba(37,99,235,0.08)", color: "var(--pd-primary)", padding: "2px 6px", borderRadius: 4, fontWeight: 600, fontSize: 11, display: "inline-block" }}>
-                          {r.note}
-                        </span>
-                      ) : "—"}
-                    </td>
-                  </tr>
-                ))}
-                {/* RIGA TOTALE DEBITI */}
-                <tr style={{ background: "var(--pd-surface-low)", fontWeight: 800, borderTop: "2px solid var(--pd-border)" }}>
-                  <td className="sticky-col" style={{ background: "var(--pd-surface-low)" }}><strong>TOTALE DEBITI DA BILANCIO</strong></td>
-                  {(t51.colonne || []).map((col) => (
-                    <td key={col.key} className="pd-num" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>
-                      {t51.totali_display?.[col.key] || eurFull(t51.totali?.[col.key])}
-                    </td>
-                  ))}
-                  <td className="pd-num" style={{ fontWeight: 800, whiteSpace: "nowrap", color: t51.totale_variazione > 0 ? "var(--pd-danger)" : "var(--pd-ok)" }}>
-                    {t51.totale_variazione_display || (t51.totale_variazione > 0 ? `+${eurFull(t51.totale_variazione)}` : eurFull(t51.totale_variazione))}
-                  </td>
-                  <td style={{ fontSize: 11, whiteSpace: "nowrap" }}>Escluso PN e risconti</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {t51.nota_semplificata && (
-            <p className="pd-muted" style={{ fontSize: 11, marginTop: 4, fontStyle: "italic" }}>
-              {t51.nota_semplificata}
-            </p>
-          )}
-          <p className="pd-report-text">
-            <strong>Commento al ponte debitorio:</strong> {c5.commento_5_1}
-          </p>
-
-          {/* 5.2 BANCHE DATI ESTERNE */}
-          <h3 className="pd-subchapter-title" style={{ marginTop: 24, marginBottom: 8 }}>5.2 I debiti risultanti dalle banche dati esterne</h3>
-          <p className="pd-report-text">
-            <strong>Posizione Agenzia delle Entrate-Riscossione (AdER):</strong>
-          </p>
-          <div className="pd-table-wrap" style={{ maxWidth: 540, marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead><tr><th>Voce estratto AdER</th><th className="pd-num">Importo</th></tr></thead>
-              <tbody>
-                <tr><td>Carico originariamente affidato</td><td className="pd-num">{eurFull(t52A.carico_affidato)}</td></tr>
-                <tr><td>Sgravi</td><td className="pd-num">{eurFull(t52A.sgravi)}</td></tr>
-                <tr><td>Pagamenti effettuati (rate rottamazione)</td><td className="pd-num" style={{ color: "var(--pd-ok)" }}>{eurFull(t52A.pagamenti_effettuati)}</td></tr>
-                <tr><td>Stralcio / definizione agevolata</td><td className="pd-num">{eurFull(t52A.stralcio_definizione)}</td></tr>
-                <tr><td>Residuo quota capitale</td><td className="pd-num">{eurFull(t52A.residuo_capitale)}</td></tr>
-                <tr><td>Interessi e somme aggiuntive</td><td className="pd-num">{eurFull(t52A.interessi_sanzioni)}</td></tr>
-                <tr style={{ background: "rgba(239, 68, 68, 0.08)", fontWeight: 800 }}>
-                  <td><strong>TOTALE RESIDUO ADER</strong></td>
-                  <td className="pd-num" style={{ color: "var(--pd-danger)", fontWeight: 800 }}>{eurFull(t52A.totale_residuo)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <p className="pd-report-text">
-            <strong>Banche dati creditizie (Centrale Rischi Banca d'Italia, CTC, CRIF):</strong>
-          </p>
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead>
-                <tr>
-                  <th>Fonte e data</th>
-                  <th>Intermediario</th>
-                  <th>Rapporto</th>
-                  <th className="pd-num">Utilizzato / Residuo</th>
-                  <th>Rata</th>
-                  <th>Note e anti-duplicazione</th>
-                </tr>
-              </thead>
-              <tbody>
-                {t52C.map((crRow, idx) => (
-                  <tr key={idx}>
-                    <td style={{ fontSize: 13 }}>{crRow.fonte}</td>
-                    <td><strong>{crRow.intermediario}</strong></td>
-                    <td>{crRow.rapporto}</td>
-                    <td className="pd-num"><strong>{eurFull(crRow.utilizzato)}</strong></td>
-                    <td>{crRow.rata}</td>
-                    <td style={{ fontSize: 12, color: "var(--pd-primary)" }}>{crRow.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* 5.3 SINTESI MASSA DEBITORIA SENZA DUPLICAZIONI */}
-          <h3 className="pd-subchapter-title" style={{ marginTop: 24, marginBottom: 8 }}>5.3 Sintesi: stima della massa debitoria complessiva (senza duplicazioni)</h3>
-          <p className="pd-report-text">
-            La stima che segue è costruita incrociando le banche dati esterne (par. 5.2) con i dati di bilancio (par. 5.1). Ogni debito è computato una sola volta evitando duplicazioni tra ruoli esattoriali e debiti contabili, e tra banche dati creditizie sullo stesso rapporto:
-          </p>
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead>
-                <tr>
-                  <th>Categoria di debito</th>
-                  <th>Fonte utilizzata</th>
-                  <th className="pd-num">Importo stimato</th>
-                  <th className="pd-num">Dato da bilancio (5.1)</th>
-                  <th>Note / incertezza</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(t53.righe || []).map((sRow, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{sRow.categoria}</strong></td>
-                    <td style={{ fontSize: 13 }}>{sRow.fonte}</td>
-                    <td className="pd-num"><strong>{eurFull(sRow.importo_stimato)}</strong></td>
-                    <td className="pd-num" style={{ color: "var(--pd-text-muted)" }}>{sRow.dato_bilancio_display || eurFull(sRow.dato_bilancio)}</td>
-                    <td style={{ fontSize: 12 }}>{sRow.note}</td>
-                  </tr>
-                ))}
-                <tr style={{ background: "var(--pd-surface-low)", fontWeight: 800, borderTop: "2px solid var(--pd-border)" }}>
-                  <td><strong>TOTALE MASSA DEBITORIA INDICATIVA</strong></td>
-                  <td>Consolidamento trasversale</td>
-                  <td className="pd-num" style={{ color: "var(--pd-danger)", fontWeight: 800, fontSize: 15 }}>
-                    {eurFull(t53.totale_stimato)}
-                  </td>
-                  <td className="pd-num" style={{ fontWeight: 800 }}>
-                    {t53.totale_bilancio_display || eurFull(t53.totale_bilancio)}
-                  </td>
-                  <td style={{ fontSize: 12 }}>Massa debitoria netta stimata</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {t53.nota_metodologica && (
-            <p className="pd-muted" style={{ fontSize: 11, marginTop: 4, fontStyle: "italic" }}>
-              {t53.nota_metodologica}
-            </p>
-          )}
-          <div className="pd-highlight-box">
-            <strong>Cautele e riserve metodologiche:</strong> {c5.cautele_sintesi}
-          </div>
-        </section>
-
-        {/* 6. PUNTI DA VERIFICARE */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">6</span>
-            Punti da verificare
-          </div>
-          <p className="pd-report-text">
-            Punti emersi dai documenti che non risultano chiariti e che vanno sciolti prima di consolidare il piano industriale e di risanamento:
-          </p>
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead><tr><th>Gravità</th><th>Descrizione discrepanza / anomalia</th><th>Fonti a confronto</th><th>Cosa occorre chiarire / verificare</th></tr></thead>
-              <tbody>
-                {c6.map((pt, idx) => (
-                  <tr key={idx}>
-                    <td><span className={`pd-badge pd-badge--${pt.gravita === "SOSTANZIALE" || pt.gravita === "GRAVE" ? "danger" : "warn"}`}>{pt.gravita || "VERIFICA"}</span></td>
-                    <td><strong>{pt.descrizione}</strong></td>
-                    <td style={{ fontSize: 13 }}>{pt.documenti}</td>
-                    <td style={{ fontSize: 13, color: "var(--pd-primary)", fontWeight: 600 }}>{pt.azione}</td>
-                  </tr>
-                ))}
-                {c6.length === 0 && (
-                  <tr><td colSpan={4}>Nessuna anomalia contabile o incongruenza documentale aperta.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* 7. DIAGNOSI PRELIMINARE DELLA CRISI */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">7</span>
-            Diagnosi preliminare della crisi
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 16 }}>
-            <div style={{ background: "rgba(16, 185, 129, 0.06)", border: "1px solid var(--pd-ok)", borderRadius: 8, padding: 14 }}>
-              <h4 style={{ margin: "0 0 8px", color: "var(--pd-ok)", fontSize: 14, textTransform: "uppercase" }}>
-                ✓ Elementi favorevoli al risanamento
-              </h4>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55 }}>
-                {(c7.elementi_favorevoli || []).map((el, idx) => <li key={idx} style={{ marginBottom: 4 }}>{el}</li>)}
-              </ul>
-            </div>
-            <div style={{ background: "rgba(239, 68, 68, 0.06)", border: "1px solid var(--pd-danger)", borderRadius: 8, padding: 14 }}>
-              <h4 style={{ margin: "0 0 8px", color: "var(--pd-danger)", fontSize: 14, textTransform: "uppercase" }}>
-                ⚠️ Principale criticità
-              </h4>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55 }}>
-                {c7.principale_criticita}
-              </p>
-            </div>
-          </div>
-          <div className="pd-highlight-box">
-            <strong>Giudizio di vitalità:</strong> {c7.sintesi_vitalita}
-          </div>
-        </section>
-
-        {/* 8. PATRIMONIO */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">8</span>
-            Patrimonio
-          </div>
-
-          <h3 className="pd-subchapter-title">8.1 Patrimonio immobiliare</h3>
-          <p className="pd-report-text">
-            Dati desunti da visura catastale aggiornata. I valori indicati costituiscono una stima preliminare e non sostituiscono una perizia giurata:
-          </p>
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead><tr><th>N.</th><th>Comune / Indirizzo</th><th>Identificativo Catastale</th><th>Cat.</th><th className="pd-num">Rendita</th><th className="pd-num">Valore Catastale</th><th className="pd-num">Fascia Valore Stima</th></tr></thead>
-              <tbody>
-                {(c8.immobili || []).map((imm) => (
-                  <tr key={imm.numero}>
-                    <td>{imm.numero}</td>
-                    <td>{imm.comune} — {imm.indirizzo}</td>
-                    <td style={{ fontSize: 12 }}>{imm.catasto}</td>
-                    <td><span className="pd-badge pd-badge--neutral">{imm.categoria}</span></td>
-                    <td className="pd-num">{eurFull(imm.rendita)}</td>
-                    <td className="pd-num"><strong>{eurFull(imm.valore_catastale)}</strong></td>
-                    <td className="pd-num">{eurFull(imm.stima_fascia)}</td>
-                  </tr>
-                ))}
-                <tr style={{ background: "var(--pd-surface-low)", fontWeight: 800 }}>
-                  <td colSpan={5}><strong>TOTALE VALORE CATASTALE RIVALUTATO</strong></td>
-                  <td className="pd-num" style={{ color: "var(--pd-primary)", fontWeight: 800 }}>{eurFull(c8.totale_valore_catastale)}</td>
-                  <td className="pd-num">—</td>
-                </tr>
-                {(c8.immobili || []).length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ padding: 14 }}>
-                      {c8.esito_catasto ? (
-                        <div style={{ background: "rgba(37,99,235,0.06)", borderLeft: "3px solid var(--pd-primary)", padding: "8px 12px", borderRadius: 4 }}>
-                          <span style={{ fontSize: 13, lineHeight: 1.5 }}>
-                            <strong>[D] Esito Visura Catastale:</strong> {c8.esito_catasto}
-                          </span>
-                        </div>
-                      ) : "Nessun immobile censito in visura catastale."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <h3 className="pd-subchapter-title">8.2 Patrimonio mobiliare (autoveicoli)</h3>
-          <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
-            <table className="pd-table">
-              <thead><tr><th>Tipo autoveicolo / mezzo</th><th>Anno</th><th>Targa</th><th className="pd-num">Stima / Stato</th><th>Note e vincoli</th></tr></thead>
-              <tbody>
-                {(c8.veicoli || []).map((v, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{v.tipo}</strong></td>
-                    <td>{v.anno}</td>
-                    <td><span className="pd-badge pd-badge--neutral">{v.targa}</span></td>
-                    <td className="pd-num"><strong>{v.valore_display || eurFull(v.valore)}</strong></td>
-                    <td style={{ fontSize: 12 }}>{v.note || "—"}</td>
-                  </tr>
-                ))}
-                {(c8.veicoli || []).length === 0 && (
-                  <tr><td colSpan={5}>Nessun veicolo aziendale registrato al PRA o dichiarato.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {(c8.lotti_concorsuali || []).length > 0 && (
-            <div style={{ marginBottom: 18 }}>
-              <h4 style={{ fontSize: 12, textTransform: "uppercase", color: "var(--pd-text-muted)", margin: "0 0 8px" }}>
-                Stima esplorativa per lotti omogenei a realizzo concorsuale (confronto liquidatorio)
-              </h4>
-              <div className="pd-table-wrap">
-                <table className="pd-table">
-                  <thead><tr><th>Lotto indicativo</th><th className="pd-num">Prudente</th><th className="pd-num">Favorevole</th><th>Criterio / Note</th></tr></thead>
-                  <tbody>
-                    {c8.lotti_concorsuali.map((lot, idx) => (
-                      <tr key={idx} style={idx >= c8.lotti_concorsuali.length - 2 ? { background: "var(--pd-surface-low)", fontWeight: 700 } : {}}>
-                        <td><strong>{lot.lotto}</strong></td>
-                        <td className="pd-num" style={{ color: "var(--pd-primary)", fontWeight: 700 }}>{lot.prudente}</td>
-                        <td className="pd-num" style={{ color: "var(--pd-ok)", fontWeight: 700 }}>{lot.favorevole}</td>
-                        <td style={{ fontSize: 12 }}>{lot.note}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <h3 className="pd-subchapter-title">8.3 Immobilizzazioni materiali e cespiti di bilancio</h3>
-          <div className="pd-grid pd-grid--2" style={{ marginBottom: 10 }}>
-            <ReportField label="Valore netto contabile cespiti (bilancio)" value={c8.immobilizzazioni_materiali?.valore_netto_display || eurFull(c8.immobilizzazioni_materiali?.valore_netto_bilancio)} />
-            <ReportField label="Costo storico stimato" value={c8.immobilizzazioni_materiali?.costo_storico_display || eurFull(c8.immobilizzazioni_materiali?.costo_storico_stimato)} />
-          </div>
-          {c8.immobilizzazioni_materiali?.note && (
-            <p className="pd-muted" style={{ fontSize: 11, marginBottom: 16, fontStyle: "italic" }}>
-              {c8.immobilizzazioni_materiali.note}
-            </p>
-          )}
-
-          <h3 className="pd-subchapter-title">8.4 Esposizione personale del titolare / soci</h3>
-          <div className="pd-table-wrap">
-            <table className="pd-table">
-              <thead><tr><th>Soggetto</th><th>Regime / Garanzia prestata</th><th className="pd-num">Importo</th><th>Note / Fondamento</th></tr></thead>
-              <tbody>
-                {(c8.esposizione_personale_soci || []).map((esp, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{esp.socio}</strong></td>
-                    <td>{esp.garanzia}</td>
-                    <td className="pd-num"><strong>{esp.importo}</strong></td>
-                    <td style={{ fontSize: 12 }}>{esp.note || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* 9. ORIENTAMENTO VERSO UNA SOLUZIONE DI RISANAMENTO */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">9</span>
-            Orientamento verso una soluzione di risanamento ex CCII
-          </div>
-          <p className="pd-report-text">
-            Valutazione comparativa degli strumenti previsti dal Codice della Crisi d'Impresa e dell'Insolvenza alla luce delle caratteristiche dimensionali, debitorie e patrimoniali dell'impresa:
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14, marginBottom: 18 }}>
-            {(c9.scenari || []).map((sc, idx) => (
-              <div key={idx} style={{ background: "var(--pd-surface-low)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <strong style={{ fontSize: 14, color: "var(--pd-primary)" }}>{sc.scenario}</strong>
-                  <span className={`pd-badge pd-badge--${sc.fattibilita === "ALTA" ? "ok" : sc.fattibilita === "MEDIA" ? "warn" : "danger"}`}>
-                    {sc.fattibilita}
-                  </span>
-                </div>
-                <p style={{ margin: "6px 0", fontSize: 12.5, lineHeight: 1.5, color: "var(--pd-text)" }}>{sc.motivazione}</p>
-                {sc.dati_chiave && <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "var(--pd-text-muted)" }}><strong>Dati chiave:</strong> {sc.dati_chiave}</p>}
-              </div>
-            ))}
-          </div>
-
-          <div className="pd-highlight-box">
-            <h4 style={{ margin: "0 0 6px", fontSize: 15, color: "var(--pd-primary)" }}>
-              👉 Strumento più coerente in prima battuta: {c9.proposta_coerente}
-            </h4>
-            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6 }}>{c9.motivazione}</p>
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <strong style={{ fontSize: 13, textTransform: "uppercase", color: "var(--pd-text-muted)" }}>Condizioni e riserve a cui l'indicazione è subordinata:</strong>
-            <ul style={{ margin: "6px 0 0", paddingLeft: 20, fontSize: 13, color: "var(--pd-text)" }}>
-              {(c9.condizioni || []).map((cd, idx) => <li key={idx} style={{ marginBottom: 4 }}>{cd}</li>)}
-            </ul>
-          </div>
-        </section>
-
-        {/* 10. DOCUMENTAZIONE ANCORA NECESSARIA */}
-        <section className="pd-chapter">
-          <div className="pd-chapter-title">
-            <span className="num">10</span>
-            Documentazione ancora necessaria prima di procedere
-          </div>
-          <p className="pd-report-text">
-            Per consentire il passaggio dalla presente preanalisi alla redazione del piano attestato o della proposta formale ai creditori, è indispensabile acquisire:
-          </p>
-          <div className="pd-table-wrap" style={{ marginBottom: 16 }}>
-            <table className="pd-table">
-              <thead><tr><th>Priorità</th><th>Documento o dato necessario</th><th>Motivazione giuridico-contabile</th></tr></thead>
-              <tbody>
-                {(c10.documenti_mancanti || []).map((dm, idx) => (
-                  <tr key={idx}>
-                    <td><span className={`pd-badge pd-badge--${dm.priorita === "ALTA" ? "danger" : "warn"}`}>{dm.priorita || "MEDIA"}</span></td>
-                    <td><strong>{dm.dato_mancante || dm.documento}</strong></td>
-                    <td style={{ fontSize: 13 }}>{dm.perche_serve || dm.motivo}</td>
-                  </tr>
-                ))}
-                <tr>
-                  <td><span className="pd-badge pd-badge--danger">ALTA</span></td>
-                  <td><strong>Flusso finanziario annuo disponibile</strong></td>
-                  <td style={{ fontSize: 13 }}>{c10.flusso_richiesto}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* 11. CONCLUSIONE PROVVISORIA */}
-        <section className="pd-chapter" style={{ borderTop: "2px solid var(--pd-primary)", paddingTop: 20 }}>
-          <div className="pd-chapter-title">
-            <span className="num">11</span>
-            Conclusione (provvisoria)
-          </div>
-          <p className="pd-report-text" style={{ fontSize: 14.5, lineHeight: 1.7, fontWeight: 500 }}>
-            {c11.giudizio_sintetico}
-          </p>
-          <div style={{ background: "var(--pd-surface-low)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 16, marginTop: 14 }}>
-            <h4 style={{ margin: "0 0 10px", fontSize: 13.5, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--pd-primary)" }}>
-              Note e raccomandazioni operative per l'Avv. Aurelio Bentivegna
-            </h4>
-            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6, color: "var(--pd-text)" }}>
-              {(c11.raccomandazioni || []).map((rc, idx) => <li key={idx} style={{ marginBottom: 6 }}>{rc}</li>)}
-            </ul>
-          </div>
-          <footer style={{ marginTop: 28, paddingTop: 16, borderTop: "1px solid var(--pd-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "var(--pd-text-muted)" }}>
-              {c11.dicitura_finale || `PRIMA BOZZA DI ANALISI - ELABORATA IL ${new Date().toLocaleDateString("it-IT").toUpperCase()}`}
-            </span>
-            <span className="pd-badge pd-badge--neutral">DossierLex AI</span>
-          </footer>
-        </section>
+        <div className="pd-page-footer">
+          <div>PRE-ANALISI CRISI D'IMPRESA | {clientName.toUpperCase()}</div>
+          <div>RISERVATO • {draftDate} • 1 / 7</div>
+        </div>
       </article>
+
+      {/* ========================================================================= */}
+      {/* PAGINA 2: 01 / PROFILO E CONTO ECONOMICO                                  */}
+      {/* ========================================================================= */}
+      <article className="pd-benchmark-sheet">
+        <div className="pd-page-breadcrumb">RELAZIONE DI PRE-ANALISI / VERSIONE DEFINITIVA</div>
+        <div className="pd-chapter-code">01 / PROFILO E CONTO ECONOMICO</div>
+
+        <div className="pd-sec-title">Attività</div>
+        <p className="pd-b-p">
+          Ditta individuale artigiana attiva dal 2018 nella fabbricazione, vendita e posa di infissi e serramenti, con officina e showroom a Palermo. La visura indica 11 addetti al 31/12/2025; la riduzione a due risorse è stata riferita nell'incontro e non è verificata da un prospetto del personale aggiornato.
+        </p>
+
+        <div className="pd-sec-title">Conto economico comparato</div>
+        <table className="pd-b-table">
+          <thead>
+            <tr>
+              <th>Voce</th>
+              <th style={{ textAlign: "right" }}>31.12.2026<br /><span style={{ fontSize: 10, fontWeight: "normal" }}>riparam.*</span></th>
+              <th style={{ textAlign: "right" }}>30.04.2026</th>
+              <th style={{ textAlign: "right" }}>31.12.2025</th>
+              <th style={{ textAlign: "right" }}>Var. %<br /><span style={{ fontSize: 10, fontWeight: "normal" }}>25/24</span></th>
+              <th style={{ textAlign: "right" }}>31.12.2024</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Ricavi e proventi</strong></td><td style={{ textAlign: "right" }}>597.810</td><td style={{ textAlign: "right" }}>199.270</td><td style={{ textAlign: "right" }}>493.094</td><td style={{ textAlign: "right" }}>−37,1%</td><td style={{ textAlign: "right" }}>783.808</td></tr>
+            <tr><td>Acquisti</td><td style={{ textAlign: "right" }}>394.814</td><td style={{ textAlign: "right" }}>131.605</td><td style={{ textAlign: "right" }}>263.690</td><td style={{ textAlign: "right" }}>−20,3%</td><td style={{ textAlign: "right" }}>330.945</td></tr>
+            <tr><td>Servizi</td><td style={{ textAlign: "right" }}>57.248</td><td style={{ textAlign: "right" }}>19.083</td><td style={{ textAlign: "right" }}>38.957</td><td style={{ textAlign: "right" }}>−26,0%</td><td style={{ textAlign: "right" }}>52.641</td></tr>
+            <tr><td>Godimento beni di terzi</td><td style={{ textAlign: "right" }}>4.500</td><td style={{ textAlign: "right" }}>1.500</td><td style={{ textAlign: "right" }}>18.324</td><td style={{ textAlign: "right" }}>+1,1%</td><td style={{ textAlign: "right" }}>18.126</td></tr>
+            <tr><td>Personale</td><td style={{ textAlign: "right" }}>140.045</td><td style={{ textAlign: "right" }}>46.682</td><td style={{ textAlign: "right" }}>215.297</td><td style={{ textAlign: "right" }}>−4,5%</td><td style={{ textAlign: "right" }}>225.505</td></tr>
+            <tr><td>Altri oneri operativi</td><td style={{ textAlign: "right" }}>1</td><td style={{ textAlign: "right" }}>0</td><td style={{ textAlign: "right" }}>265</td><td style={{ textAlign: "right" }}>n.s.</td><td style={{ textAlign: "right" }}>3</td></tr>
+            <tr className="highlight"><td><strong>EBITDA / MOL</strong></td><td style={{ textAlign: "right" }}><strong>1.202</strong></td><td style={{ textAlign: "right" }}><strong>401</strong></td><td style={{ textAlign: "right", color: "#b91c1c" }}><strong>−43.440</strong></td><td style={{ textAlign: "right" }}>n.s.</td><td style={{ textAlign: "right" }}><strong>156.588</strong></td></tr>
+            <tr><td>EBITDA %</td><td style={{ textAlign: "right" }}>0,2%</td><td style={{ textAlign: "right" }}>0,2%</td><td style={{ textAlign: "right", color: "#b91c1c" }}>−8,8%</td><td style={{ textAlign: "right" }}>−28,8 p.p.</td><td style={{ textAlign: "right" }}>20,0%</td></tr>
+            <tr><td>Ammortamenti esposti</td><td style={{ textAlign: "right" }}>n.r.</td><td style={{ textAlign: "right" }}>n.r.</td><td style={{ textAlign: "right" }}>20.103</td><td style={{ textAlign: "right" }}>+1,0%</td><td style={{ textAlign: "right" }}>19.898</td></tr>
+            <tr><td>EBIT</td><td style={{ textAlign: "right" }}>n.r.</td><td style={{ textAlign: "right" }}>n.r.</td><td style={{ textAlign: "right", color: "#b91c1c" }}>−63.543</td><td style={{ textAlign: "right" }}>n.s.</td><td style={{ textAlign: "right" }}>136.689</td></tr>
+            <tr><td>Oneri finanziari</td><td style={{ textAlign: "right" }}>18</td><td style={{ textAlign: "right" }}>6</td><td style={{ textAlign: "right" }}>62</td><td style={{ textAlign: "right" }}>−99,3%</td><td style={{ textAlign: "right" }}>8.750</td></tr>
+            <tr className="highlight"><td><strong>Risultato contabile</strong></td><td style={{ textAlign: "right" }}><strong>1.183*</strong></td><td style={{ textAlign: "right" }}><strong>394</strong></td><td style={{ textAlign: "right", color: "#b91c1c" }}><strong>−63.605</strong></td><td style={{ textAlign: "right" }}>n.s.</td><td style={{ textAlign: "right" }}><strong>127.940</strong></td></tr>
+          </tbody>
+        </table>
+        <div style={{ fontSize: 10.5, color: "#64748b", marginBottom: 18, lineHeight: 1.4 }}>
+          Valori in euro, arrotondati; fonte: situazioni contabili 2024, 2025 e 01/01–30/04/2026, stampa 30/10/2026. * Il 2026 riparametrato è il quadrimestre × 3: non è previsione. Ammortamenti 2026 non esposti; il risultato annualizzato è soltanto aritmetico. n.r. = non ricostruibile; n.s. = percentuale poco significativa.
+        </div>
+
+        <div className="pd-sec-title">Lettura professionale</div>
+        <div className="pd-b-bullet">
+          <strong>Nel 2025:</strong> i ricavi diminuiscono del 37,1%, mentre il costo del personale si riduce solo del 4,5%: il MOL passa da +€156,6 mila a −€43,4 mila.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Il MOL 2024:</strong> comprende €50.452 di proventi da cessione di crediti d'imposta: la loro ricorrenza non può essere presunta.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Nel 2026:</strong> gli acquisti assorbono il 66,0% dei ricavi del quadrimestre, rispetto al 53,5% nel 2025. Rimanenze e lavori in corso non sono ricostruiti.
+        </div>
+
+        <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "12px 14px", marginTop: 16 }}>
+          <strong style={{ color: "#102a43", fontSize: 12.5 }}>Raccordo fiscale. </strong>
+          <span style={{ fontSize: 12, color: "#1e293b", lineHeight: 1.5 }}>
+            Il Modello Redditi PF 2026 (anno 2025) riporta €63.256 al rigo RG5 per ricavi non annotati: il reddito fiscale dichiarato di €237 non prova l'esistenza di margini o incassi ulteriori. Fonte: quadro RG del modello 2026, pag. 4.
+          </span>
+        </div>
+
+        <div className="pd-page-footer">
+          <div>PRE-ANALISI CRISI D'IMPRESA | {clientName.toUpperCase()}</div>
+          <div>RISERVATO • {draftDate} • 2 / 7</div>
+        </div>
+      </article>
+
+      {/* ========================================================================= */}
+      {/* PAGINA 3: 02 / INDEBITAMENTO RICOSTRUITO                                  */}
+      {/* ========================================================================= */}
+      <article className="pd-benchmark-sheet">
+        <div className="pd-page-breadcrumb">RELAZIONE DI PRE-ANALISI / VERSIONE DEFINITIVA</div>
+        <div className="pd-chapter-code">02 / INDEBITAMENTO RICOSTRUITO</div>
+
+        <p className="pd-b-p">
+          Le esposizioni sono state riclassificate distinguendo debiti con riscontro, coobbligazioni personali e importi ancora dichiarativi. I saldi disponibili si riferiscono a date diverse: l'aggregato ha funzione istruttoria, non è una certificazione del debito.
+        </p>
+
+        <table className="pd-b-table">
+          <thead>
+            <tr>
+              <th>Posizione</th>
+              <th>Fonte / stato</th>
+              <th style={{ textAlign: "right" }}>Importo (€)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>AdER – cartelle/avvisi da saldare</td>
+              <td>Estratto 29/10/2026</td>
+              <td style={{ textAlign: "right" }}>386.695,79</td>
+            </tr>
+            <tr style={{ color: "#475569", fontSize: 11.5 }}>
+              <td style={{ paddingLeft: 22 }}>di cui INPS (già incluso sopra)</td>
+              <td>Avvisi di addebito</td>
+              <td style={{ textAlign: "right" }}>210.604,29</td>
+            </tr>
+            <tr style={{ color: "#475569", fontSize: 11.5 }}>
+              <td style={{ paddingLeft: 22 }}>di cui altri carichi (già inclusi sopra)</td>
+              <td>Tributi/enti diversi</td>
+              <td style={{ textAlign: "right" }}>176.091,50</td>
+            </tr>
+            <tr>
+              <td>Intesa Sanpaolo – utilizzato CR</td>
+              <td>Agosto 2026</td>
+              <td style={{ textAlign: "right" }}>133.460,00</td>
+            </tr>
+            <tr>
+              <td>Santander – coobbligazione personale</td>
+              <td>CTC 30/09/2026, rate residue</td>
+              <td style={{ textAlign: "right" }}>2.945,00</td>
+            </tr>
+            <tr className="highlight" style={{ borderTop: "2px solid #102a43" }}>
+              <td><strong>ESPOSIZIONI PRINCIPALI QUANTIFICATE</strong></td>
+              <td><strong>AdER + CR + Santander</strong></td>
+              <td style={{ textAlign: "right" }}><strong>523.100,79</strong></td>
+            </tr>
+            <tr>
+              <td>Fornitori</td>
+              <td>Riferito nell'incontro</td>
+              <td style={{ textAlign: "right" }}>120.000 circa</td>
+            </tr>
+            <tr>
+              <td>Dipendenti e TFR</td>
+              <td>Riferito nell'incontro</td>
+              <td style={{ textAlign: "right" }}>70.000 circa</td>
+            </tr>
+            <tr>
+              <td>Locazioni arretrate</td>
+              <td>Riferito nell'incontro</td>
+              <td style={{ textAlign: "right" }}>100.000–170.000</td>
+            </tr>
+            <tr className="highlight" style={{ borderTop: "2px solid #102a43", background: "#f8fafc" }}>
+              <td><strong>TOTALE MISTO INDICATIVO</strong></td>
+              <td><strong>Documentato + riferito</strong></td>
+              <td style={{ textAlign: "right", color: "#102a43" }}><strong>813.101–883.101</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ fontSize: 10.5, color: "#64748b", marginBottom: 18, lineHeight: 1.4 }}>
+          N.B. Le righe 'di cui INPS' e 'di cui altri carichi' sono sottocomponenti AdER, non ulteriori debiti. Santander è incluso prudenzialmente come potenziale esposizione personale da coobbligazione, pur in assenza di scaduti segnalati; l'importo comprende rate residue, non soltanto capitale.
+        </div>
+
+        <div className="pd-sec-title">Ulteriori rapporti finanziari e assenza di doppio conteggio</div>
+        <div className="pd-b-bullet">
+          <strong>Findomestic:</strong> carta rateale attiva, €143,20 in scadenza al 30/09/2026; il saldo residuo complessivo non è noto. La scadenza viene censita ma non sommata come se fosse l'intero debito.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>GIADA SEC. / Intesa:</strong> la Centrale dei Rischi riporta esposizioni anche nel 2025 e cessioni successive. Sono date storiche/trasferimenti e non si sommano all'ultima segnalazione di €133.460 senza una ricostruzione contrattuale.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Compass e Agos:</strong> rapporti CTC chiusi regolarmente; non inclusi. Il finanziamento di circa €170.000 e la rata di €6.000 mensili sono riferiti e non aggiunti all'ultima CR.
+        </div>
+
+        <div className="pd-sec-title" style={{ marginTop: 18 }}>Divergenza ancora aperta</div>
+        <p className="pd-b-p" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+          Nell'incontro si è parlato di un totale di €640–690 mila, ma le cinque categorie dichiarate sommavano €810–880 mila. Il nuovo intervallo misto di €813–883 mila non risolve la differenza: non abbiamo scadenzari di fornitori, lavoratori e locazioni, né la riconciliazione di tutti i finanziamenti. Le rate della definizione agevolata AdER non sono aggiunte una seconda volta ai carichi già esposti.
+        </p>
+        <p className="pd-b-p" style={{ fontSize: 11, color: "#64748b" }}>
+          Fonti: AdER «Da saldare» 29/10/2026, pag. 5; CR Banca d'Italia, ultimo mese agosto 2026, pagg. 2–3 e storia delle segnalazioni; CTC 29/10/2026, pagg. 1–2; riepilogo incontro 20/10/2026, pag. 2.
+        </p>
+
+        <div className="pd-page-footer">
+          <div>PRE-ANALISI CRISI D'IMPRESA | {clientName.toUpperCase()}</div>
+          <div>RISERVATO • {draftDate} • 3 / 7</div>
+        </div>
+      </article>
+
+      {/* ========================================================================= */}
+      {/* PAGINA 4: 03 / PATRIMONIO E CONFRONTO LIQUIDATORIO                        */}
+      {/* ========================================================================= */}
+      <article className="pd-benchmark-sheet">
+        <div className="pd-page-breadcrumb">RELAZIONE DI PRE-ANALISI / VERSIONE DEFINITIVA</div>
+        <div className="pd-chapter-code">03 / PATRIMONIO E CONFRONTO LIQUIDATORIO</div>
+
+        <p className="pd-b-p">
+          Non è disponibile uno stato patrimoniale ricostruito. La ricognizione riguarda i beni individuati dai documenti, senza attribuire valore zero alle poste non conosciute.
+        </p>
+
+        <table className="pd-b-table">
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              <th>Evidenza</th>
+              <th>Stato della stima</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Immobili</strong></td>
+              <td>Ricerca catastale 29/10/2026: nessuna corrispondenza</td>
+              <td>Nessun immobile emerso</td>
+            </tr>
+            <tr>
+              <td><strong>Fiat Panda 2012</strong></td>
+              <td>Proprietà da visura PRA; nessun gravame iscritto</td>
+              <td>Valore da perizia</td>
+            </tr>
+            <tr>
+              <td><strong>Altre 2 autovetture</strong></td>
+              <td>Elenco della titolare; Captur con preavvisi di fermo</td>
+              <td>Titoli/vincoli da verificare</td>
+            </tr>
+            <tr>
+              <td><strong>4 autocarri Renault/Nissan</strong></td>
+              <td>Elenco sottoscritto; dati tecnici incompleti</td>
+              <td>Titoli/valore da verificare</td>
+            </tr>
+            <tr>
+              <td><strong>Macchinari e attrezzature</strong></td>
+              <td>Officina e ammortamenti in contabilità</td>
+              <td>Nessun inventario</td>
+            </tr>
+            <tr>
+              <td><strong>Crediti, rimanenze, cassa</strong></td>
+              <td>Nessun saldo patrimoniale affidabile</td>
+              <td>Non quantificabili</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="pd-sec-title" style={{ marginTop: 18 }}>Stima esplorativa delle vendite concorsuali</div>
+        <p className="pd-b-p" style={{ fontSize: 12.5 }}>
+          Per confronto con la liquidazione giudiziale si ipotizzano vendite competitive per lotti omogenei, con possibili esperimenti deserti, ribassi e costi. Gli intervalli non sono perizie, basi d'asta o prezzi osservati di aggiudicazione.
+        </p>
+
+        <table className="pd-b-table">
+          <thead>
+            <tr>
+              <th>Lotto indicativo</th>
+              <th style={{ textAlign: "right" }}>Prudente</th>
+              <th style={{ textAlign: "right" }}>Favorevole</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>3 autovetture</td>
+              <td style={{ textAlign: "right" }}>€ 9.000</td>
+              <td style={{ textAlign: "right" }}>€ 20.000</td>
+            </tr>
+            <tr>
+              <td>4 autocarri</td>
+              <td style={{ textAlign: "right" }}>€ 15.000</td>
+              <td style={{ textAlign: "right" }}>€ 45.000</td>
+            </tr>
+            <tr>
+              <td>Dotazioni dell'officina</td>
+              <td style={{ textAlign: "right" }}>€ 0</td>
+              <td style={{ textAlign: "right" }}>€ 8.000</td>
+            </tr>
+            <tr className="highlight">
+              <td><strong>Realizzo lordo</strong></td>
+              <td style={{ textAlign: "right" }}><strong>€ 24.000</strong></td>
+              <td style={{ textAlign: "right" }}><strong>€ 73.000</strong></td>
+            </tr>
+            <tr className="highlight" style={{ background: "#f8fafc" }}>
+              <td><strong>Realizzo netto diretto*</strong></td>
+              <td style={{ textAlign: "right", color: "#102a43" }}><strong>~ € 20.000</strong></td>
+              <td style={{ textAlign: "right", color: "#15803d" }}><strong>~ € 65.000</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ fontSize: 10.5, color: "#64748b", marginBottom: 18, lineHeight: 1.4 }}>
+          * Importi convenzionali dopo i costi direttamente imputabili alle vendite, prima di spese generali della procedura, imposte, vincoli e prelazioni. La stima presume la titolarità e commerciabilità dei veicoli dichiarati; per sei veicoli non è stata acquisita una visura PRA. Non comprende crediti, disponibilità liquide, rimanenze, né un eventuale valore dell'azienda in esercizio.
+        </div>
+
+        <div className="pd-sec-title">Implicazione economica</div>
+        <p className="pd-b-p" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+          L'attivo mobiliare così stimato appare contenuto rispetto alle passività. Non è possibile stimare una percentuale di soddisfacimento dei creditori con le sole informazioni disponibili. Una cessione dell'azienda in funzionamento, anche in sede concorsuale, potrebbe preservare un valore maggiore della vendita per lotti, ma l'avviamento oggi non è dimostrato.
+        </p>
+        <p className="pd-b-p" style={{ fontSize: 11, color: "#64748b" }}>
+          Fonti: elenco beni mobili registrati del 29/10/2026; visura PRA Panda del 29/10/2026; esito ricerca catastale del 29/10/2026; contabilità 2024–2025; AdER «Procedure attive»; confronto estimativo interno non peritale.
+        </p>
+
+        <div className="pd-page-footer">
+          <div>PRE-ANALISI CRISI D'IMPRESA | {clientName.toUpperCase()}</div>
+          <div>RISERVATO • {draftDate} • 4 / 7</div>
+        </div>
+      </article>
+
+      {/* ========================================================================= */}
+      {/* PAGINA 5: 04 / REDDITIVITÀ E CONTINUITÀ                                   */}
+      {/* ========================================================================= */}
+      <article className="pd-benchmark-sheet">
+        <div className="pd-page-breadcrumb">RELAZIONE DI PRE-ANALISI / VERSIONE DEFINITIVA</div>
+        <div className="pd-chapter-code">04 / REDDITIVITÀ E CONTINUITÀ</div>
+
+        <p className="pd-b-p">
+          Il tema determinante non è il fatturato storico, ma la capacità dell'organizzazione ristrutturata di produrre margine operativo ricorrente e cassa. Gli esercizi che seguono sono test meccanici, non scenari di piano.
+        </p>
+
+        <table className="pd-b-table">
+          <thead>
+            <tr>
+              <th>Verifica sul 2026 annualizzato</th>
+              <th style={{ textAlign: "right" }}>Importo</th>
+              <th>Lettura</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>EBITDA quadrimestre × 3</td>
+              <td style={{ textAlign: "right" }}>+€ 1,2 mila</td>
+              <td>Pareggio contabile fragile</td>
+            </tr>
+            <tr>
+              <td>Canoni inclusi nel ×3</td>
+              <td style={{ textAlign: "right" }}>€ 4,5 mila</td>
+              <td>Sotto ai € 18 mila storici</td>
+            </tr>
+            <tr>
+              <td>EBITDA con canone storico ipotetico</td>
+              <td style={{ textAlign: "right", color: "#b91c1c" }}>−€ 12,3 mila</td>
+              <td>Solo rettifica locazioni</td>
+            </tr>
+            <tr>
+              <td>Personale annualizzato da aprile</td>
+              <td style={{ textAlign: "right" }}>€ 140,0 mila</td>
+              <td>Non misura il nuovo assetto</td>
+            </tr>
+            <tr className="highlight">
+              <td><strong>EBITDA con personale a €60–70 mila e canone storico</strong></td>
+              <td style={{ textAlign: "right", color: "#102a43" }}><strong>~ € 57,7–67,7 mila</strong></td>
+              <td><strong>Ipotesi dichiarativa, non previsione</strong></td>
+            </tr>
+            <tr>
+              <td>Rata del finanziamento riferita</td>
+              <td style={{ textAlign: "right" }}>€ 72 mila/anno</td>
+              <td>Contratto non acquisito</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ fontSize: 10.5, color: "#64748b", marginBottom: 18, lineHeight: 1.4 }}>
+          I test non tengono conto di rimanenze, imposte, investimenti, variazione del capitale circolante o costi aggiuntivi di lavorazioni esterne. Anche l'ipotesi più favorevole di EBITDA resta inferiore alla rata annua riferita di €72 mila, prima delle altre esigenze finanziarie.
+        </div>
+
+        <div className="pd-sec-title">Principali criticità operative</div>
+        <div className="pd-b-bullet">
+          <strong>Acquisti:</strong> l'incidenza sui ricavi raggiunge circa il 66% nel primo quadrimestre 2026; occorre capire se dipenda da mix commerciale, costi o disallineamento degli acquisti.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Struttura:</strong> la riduzione del personale non prova che l'attività possa mantenere volumi e qualità con due risorse; forte dipendenza operativa da Salvatore.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Circolante e liquidità:</strong> anticipi clienti, scaduti e condizioni dei fornitori non sono ricostruiti; non è possibile determinare flusso disponibile per il debito né DSCR attendibile.
+        </div>
+
+        <div className="pd-sec-title" style={{ marginTop: 18 }}>Giudizio preliminare</div>
+        <p className="pd-b-p" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+          La continuità non è attualmente dimostrata, ma la potenziale riduzione dei costi giustifica una verifica mirata. Condizioni decisive: margine su commessa, costi effettivi dopo la riorganizzazione, completamento ordini, scadenze del debito e disponibilità di cassa. Un EBITDA positivo non coincide con il cash flow utilizzabile per pagare i creditori.
+        </p>
+        <p className="pd-b-p" style={{ fontSize: 11, color: "#64748b" }}>
+          Fonti: contabilità 2024–2026; riepilogo incontro del 20/10/2026; confronto tecnico interno sui saldi contabili e ipotesi riferite.
+        </p>
+
+        <div className="pd-page-footer">
+          <div>PRE-ANALISI CRISI D'IMPRESA | {clientName.toUpperCase()}</div>
+          <div>RISERVATO • {draftDate} • 5 / 7</div>
+        </div>
+      </article>
+
+      {/* ========================================================================= */}
+      {/* PAGINA 6: 05 / INQUADRAMENTO CCII                                         */}
+      {/* ========================================================================= */}
+      <article className="pd-benchmark-sheet">
+        <div className="pd-page-breadcrumb">RELAZIONE DI PRE-ANALISI / VERSIONE DEFINITIVA</div>
+        <div className="pd-chapter-code">05 / INQUADRAMENTO CCII</div>
+
+        <div className="pd-sec-title">Impresa individuale: effetti decisivi</div>
+        <p className="pd-b-p" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+          La ditta è un'impresa artigiana individuale. La qualifica camerale di «piccolo imprenditore» non coincide con quella di impresa minore ex art. 2, comma 1, lett. d), CCII. I ricavi 2023–2025 superano la soglia di €200.000 annui: il concordato minore non appare accessibile. La ditta è invece astrattamente assoggettabile a liquidazione giudiziale, ove ne ricorrano i presupposti (art. 121).
+        </p>
+        <p className="pd-b-p" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+          Il patrimonio aziendale non è separato da quello della titolare come in una S.r.l.: Lucrezia risponde personalmente delle obbligazioni, nei limiti di legge (art. 2740 c.c.). Anche le coobbligazioni e i rapporti personali devono essere censiti; cessazione o cessione dell'azienda non cancellano automaticamente i debiti. La posizione di Salvatore, indicato come collaboratore familiare al 49% nelle dichiarazioni fiscali, richiede la verifica dei diritti ex art. 230-bis c.c.
+        </p>
+
+        <div className="pd-sec-title">Strumenti confrontati</div>
+        <table className="pd-b-table">
+          <thead>
+            <tr>
+              <th>Strumento</th>
+              <th>Prima valutazione</th>
+              <th>Condizione di accesso / fattibilità</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="highlight">
+              <td><strong>CNC - artt. 12 ss.</strong></td>
+              <td><strong>Priorità di verifica</strong></td>
+              <td><strong>Risanamento ragionevolmente perseguibile, anche tramite cessione</strong></td>
+            </tr>
+            <tr>
+              <td>Accordi di ristrutturazione - artt. 57 e 63</td>
+              <td>Valutabili</td>
+              <td>Consensi, disciplina crediti tributari/contributivi e flussi</td>
+            </tr>
+            <tr>
+              <td>Concordato preventivo - art. 84</td>
+              <td>Alternativa possibile</td>
+              <td>Proposta sostenibile; continuità o requisiti liquidatori</td>
+            </tr>
+            <tr>
+              <td>Concordato minore - art. 74</td>
+              <td style={{ color: "#b91c1c", fontWeight: 600 }}>Non appare accessibile</td>
+              <td>Impresa non qualificabile come minore sulla base dei ricavi</td>
+            </tr>
+            <tr>
+              <td>Liquidazione giudiziale - art. 121</td>
+              <td>Alternativa effettiva</td>
+              <td>Accertamento dell'insolvenza e inventario completo</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="pd-sec-title" style={{ marginTop: 18 }}>Avvertenze giuridiche</div>
+        <div className="pd-b-bullet">
+          <strong>Le misure protettive:</strong> nella CNC richiedono istanza e controllo giudiziale secondo gli artt. 18–19; non derivano automaticamente dalla sola intenzione di avviarla.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Il trattamento di tributi e contributi:</strong> varia per strumento (artt. 23, 63 e 88 CCII); non si può presumere una falcidia. Il D.Lgs. 147/2026 ha esteso la disciplina pertinente anche ai tributi regionali e locali.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>La newco:</strong> è un possibile veicolo di continuità indiretta, non uno strumento per liberare la titolare dai debiti; vanno valutati art. 2560 c.c., rapporti di lavoro e disciplina delle cessioni concorsuali.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Liquidazione giudiziale:</strong> in un'eventuale liquidazione della persona fisica occorrerà esaminare presupposti ed effetti dell'esdebitazione (artt. 278 ss. CCII).
+        </div>
+
+        <p className="pd-b-p" style={{ fontSize: 11, color: "#64748b", marginTop: 12 }}>
+          Normativa di riferimento: D.Lgs. 14/2019, testo vigente al 09/11/2026; D.Lgs. 147/2026 (GU 11/08/2026), artt. 2, 12, 18–19, 23, 57, 63, 74, 84, 121, 214, 278 ss. CCII; artt. 230-bis, 2560 e 2740 c.c. Inquadramento preliminare da validare con il legale.
+        </p>
+
+        <div className="pd-page-footer">
+          <div>PRE-ANALISI CRISI D'IMPRESA | {clientName.toUpperCase()}</div>
+          <div>RISERVATO • {draftDate} • 6 / 7</div>
+        </div>
+      </article>
+
+      {/* ========================================================================= */}
+      {/* PAGINA 7: 06 / CONCLUSIONI E PROPOSTA DI INCARICO                         */}
+      {/* ========================================================================= */}
+      <article className="pd-benchmark-sheet">
+        <div className="pd-page-breadcrumb">RELAZIONE DI PRE-ANALISI / VERSIONE DEFINITIVA</div>
+        <div className="pd-chapter-code">06 / CONCLUSIONI E PROPOSTA DI INCARICO</div>
+
+        {/* BANNER PROPOSTA CNC */}
+        <div style={{ background: "#f8fafc", border: "1.5px solid #cbd5e1", borderRadius: 6, padding: "14px 18px", marginBottom: 18 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 800, color: "#102a43", marginBottom: 6, letterSpacing: 0.3 }}>
+            PROPOSTA: VERIFICA DI FATTIBILITÀ DELLA COMPOSIZIONE NEGOZIATA
+          </div>
+          <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: "#1e293b" }}>
+            Dare priorità a un incarico circoscritto volto a verificare se l'impresa, dopo la riorganizzazione, possa produrre cassa sufficiente a sostenere la gestione e un trattamento credibile delle passività. La CNC non è oggi assunta come procedura già scelta. In parallelo va mantenuto il confronto con liquidazione giudiziale e cessione in continuità indiretta.
+          </p>
+        </div>
+
+        <div className="pd-sec-title">Perché questa impostazione</div>
+        <div className="pd-b-bullet">
+          <strong>L'impresa è operativa:</strong> e conserva una base commerciale, ma il 2025 è in perdita e il pareggio del primo quadrimestre 2026 non è consolidato.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>Il debito è elevato:</strong> €523.100,79 di esposizioni principali quantificate, considerando la coobbligazione personale, più €290–360 mila riferiti per fornitori, dipendenti e locazioni.
+        </div>
+        <div className="pd-b-bullet">
+          <strong>L'attivo concorsuale:</strong> individuato è limitato e incompleto: senza crediti, magazzino e cespiti valorizzati non si può attestare la convenienza della continuità rispetto alla liquidazione.
+        </div>
+
+        <div className="pd-sec-title" style={{ marginTop: 18 }}>Verifiche essenziali dell'eventuale incarico successivo</div>
+        <table className="pd-b-table">
+          <thead>
+            <tr>
+              <th style={{ width: "12%", textAlign: "center" }}>Priorità</th>
+              <th style={{ width: "52%" }}>Verifica mirata</th>
+              <th style={{ width: "36%" }}>Risultato atteso</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ textAlign: "center", fontWeight: 700 }}>1</td>
+              <td>Consuntivo 2026 post-riduzione; margini per commessa e capacità produttiva</td>
+              <td><strong>EBITDA sostenibile</strong></td>
+            </tr>
+            <tr>
+              <td style={{ textAlign: "center", fontWeight: 700 }}>2</td>
+              <td>Scadenzari fornitori, dipendenti, locazioni, contratti finanziari e CTC aggiornata</td>
+              <td><strong>Debito riconciliato</strong></td>
+            </tr>
+            <tr>
+              <td style={{ textAlign: "center", fontWeight: 700 }}>3</td>
+              <td>Incassi, pagamenti, anticipi, saldi bancari, rimanenze, crediti e cespiti</td>
+              <td><strong>Cassa e attivo effettivo</strong></td>
+            </tr>
+            <tr>
+              <td style={{ textAlign: "center", fontWeight: 700 }}>4</td>
+              <td>Interlocuzione su crediti pubblici, disponibilità dei fornitori e ipotesi di cessione</td>
+              <td><strong>Confronto CNC / altre opzioni / liquidazione</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="pd-sec-title" style={{ marginTop: 18 }}>Conclusione</div>
+        <p className="pd-b-p" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+          Non è oggi possibile affermare che il risanamento sia fattibile. È però possibile proporre una verifica professionale mirata sulla CNC e sulle alternative, con un perimetro e risultati attesi definiti. Qualora la redditività normalizzata e la negoziabilità delle passività non trovassero riscontro, l'opzione liquidatoria dovrà essere valutata tempestivamente, considerando gli effetti personali sulla titolare.
+        </p>
+        <p className="pd-b-p" style={{ fontSize: 11, color: "#64748b", lineHeight: 1.45 }}>
+          Principali documenti utilizzati: Visura CCIAA 27/03/2026; Modelli Redditi PF 2024–2026; situazioni contabili 2024, 2025 e 30/04/2026; AdER «Da saldare», «Saldati», «Procedure attive» e moduli definizione agevolata; CR Banca d'Italia 29/10/2026 (ultimo dato agosto); visura CTC 29/10/2026; ricerca catastale, elenco beni, ispezione PRA; riepilogo dell'incontro 20/10/2026.
+        </p>
+        <p className="pd-b-p" style={{ fontSize: 11, color: "#64748b", lineHeight: 1.45 }}>
+          Precisazione finale: la somma €523.100,79 combina date diverse e comprende €2.945 di rate residue riferite a una coobbligazione non scaduta. Le posizioni Findomestic e GIADA sono censite ma non maggiorate nel totale in assenza di evidenza di un debito ulteriore attuale. Il totale misto è soltanto indicativo e non sostituisce un elenco definitivo dei creditori.
+        </p>
+
+        <div className="pd-page-footer">
+          <div>PRE-ANALISI CRISI D'IMPRESA | {clientName.toUpperCase()}</div>
+          <div>RISERVATO • {draftDate} • 7 / 7</div>
+        </div>
+      </article>
+
+      {/* PANNELLO COLLAPSIBILE TELEMETRIA & FORENSE QWEN */}
+      {report?.forensic_preanalysis && (
+        <div className="no-print" style={{ maxWidth: 860, margin: "0 auto 40px" }}>
+          <button
+            type="button"
+            className="pd-btn pd-btn--ghost"
+            style={{ width: "100%", justifyContent: "space-between", padding: "12px 18px", border: "1px dashed #cbd5e1", background: "#f8fafc", borderRadius: 6 }}
+            onClick={() => setShowAiDetails((prev) => !prev)}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 13, color: "#475569" }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>smart_toy</span>
+              {showAiDetails ? "Nascondi Matrice Epistemica & Log Forense Qwen" : "Mostra Matrice Epistemica & Log Forense Qwen (Perizia Interna)"}
+            </span>
+            <span className="material-symbols-outlined">{showAiDetails ? "expand_less" : "expand_more"}</span>
+          </button>
+
+          {showAiDetails && (
+            <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0 0 6px 6px", padding: 18, marginTop: -2 }}>
+              <div style={{ marginBottom: 14 }}>
+                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>Classificazione Epistemica [D][R][C][S][H]</span>
+              </div>
+              {report.forensic_preanalysis.json_matrix && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#102a43", marginBottom: 6 }}>Matrice di Estrazione Numerica Certificata (JSON)</div>
+                  <pre style={{ background: "#f1f5f9", padding: 12, borderRadius: 4, fontSize: 11.5, overflowX: "auto" }}>
+                    {JSON.stringify(report.forensic_preanalysis.json_matrix, null, 2)}
+                  </pre>
+                </div>
+              )}
+              {report.forensic_preanalysis.client_report_text && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#102a43", marginBottom: 6 }}>Log Discorsivo Forense</div>
+                  <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.6, color: "#334155", background: "#f8fafc", padding: 12, borderRadius: 4, maxHeight: 300, overflowY: "auto" }}>
+                    {report.forensic_preanalysis.client_report_text}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
 
 export function AuditTrail({ edits, docs, goTab }) {
   return (
