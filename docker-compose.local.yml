@@ -71,7 +71,7 @@ services:
       - ./backend:/code
       - storage:/code/storage
       - filestore:/data/uploads
-    command: celery -A app.workers.celery_app worker --concurrency=2 --loglevel=info -Q default
+    command: celery -A app.workers.celery_app worker --concurrency=1 --loglevel=info -Q default
 
   frontend:
     build:

@@ -104,7 +104,7 @@ def get_forensic_chain(temperature: float = 0.1):
     """Costruisce la catena LangChain configurata su Qwen (endpoint locale LM Studio)."""
     base_url = settings.lmstudio_base_url.rstrip("/")
     target_model = settings.lmstudio_model or "qwen/qwen3.8-27b"
-    timeout = getattr(settings, "lmstudio_timeout", 240)
+    timeout = 180
 
     llm = ChatOpenAI(
         base_url=base_url,
@@ -112,7 +112,8 @@ def get_forensic_chain(temperature: float = 0.1):
         temperature=temperature,
         api_key="not-needed",
         timeout=timeout,
-        max_retries=2,
+        max_tokens=1500,
+        max_retries=0,
     )
 
     prompt = ChatPromptTemplate.from_messages([
@@ -162,6 +163,8 @@ def run_forensic_preanalysis_chain(
     temperature: float = 0.1,
 ) -> Dict[str, Any]:
     """Invocazione completa della catena LangChain Forense per DossierLex."""
+    import time
+    t0 = time.time()
     logger.info(f"Avvio Forensic Preanalysis Chain per '{nome_cliente}' al {data_analisi}")
 
     chain = get_forensic_chain(temperature=temperature)
@@ -170,16 +173,31 @@ def run_forensic_preanalysis_chain(
         raw_output = chain.invoke({
             "nome_cliente": nome_cliente,
             "data_analisi": data_analisi,
-            "documenti_testo": documenti_testo[:30000],  # budget tokens safe
+            "documenti_testo": documenti_testo[:15000],  # budget tokens safe
         })
     except Exception as e:
         logger.error(f"Errore invocazione LangChain Qwen: {e}")
         raw_output = ""
 
+    elapsed_s = round(time.time() - t0, 1)
+    prompt_tokens_est = (len(documenti_testo[:15000]) + len(SYSTEM_PROMPT_FORENSIC_PREANALYSIS)) // 4
+    completion_tokens_est = len(raw_output) // 4
+    total_tokens_est = prompt_tokens_est + completion_tokens_est
+
     json_matrix, client_report_text = parse_forensic_output(raw_output)
+
+    logger.info(f"Forensic Preanalysis Chain completata in {elapsed_s}s (~{total_tokens_est} token totali, di cui ~{completion_tokens_est} generati)")
 
     return {
         "raw_output": raw_output,
         "json_matrix": json_matrix,
         "client_report_text": client_report_text,
+        "telemetry": {
+            "elapsed_seconds": elapsed_s,
+            "prompt_tokens_approx": prompt_tokens_est,
+            "completion_tokens_approx": completion_tokens_est,
+            "total_tokens_approx": total_tokens_est,
+            "model": "qwen/qwen3.8-27b",
+            "provider": "lmstudio",
+        },
     }

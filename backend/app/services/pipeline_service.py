@@ -18,6 +18,7 @@ from app.models import (
     Case, Document, Extraction, Creditor, DebtPosition, RealEstate,
     Company, CompanyMember, FinancialStatement, FinancialIndicator,
     CreditExposure, GuaranteeGiven, CreditReportSummary, Debtor,
+    TaxDebtStatement, TaxDebtItem,
 )
 from app.services import ocr, llm
 from app.services import estratto_conto_parser as ecp
@@ -112,7 +113,17 @@ def process_document_pipeline(db: Session, document_id: str) -> Document:
 def _extract_structured_data(storage_path: str, text: str, doc_type: str, client_cf: str) -> Dict[str, Any]:
     """Esegue l'estrazione dai dati usando il parser deterministico o LLM in base al tipo."""
     res = {}
-    if doc_type == "estratto_conto":
+    if doc_type == "cartella_aer":
+        try:
+            from app.services import aer_parser
+            res = aer_parser.parse_pdf(storage_path)
+            res["_extraction_method"] = "parser"
+        except Exception as e:
+            logger.info("[cartella_aer] Parser deterministico non applicabile (%s) -> fallback LLM", e)
+            res = llm.extract(text, doc_type, client_cf)
+            res["_extraction_method"] = "ai"
+
+    elif doc_type == "estratto_conto":
         try:
             res = ecp.parse_pdf(storage_path)
         except ecp.EstrattoContoParseError as e:
@@ -476,6 +487,89 @@ def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any
             source_document_id=doc.id,
             source_page=int(pos.get("source_page") or 0),
         ))
+
+    # 7. Cartella AER / Estratto di Ruolo
+    if doc.doc_type == "cartella_aer" or "righe" in data or "totale_residuo" in str(data):
+        _save_tax_debt_statement(db, doc, data, client_cf)
+
+
+def _save_tax_debt_statement(db: Session, doc: Document, data: Dict[str, Any], client_cf: str) -> None:
+    """Salva la situazione debitoria AdER estratta da cartella_aer."""
+    existing = db.query(TaxDebtStatement).filter_by(source_document_id=doc.id).first()
+    if existing:
+        return
+
+    from app.services import aer_parser
+
+    debtor = db.query(Debtor).filter_by(case_id=doc.case_id).first()
+    debtor_id = debtor.id if debtor else None
+    owner_cf = debtor.tax_code if debtor else client_cf
+
+    intest = data.get("intestatario") or {}
+    doc_cf = intest.get("codice_fiscale") or ""
+    cf_mismatch = bool(doc_cf and owner_cf and not fc.same(doc_cf, owner_cf))
+
+    agg = data.get("aggregazioni") or {}
+    totali = data.get("totali") or {}
+    righe = data.get("righe") or []
+
+    tot_res = _num(totali.get("totale_residuo"))
+    tot_carico = _num(totali.get("carico_affidato"))
+    if tot_res == 0.0 and righe:
+        tot_res = sum(_num(r.get("residuo")) for r in righe)
+    if tot_carico == 0.0 and righe:
+        tot_carico = sum(_num(r.get("carico_affidato")) for r in righe)
+
+    # Non creare statement se non ci sono importi né righe
+    if tot_res == 0.0 and tot_carico == 0.0 and not righe:
+        return
+
+    stmt = TaxDebtStatement(
+        case_id=doc.case_id,
+        owner_kind="person",
+        debtor_id=debtor_id,
+        company_id=None,
+        codice_fiscale=doc_cf or owner_cf,
+        denominazione=intest.get("denominazione") or "",
+        data_elaborazione=data.get("data_elaborazione") or "",
+        total_residuo=tot_res,
+        total_residuo_netto=_num(totali.get("totale_residuo_netto")) or tot_res,
+        total_carico_affidato=tot_carico,
+        count_proc_attive=int(agg.get("count_proc_attive") or sum(1 for r in righe if r.get("proc_attive"))),
+        quadrature_ok=bool(data.get("quadrature_ok")),
+        extraction_method=data.get("_extraction_method", "parser"),
+        cf_mismatch=cf_mismatch,
+        raw_extraction=data,
+        source_document_id=doc.id,
+    )
+    db.add(stmt)
+    db.flush()
+
+    for r in righe:
+        db.add(TaxDebtItem(
+            statement_id=stmt.id,
+            numero_documento=r.get("numero_documento") or "",
+            tipo_documento=r.get("tipo_documento") or "",
+            ente_creditore=r.get("ente_creditore") or "",
+            ente_categoria=r.get("ente_categoria") or aer_parser.ente_categoria(r.get("ente_creditore") or ""),
+            data_notifica=r.get("data_notifica") or "",
+            carico_affidato=_num(r.get("carico_affidato")),
+            sgravio=_num(r.get("sgravio")),
+            gia_pagato=_num(r.get("gia_pagato")),
+            stralcio=_num(r.get("stralcio_def_agevolata") or r.get("stralcio")),
+            residuo_carico=_num(r.get("residuo_carico")),
+            interessi_mora=_num(r.get("interessi_mora")),
+            oneri_diritti=_num(r.get("oneri_diritti")),
+            totale_residuo=_num(r.get("totale_residuo")),
+            importo_sospeso=_num(r.get("importo_sospeso")),
+            totale_residuo_netto=_num(r.get("totale_residuo_netto") or r.get("totale_residuo")),
+            rateizzato=bool(r.get("rateizzato") or r.get("rateazione_attiva")),
+            proc_attive=bool(r.get("proc_attive")),
+            def_agevolata=bool(r.get("def_agevolata")),
+            needs_review=bool(r.get("needs_review")),
+        ))
+    logger.info("TaxDebtStatement salvato per doc %s: totale residuo=€ %.2f (%d righe)", doc.original_filename, tot_res, len(righe))
+
 
 
 def _save_company(db: Session, doc: Document, data: Dict[str, Any], client_cf: str) -> None:
