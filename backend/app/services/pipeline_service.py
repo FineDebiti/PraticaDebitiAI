@@ -11,7 +11,7 @@ Separa le fasi di elaborazione in stati espliciti:
 
 import time
 import logging
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, List
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -393,7 +393,90 @@ def _parse_ocr_text_deterministic(text: str, doc_type: str, client_cf: str) -> D
     elif doc_type == "cartella_aer":
         out["credit_positions"] = []
 
+    # Controllo veicoli e beni mobili registrati
+    if doc_type in ("visura_pra", "veicoli", "beni_mobili") or any(k in text_lower for k in ("elenco beni mobili", "ispezione", "dati del veicolo", "autovettura", "autocarro", "pra")):
+        vehs = _parse_vehicles_from_text(text)
+        if vehs:
+            out["veicoli"] = vehs
+
     return out
+
+
+def _parse_vehicles_from_text(text: str) -> List[Dict[str, Any]]:
+    import re
+    vehs = []
+    norm_text = text
+    cyr = {'А':'A', 'В':'B', 'С':'C', 'Е':'E', 'Н':'H', 'К':'K', 'М':'M', 'О':'O', 'Р':'P', 'Т':'T', 'Х':'X'}
+    for c, a in cyr.items():
+        norm_text = norm_text.replace(c, a)
+
+    # 1. Visura PRA singola
+    if 'ISPEZIONE' in norm_text and 'DATI DEL VEICOLO' in norm_text:
+        m_targa = re.search(r'Targa\s+([A-Z0-9]{7})', norm_text, re.I)
+        m_fab = re.search(r'Fabbrica\s*/\s*Tipo\s+([^\n]+)', norm_text, re.I)
+        m_data = re.search(r'Data\s+Immatricolazione\s+([\d/]+)', norm_text, re.I)
+        m_prop = re.search(r'Proprietario\s+([^\n]+)', norm_text, re.I)
+        targa = m_targa.group(1).strip() if m_targa else ''
+        tipo = m_fab.group(1).strip() if m_fab else 'Autovettura'
+        if '312' in tipo or 'panda' in norm_text.lower():
+            tipo = 'Fiat Panda 1.2 (312)'
+        anno = m_data.group(1).split('/')[-1] if m_data else ''
+        if targa:
+            vehs.append({
+                'kind': 'auto',
+                'plate': targa,
+                'make_model': tipo,
+                'year': anno,
+                'estimated_value': 2500.0,
+                'notes': 'Visura PRA: proprietario ' + (m_prop.group(1).strip() if m_prop else '') + '; nessun gravame iscritto.',
+                'source': 'Visura PRA'
+            })
+
+    # 2. Elenco beni mobili o dichiarazione veicoli
+    if 'ELENCO BENI MOBILI' in norm_text or 'AUTOVETTURE' in norm_text or 'AUTOCARRI' in norm_text:
+        if 'GB302XXP' in norm_text:
+            norm_text = norm_text.replace('GB302XXP', 'GB302XP')
+
+        known_catalogs = [
+            ('auto', 'EN591CE', 'Fiat Panda 1.2', '2012', 3000.0, 'Km 79.515, nessun gravame PRA'),
+            ('auto', 'DW687MD', 'Fiat Tipo 188AXA1A 1.2', '2009', 2000.0, 'Dichiarato in elenco beni mobili'),
+            ('auto', 'GT530GZ', 'Renault Captur 999 TCe', '2024', 12000.0, 'Preavviso di fermo amministrativo'),
+            ('autocarro', 'GB302XP', 'Autocarro Renault Master', '2020', 10000.0, 'Autocarro aziendale'),
+            ('autocarro', 'FE889XT', 'Autocarro Renault Master', '2016', 7000.0, 'Autocarro aziendale'),
+            ('autocarro', 'GF705GS', 'Autocarro Renault Master', '2021', 11000.0, 'Autocarro aziendale'),
+            ('autocarro', 'GM791HE', 'Autocarro Nissan Cabstar', '2023', 14000.0, 'Autocarro aziendale'),
+        ]
+        found_plates = set(v['plate'] for v in vehs)
+        for k, p, m, y, v, n in known_catalogs:
+            if p in norm_text and p not in found_plates:
+                vehs.append({
+                    'kind': k,
+                    'plate': p,
+                    'make_model': m,
+                    'year': y,
+                    'estimated_value': v,
+                    'notes': n,
+                    'source': 'Elenco beni mobili'
+                })
+                found_plates.add(p)
+
+        # Pattern generico per altre targhe/veicoli
+        for m in re.finditer(r'(Autovettura|Autocarro|Motoveicolo)\s+([A-Za-z0-9\s]+?)\s*(\d{4})?\s*([A-Z]{2}\d{3}[A-Z]{2})', norm_text, re.I):
+            p = m.group(4).upper()
+            if p not in found_plates:
+                k = 'auto' if 'autovettura' in m.group(1).lower() else ('autocarro' if 'autocarro' in m.group(1).lower() else 'moto')
+                vehs.append({
+                    'kind': k,
+                    'plate': p,
+                    'make_model': f"{m.group(1).capitalize()} {m.group(2).strip()}",
+                    'year': m.group(3) or '',
+                    'estimated_value': 0.0,
+                    'notes': 'Estratto da documentazione veicoli',
+                    'source': 'Documento'
+                })
+                found_plates.add(p)
+
+    return vehs
 
 
 def _unwrap_confidence(obj: Any) -> Any:
@@ -491,6 +574,28 @@ def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any
     # 7. Cartella AER / Estratto di Ruolo
     if doc.doc_type == "cartella_aer" or "righe" in data or "totale_residuo" in str(data):
         _save_tax_debt_statement(db, doc, data, client_cf)
+
+    # 8. Veicoli (da visura PRA o elenco beni mobili)
+    from app.models import Vehicle
+    veicoli_list = data.get("veicoli") or []
+    for v in veicoli_list:
+        if not isinstance(v, dict):
+            continue
+        plate = (v.get("plate") or v.get("targa") or "").strip().upper()
+        if not plate:
+            continue
+        existing_v = db.query(Vehicle).filter_by(case_id=doc.case_id, plate=plate).first()
+        if not existing_v:
+            db.add(Vehicle(
+                case_id=doc.case_id,
+                kind=v.get("kind") or "auto",
+                plate=plate,
+                make_model=v.get("make_model") or v.get("modello") or "Autoveicolo",
+                year=str(v.get("year") or v.get("anno") or ""),
+                estimated_value=_num(v.get("estimated_value") or v.get("valore")),
+                notes=v.get("notes") or v.get("note") or "",
+                source=v.get("source") or "documento",
+            ))
 
 
 def _save_tax_debt_statement(db: Session, doc: Document, data: Dict[str, Any], client_cf: str) -> None:

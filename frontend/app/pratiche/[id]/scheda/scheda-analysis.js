@@ -695,11 +695,11 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
                     <td className="sticky-col"><strong>{r.voce}</strong></td>
                     {(t51.colonne || []).map((col) => (
                       <td key={col.key} className="pd-num" style={{ whiteSpace: "nowrap" }}>
-                        {eurFull(r.valori?.[col.key])}
+                        {r.valori_display?.[col.key] || eurFull(r.valori?.[col.key])}
                       </td>
                     ))}
                     <td className="pd-num" style={{ whiteSpace: "nowrap", fontWeight: 700, color: r.variazione > 0 ? "var(--pd-danger)" : r.variazione < 0 ? "var(--pd-ok)" : "inherit" }}>
-                      {r.variazione > 0 ? `+${eurFull(r.variazione)}` : eurFull(r.variazione)}
+                      {r.variazione_display || (r.variazione > 0 ? `+${eurFull(r.variazione)}` : eurFull(r.variazione))}
                     </td>
                     <td style={{ fontSize: 11, whiteSpace: "nowrap" }}>
                       {r.note ? (
@@ -715,17 +715,22 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
                   <td className="sticky-col" style={{ background: "var(--pd-surface-low)" }}><strong>TOTALE DEBITI DA BILANCIO</strong></td>
                   {(t51.colonne || []).map((col) => (
                     <td key={col.key} className="pd-num" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>
-                      {eurFull(t51.totali?.[col.key])}
+                      {t51.totali_display?.[col.key] || eurFull(t51.totali?.[col.key])}
                     </td>
                   ))}
                   <td className="pd-num" style={{ fontWeight: 800, whiteSpace: "nowrap", color: t51.totale_variazione > 0 ? "var(--pd-danger)" : "var(--pd-ok)" }}>
-                    {t51.totale_variazione > 0 ? `+${eurFull(t51.totale_variazione)}` : eurFull(t51.totale_variazione)}
+                    {t51.totale_variazione_display || (t51.totale_variazione > 0 ? `+${eurFull(t51.totale_variazione)}` : eurFull(t51.totale_variazione))}
                   </td>
                   <td style={{ fontSize: 11, whiteSpace: "nowrap" }}>Escluso PN e risconti</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          {t51.nota_semplificata && (
+            <p className="pd-muted" style={{ fontSize: 11, marginTop: 4, fontStyle: "italic" }}>
+              {t51.nota_semplificata}
+            </p>
+          )}
           <p className="pd-report-text">
             <strong>Commento al ponte debitorio:</strong> {c5.commento_5_1}
           </p>
@@ -805,7 +810,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
                     <td><strong>{sRow.categoria}</strong></td>
                     <td style={{ fontSize: 13 }}>{sRow.fonte}</td>
                     <td className="pd-num"><strong>{eurFull(sRow.importo_stimato)}</strong></td>
-                    <td className="pd-num" style={{ color: "var(--pd-text-muted)" }}>{eurFull(sRow.dato_bilancio)}</td>
+                    <td className="pd-num" style={{ color: "var(--pd-text-muted)" }}>{sRow.dato_bilancio_display || eurFull(sRow.dato_bilancio)}</td>
                     <td style={{ fontSize: 12 }}>{sRow.note}</td>
                   </tr>
                 ))}
@@ -816,13 +821,18 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
                     {eurFull(t53.totale_stimato)}
                   </td>
                   <td className="pd-num" style={{ fontWeight: 800 }}>
-                    {eurFull(t53.totale_bilancio)}
+                    {t53.totale_bilancio_display || eurFull(t53.totale_bilancio)}
                   </td>
                   <td style={{ fontSize: 12 }}>Massa debitoria netta stimata</td>
                 </tr>
               </tbody>
             </table>
           </div>
+          {t53.nota_metodologica && (
+            <p className="pd-muted" style={{ fontSize: 11, marginTop: 4, fontStyle: "italic" }}>
+              {t53.nota_metodologica}
+            </p>
+          )}
           <div className="pd-highlight-box">
             <strong>Cautele e riserve metodologiche:</strong> {c5.cautele_sintesi}
           </div>
@@ -918,7 +928,17 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
                   <td className="pd-num">—</td>
                 </tr>
                 {(c8.immobili || []).length === 0 && (
-                  <tr><td colSpan={7}>Nessun immobile censito in visura catastale.</td></tr>
+                  <tr>
+                    <td colSpan={7} style={{ padding: 14 }}>
+                      {c8.esito_catasto ? (
+                        <div style={{ background: "rgba(37,99,235,0.06)", borderLeft: "3px solid var(--pd-primary)", padding: "8px 12px", borderRadius: 4 }}>
+                          <span style={{ fontSize: 13, lineHeight: 1.5 }}>
+                            <strong>[D] Esito Visura Catastale:</strong> {c8.esito_catasto}
+                          </span>
+                        </div>
+                      ) : "Nessun immobile censito in visura catastale."}
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -927,39 +947,69 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <h3 className="pd-subchapter-title">8.2 Patrimonio mobiliare (autoveicoli)</h3>
           <div className="pd-table-wrap" style={{ marginBottom: 14 }}>
             <table className="pd-table">
-              <thead><tr><th>Tipo autoveicolo / mezzo</th><th>Anno immatricolazione</th><th>Targa</th><th className="pd-num">Valore stimato</th></tr></thead>
+              <thead><tr><th>Tipo autoveicolo / mezzo</th><th>Anno</th><th>Targa</th><th className="pd-num">Stima / Stato</th><th>Note e vincoli</th></tr></thead>
               <tbody>
                 {(c8.veicoli || []).map((v, idx) => (
                   <tr key={idx}>
                     <td><strong>{v.tipo}</strong></td>
                     <td>{v.anno}</td>
                     <td><span className="pd-badge pd-badge--neutral">{v.targa}</span></td>
-                    <td className="pd-num">{eurFull(v.valore)}</td>
+                    <td className="pd-num"><strong>{v.valore_display || eurFull(v.valore)}</strong></td>
+                    <td style={{ fontSize: 12 }}>{v.note || "—"}</td>
                   </tr>
                 ))}
                 {(c8.veicoli || []).length === 0 && (
-                  <tr><td colSpan={4}>Nessun veicolo aziendale registrato al PRA o dichiarato.</td></tr>
+                  <tr><td colSpan={5}>Nessun veicolo aziendale registrato al PRA o dichiarato.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <h3 className="pd-subchapter-title">8.3 Immobilizzazioni materiali e cespiti di bilancio</h3>
-          <div className="pd-grid pd-grid--2" style={{ marginBottom: 14 }}>
-            <ReportField label="Valore netto contabile cespiti (bilancio)" value={eurFull(c8.immobilizzazioni_materiali?.valore_netto_bilancio)} />
-            <ReportField label="Costo storico stimato" value={eurFull(c8.immobilizzazioni_materiali?.costo_storico_stimato)} />
-          </div>
+          {(c8.lotti_concorsuali || []).length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <h4 style={{ fontSize: 12, textTransform: "uppercase", color: "var(--pd-text-muted)", margin: "0 0 8px" }}>
+                Stima esplorativa per lotti omogenei a realizzo concorsuale (confronto liquidatorio)
+              </h4>
+              <div className="pd-table-wrap">
+                <table className="pd-table">
+                  <thead><tr><th>Lotto indicativo</th><th className="pd-num">Prudente</th><th className="pd-num">Favorevole</th><th>Criterio / Note</th></tr></thead>
+                  <tbody>
+                    {c8.lotti_concorsuali.map((lot, idx) => (
+                      <tr key={idx} style={idx >= c8.lotti_concorsuali.length - 2 ? { background: "var(--pd-surface-low)", fontWeight: 700 } : {}}>
+                        <td><strong>{lot.lotto}</strong></td>
+                        <td className="pd-num" style={{ color: "var(--pd-primary)", fontWeight: 700 }}>{lot.prudente}</td>
+                        <td className="pd-num" style={{ color: "var(--pd-ok)", fontWeight: 700 }}>{lot.favorevole}</td>
+                        <td style={{ fontSize: 12 }}>{lot.note}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-          <h3 className="pd-subchapter-title">8.4 Esposizione personale del socio/garante</h3>
+          <h3 className="pd-subchapter-title">8.3 Immobilizzazioni materiali e cespiti di bilancio</h3>
+          <div className="pd-grid pd-grid--2" style={{ marginBottom: 10 }}>
+            <ReportField label="Valore netto contabile cespiti (bilancio)" value={c8.immobilizzazioni_materiali?.valore_netto_display || eurFull(c8.immobilizzazioni_materiali?.valore_netto_bilancio)} />
+            <ReportField label="Costo storico stimato" value={c8.immobilizzazioni_materiali?.costo_storico_display || eurFull(c8.immobilizzazioni_materiali?.costo_storico_stimato)} />
+          </div>
+          {c8.immobilizzazioni_materiali?.note && (
+            <p className="pd-muted" style={{ fontSize: 11, marginBottom: 16, fontStyle: "italic" }}>
+              {c8.immobilizzazioni_materiali.note}
+            </p>
+          )}
+
+          <h3 className="pd-subchapter-title">8.4 Esposizione personale del titolare / soci</h3>
           <div className="pd-table-wrap">
             <table className="pd-table">
-              <thead><tr><th>Soggetto garante</th><th>Garanzia prestata / Beneficiario</th><th className="pd-num">Importo</th></tr></thead>
+              <thead><tr><th>Soggetto</th><th>Regime / Garanzia prestata</th><th className="pd-num">Importo</th><th>Note / Fondamento</th></tr></thead>
               <tbody>
                 {(c8.esposizione_personale_soci || []).map((esp, idx) => (
                   <tr key={idx}>
                     <td><strong>{esp.socio}</strong></td>
                     <td>{esp.garanzia}</td>
                     <td className="pd-num"><strong>{esp.importo}</strong></td>
+                    <td style={{ fontSize: 12 }}>{esp.note || "—"}</td>
                   </tr>
                 ))}
               </tbody>
