@@ -10,9 +10,18 @@ import re
 from datetime import datetime
 from typing import Dict, Any, Tuple, Optional
 
-from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import ChatOpenAI
+try:
+    from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_openai import ChatOpenAI
+    _HAS_LANGCHAIN = True
+except ImportError:
+    ChatPromptTemplate = None
+    SystemMessagePromptTemplate = None
+    HumanMessagePromptTemplate = None
+    StrOutputParser = None
+    ChatOpenAI = None
+    _HAS_LANGCHAIN = False
 
 from app.config import settings
 from app.services.statutory_knowledge import (
@@ -100,11 +109,49 @@ PARTE 1: [MATRICE_ESTRAZIONE_JSON]
 PARTE 2: [RELAZIONE_PREANALISI_CLIENTE]"""
 
 
+class _DirectHttpForensicChain:
+    """Fallback compatibile con .invoke() via httpx diretto su endpoint OpenAI/LM Studio."""
+
+    def __init__(self, base_url: str, model: str, temperature: float, timeout: int):
+        self.base_url = base_url
+        self.model = model
+        self.temperature = temperature
+        self.timeout = timeout
+
+    def invoke(self, inputs: Dict[str, Any]) -> str:
+        import httpx
+        sys_msg = SYSTEM_PROMPT_FORENSIC_PREANALYSIS.replace("{{", "{").replace("}}", "}")
+        user_msg = HUMAN_PROMPT_TEMPLATE.format(
+            nome_cliente=inputs.get("nome_cliente", ""),
+            data_analisi=inputs.get("data_analisi", ""),
+            documenti_testo=inputs.get("documenti_testo", ""),
+        )
+        resp = httpx.post(
+            f"{self.base_url}/chat/completions",
+            json={
+                "model": self.model,
+                "temperature": self.temperature,
+                "max_tokens": 1500,
+                "messages": [
+                    {"role": "system", "content": sys_msg},
+                    {"role": "user", "content": user_msg},
+                ],
+            },
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+
+
 def get_forensic_chain(temperature: float = 0.1):
     """Costruisce la catena LangChain configurata su Qwen (endpoint locale LM Studio)."""
     base_url = settings.lmstudio_base_url.rstrip("/")
     target_model = settings.lmstudio_model or "qwen/qwen3.8-27b"
     timeout = 180
+
+    if not _HAS_LANGCHAIN:
+        return _DirectHttpForensicChain(base_url, target_model, temperature, timeout)
 
     llm = ChatOpenAI(
         base_url=base_url,

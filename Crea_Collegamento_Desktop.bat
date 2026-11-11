@@ -8,7 +8,20 @@ echo.
 
 set "SCRIPT_DIR=%~dp0"
 set "ICON_FILE=%SCRIPT_DIR%DossierLex.ico"
-set "TARGET_VBS=%SCRIPT_DIR%DossierLex_Avvio_Silenzioso.vbs"
+set "TARGET_PYW=%SCRIPT_DIR%launch_dossierlex.pyw"
+
+:: Rilevamento pythonw.exe
+set "PYTHONW_EXE="
+for /f "delims=" %%P in ('where pythonw.exe 2^>nul') do (
+    if not defined PYTHONW_EXE set "PYTHONW_EXE=%%P"
+)
+if not defined PYTHONW_EXE (
+    if exist "%LOCALAPPDATA%\Programs\Python\Python313\pythonw.exe" set "PYTHONW_EXE=%LOCALAPPDATA%\Programs\Python\Python313\pythonw.exe"
+)
+if not defined PYTHONW_EXE (
+    if exist "%LOCALAPPDATA%\Programs\Python\Python312\pythonw.exe" set "PYTHONW_EXE=%LOCALAPPDATA%\Programs\Python\Python312\pythonw.exe"
+)
+if not defined PYTHONW_EXE set "PYTHONW_EXE=pythonw.exe"
 
 echo [1/2] Rilevamento cartella Desktop...
 set "DESKTOP_DIR="
@@ -39,8 +52,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "  if (-not (Test-Path $targetDir)) { [System.IO.Directory]::CreateDirectory($targetDir) | Out-Null }; " ^
   "  $lnk = Join-Path $targetDir 'DossierLex.lnk'; " ^
   "  $s = $ws.CreateShortcut($lnk); " ^
-  "  $s.TargetPath = 'wscript.exe'; " ^
-  "  $s.Arguments = '\"%TARGET_VBS%\"'; " ^
+  "  $s.TargetPath = '%PYTHONW_EXE%'; " ^
+  "  $s.Arguments = '\"%TARGET_PYW%\"'; " ^
   "  $s.WorkingDirectory = '%SCRIPT_DIR%'; " ^
   "  if (Test-Path '%ICON_FILE%') { $s.IconLocation = '%ICON_FILE%,0' }; " ^
   "  $s.Description = 'DossierLex - Studio Legale Bentivegna'; " ^

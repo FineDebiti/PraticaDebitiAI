@@ -1,12 +1,11 @@
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: pratica
       POSTGRES_PASSWORD: pratica
       POSTGRES_DB: pratica_debiti
-    ports:
-      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,12 +16,12 @@ services:
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
 
   backend:
     build: ./backend
-    env_file: .env
+    restart: unless-stopped
+    env_file: .env.local
     depends_on:
       db:
         condition: service_healthy
@@ -32,10 +31,10 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/code
-      - ./backend/storage:/code/storage          # legacy: documenti pre-storage
-      - filestore:/data/uploads                  # volume DEDICATO e persistente per i file originali
+      - storage:/code/storage          # documenti (legacy)
+      - filestore:/data/uploads        # volume DEDICATO e persistente per i file originali
     # Applica le migrazioni Alembic PRIMA di avviare l'app (niente più down -v).
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 5s
@@ -44,10 +43,9 @@ services:
 
   worker:
     build: ./backend
-    env_file: .env
+    restart: unless-stopped
+    env_file: .env.local
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_started
       # Aspetta che il backend abbia applicato le migrazioni: niente race sullo schema.
@@ -55,22 +53,24 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/code
-      - ./backend/storage:/code/storage          # legacy: documenti pre-storage
-      - filestore:/data/uploads                  # volume DEDICATO e persistente per i file originali
+      - storage:/code/storage
+      - filestore:/data/uploads
     command: celery -A app.workers.celery_app worker --concurrency=1 --loglevel=info -Q default
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "3001:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
 
 volumes:
   pgdata:        # database Postgres
-  filestore:     # file originali caricati (separato dal DB: un down -v del DB non li tocca)
+  filestore:     # file originali caricati
+  storage:       # documenti legacy

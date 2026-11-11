@@ -69,32 +69,25 @@ def is_app_ready(timeout: float = 1.0) -> bool:
 
 
 def is_docker_running() -> bool:
-    """Verifica se il demone Docker risponde su Windows o tramite WSL."""
-    # 1. Verifica tramite socket Windows Docker Desktop
-    try:
-        with socket.create_connection(("127.0.0.1", 2375), timeout=0.5):
-            return True
-    except OSError:
-        pass
-
-    # 2. Verifica comando docker info in Windows
+    """Verifica se il demone Docker risponde ed e' operativo dentro WSL."""
+    # 1. Verifica comando docker ps in WSL (garantisce che il proxy WSL di Docker Desktop sia pronto)
     try:
         res = subprocess.run(
-            ["docker", "info"],
+            ["wsl.exe", "-d", "Ubuntu", "-u", "giuseppe", "--", "docker", "ps"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=CREATE_NO_WINDOW,
-            timeout=2.5,
+            timeout=3.0,
         )
         if res.returncode == 0:
             return True
     except Exception:
         pass
 
-    # 3. Verifica comando docker info in WSL
+    # 2. Fallback: verifica comando docker info in Windows
     try:
         res = subprocess.run(
-            ["wsl.exe", "-d", "Ubuntu", "-u", "giuseppe", "--", "docker", "info"],
+            ["docker", "info"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=CREATE_NO_WINDOW,
@@ -330,7 +323,7 @@ def run_launch_sequence(splash=None):
                 splash.update_status("DossierLex pronto! Apertura in corso...")
                 time.sleep(0.4)
                 splash.close()
-            open_browser_app(APP_URL)
+            open_browser_tab(APP_URL)
             return
 
         # 2. Controllo Docker
@@ -343,9 +336,9 @@ def run_launch_sequence(splash=None):
                 splash.update_status("Avvio di Docker Desktop in corso...")
             start_docker_desktop()
 
-            # Attesa che Docker sia online (max 40 secondi)
+            # Attesa che Docker sia online (max 45 secondi)
             docker_ready = False
-            for sec in range(40):
+            for sec in range(45):
                 time.sleep(1.0)
                 if is_docker_running():
                     docker_ready = True
@@ -374,6 +367,10 @@ def run_launch_sequence(splash=None):
                 ready = True
                 log(f"DossierLex e' completamente online (Backend :8000 e Frontend :3001) dopo {sec+1} tentativi.")
                 break
+            # Retry automatico a meta' attesa se il primo comando e' partito mentre WSL proxy si stava ancora agganciando
+            if sec == 15 and not b_ok and not f_ok:
+                log("Secondo impulso di sicurezza docker compose up -d...")
+                start_dossierlex_containers()
             if splash and sec % 3 == 0:
                 if not b_ok:
                     splash.update_status("Avvio del database e del backend AI...")
