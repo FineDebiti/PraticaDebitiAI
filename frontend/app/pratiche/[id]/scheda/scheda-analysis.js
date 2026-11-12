@@ -388,12 +388,21 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <h2 className="pd-h2">Report Finale & Dossier Tecnico Audit — Preanalisi ex CCII</h2>
           <p>Doppio output sincronizzato: Relazione Cliente (7 pagine) + Dossier Tecnico di Calcolo, Quadrature Decimal e Audit Forense.</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "max-content max-content",
+            gap: "8px 10px",
+            alignItems: "stretch",
+            flexShrink: 0,
+          }}
+        >
           <button
             type="button"
             className="pd-btn pd-btn--secondary"
             onClick={() => handleExportPdf("inline")}
             title="Visualizza il PDF vettoriale della Relazione Cliente (7 pagg.)"
+            style={{ width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
           >
             <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
             Apri Relazione PDF
@@ -404,6 +413,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             className="pd-btn pd-btn--primary"
             onClick={() => handleExportPdf("download")}
             title="Scarica il PDF ufficiale della Relazione Cliente (7 pagg.)"
+            style={{ width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
           >
             <span className="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
             Scarica Relazione (7 pagg.)
@@ -414,7 +424,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             className="pd-btn pd-btn--secondary"
             onClick={() => handleExportDossierPdf("inline")}
             title="Apri il Dossier Tecnico di Calcolo, Fonti, Quadrature Decimal e 13 Anomalie"
-            style={{ borderColor: "#0284c7", color: "#0284c7" }}
+            style={{ borderColor: "#0284c7", color: "#0284c7", width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
           >
             <span className="material-symbols-outlined" aria-hidden="true">fact_check</span>
             Apri Dossier Audit
@@ -425,7 +435,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
             className="pd-btn pd-btn--primary"
             onClick={() => handleExportDossierPdf("download")}
             title="Scarica il PDF del Dossier Tecnico di Calcolo e Audit Riservato allo Studio"
-            style={{ background: "#102a43" }}
+            style={{ background: "#102a43", width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
           >
             <span className="material-symbols-outlined" aria-hidden="true">verified_user</span>
             Scarica Dossier Tecnico Audit
