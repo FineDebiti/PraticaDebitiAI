@@ -650,13 +650,24 @@ from app.services.report_regenerator import (
     regenerate_preanalysis_report,
     reset_preanalysis_report,
 )
-from app.services.forensic_audit_engine import build_complete_technical_dossier
+from app.services.forensic_audit_engine import (
+    attempt_human_gate_approval,
+    build_complete_technical_dossier,
+    export_audit_execution_csv,
+    export_audit_execution_json,
+)
 from app.services.technical_dossier_pdf_generator import generate_technical_dossier_pdf
 
 
 class RegenerateReportRequest(BaseModel):
     instructions: Optional[List[str]] = None
     scope: Optional[str] = None
+
+
+class HumanGateApproveRequest(BaseModel):
+    professionista: str
+    anomalie_rosse_prese_in_carico: List[str] = []
+    note_istruttorie: str = ""
 
 
 @router.get("/cases/{case_id}/preanalysis-report")
@@ -779,5 +790,58 @@ def get_technical_dossier_pdf_endpoint(
             "Content-Length": str(len(pdf_bytes)),
         },
     )
+
+
+@router.get("/cases/{case_id}/preanalysis-report/audit-export")
+def export_audit_execution_endpoint(
+    case_id: str,
+    format: str = Query("json", pattern="^(json|csv)$"),
+    db: Session = Depends(get_db),
+):
+    """Esporta il registro di esecuzione Decimal al centesimo, SHA-256 a 64 caratteri ed esito delle 5 prove v2.1."""
+    case = _get_case(db, case_id)
+    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    docs = db.query(Document).filter_by(case_id=case_id).all()
+    clean_name = "".join(c if c.isalnum() else "_" for c in (case.client_name or "Cliente")).strip("_")
+
+    if format == "csv":
+        csv_text = export_audit_execution_csv(docs=docs, report_data=report_data)
+        filename = f"Audit_Decimal_Unrounded_{clean_name}_{case_id[:8]}_v{report_record.version}.csv"
+        return Response(
+            content=csv_text.encode("utf-8"),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    json_text = export_audit_execution_json(docs=docs, report_data=report_data)
+    filename = f"Audit_Execution_Log_{clean_name}_{case_id[:8]}_v{report_record.version}.json"
+    return Response(
+        content=json_text.encode("utf-8"),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/cases/{case_id}/preanalysis-report/human-gate-approve")
+def approve_human_gate_endpoint(
+    case_id: str,
+    req: HumanGateApproveRequest,
+    db: Session = Depends(get_db),
+):
+    """Tenta la validazione Human Gate della relazione: blocca se le anomalie rosse non sono prese in carico."""
+    _get_case(db, case_id)
+    _, report_data = get_or_create_preanalysis_report(db, case_id)
+    docs = db.query(Document).filter_by(case_id=case_id).all()
+    dossier = build_complete_technical_dossier(docs=docs, report_data=report_data)
+    result = attempt_human_gate_approval(
+        dossier=dossier,
+        professionista=req.professionista,
+        anomalie_rosse_prese_in_carico=req.anomalie_rosse_prese_in_carico,
+        note_istruttorie=req.note_istruttorie,
+    )
+    if not result["approved"]:
+        raise HTTPException(status_code=409, detail=result)
+    return result
+
 
 

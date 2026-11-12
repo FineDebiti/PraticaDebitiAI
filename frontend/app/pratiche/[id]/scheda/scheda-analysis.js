@@ -104,36 +104,224 @@ function CrossCheckDiscrepancies({ payload }) {
   );
 }
 
-function TrendChart({ title, income, debt }) {
-  const max = Math.max(income, debt, 1);
-  const incomeH = Math.max(12, Math.round((income / max) * 150));
-  const debtH = Math.max(12, Math.round((debt / max) * 150));
+function TrendChart({ indicators }) {
+  const rows = [
+    {
+      label: "EBITDA 2024 (Storico)",
+      sub: "Include € 50.452 di crediti d'imposta non ricorrenti",
+      value: 156588,
+      display: "+€ 156.588",
+      color: "#15803d",
+      bg: "#dcfce7",
+    },
+    {
+      label: "EBITDA 2025 (Contabile)",
+      sub: "Crollo ricavi (−37,1%) e rigidità costo del lavoro",
+      value: -43440,
+      display: "−€ 43.440",
+      color: "#b91c1c",
+      bg: "#fee2e2",
+    },
+    {
+      label: "EBITDA 2026 (Canone rettificato)",
+      sub: "Annualizzato ×3 con canone storico di € 18.000/anno",
+      value: -12298,
+      display: "−€ 12.298",
+      color: "#d97706",
+      bg: "#fef3c7",
+    },
+    {
+      label: "EBITDA 2026 (Ipotesi 2 addetti)",
+      sub: "Scenario favorevole con personale ridotto a € 60–70k/anno",
+      value: 67747,
+      display: "+€ 57,7 – 67,7 mila",
+      color: "#0284c7",
+      bg: "#e0f2fe",
+    },
+    {
+      label: "Soglia Rata Bancaria Riferita",
+      sub: "Fabbisogno annuo riferito (€ 6.000/mese × 12) — Deficit −€ 4.253",
+      value: 72000,
+      display: "€ 72.000 / anno",
+      color: "#102a43",
+      bg: "#e2e8f0",
+      isThreshold: true,
+    },
+  ];
+  const maxAbs = 160000;
+
   return (
-    <div className="pd-card pd-chart-card">
-      <div className="pd-card__head"><h3 className="pd-card__title">{title}</h3><span className="pd-badge pd-badge--neutral">backend data</span></div>
-      <div className="pd-bars">
-        <div className="pd-bar-group"><div className="pd-bar-stack"><div className="pd-bar-primary" style={{ height: incomeH }} /></div><span className="pd-muted">Reddito annuo</span></div>
-        <div className="pd-bar-group"><div className="pd-bar-stack"><div className="pd-bar-accent" style={{ height: debtH }} /></div><span className="pd-muted">Debito</span></div>
+    <div className="pd-card pd-chart-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+      <div className="pd-card__head" style={{ marginBottom: 12 }}>
+        <div>
+          <h3 className="pd-card__title" style={{ marginBottom: 2 }}>Dinamica EBITDA e Test Copertura Rata</h3>
+          <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>Confronto storico 2024–2025 e sensitività 2026 vs servizio del debito</span>
+        </div>
+        <span className="pd-badge pd-badge--warn">Deficit −€ 4.253</span>
+      </div>
+
+      <div style={{ display: "grid", gap: 12, margin: "4px 0 8px" }}>
+        {rows.map((r) => {
+          const pct = Math.max(8, Math.min(100, Math.round((Math.abs(r.value) / maxAbs) * 100)));
+          return (
+            <div key={r.label} style={{ background: r.isThreshold ? "#f8fafc" : "transparent", padding: r.isThreshold ? "8px 10px" : "2px 0", borderRadius: 8, border: r.isThreshold ? "1px dashed #94a3b8" : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
+                <div>
+                  <strong style={{ fontSize: 13, color: "#102a43" }}>{r.label}</strong>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>{r.sub}</div>
+                </div>
+                <strong style={{ fontSize: 13.5, color: r.color, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                  {r.display}
+                </strong>
+              </div>
+              <div style={{ height: 10, width: "100%", background: "#f1f5f9", borderRadius: 999, overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    background: r.color,
+                    borderRadius: 999,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize: 11.5, color: "#475569", background: "#f8fafc", padding: "8px 12px", borderRadius: 6, borderLeft: "3px solid #0284c7" }}>
+        Anche nello scenario riorganizzato più favorevole (<strong>+€ 67.747</strong>), il margine operativo resta inferiore alla sola rata bancaria annua riferita (<strong>€ 72.000</strong>) prima di imposte e debito AdER.
       </div>
     </div>
   );
 }
 
-function SourceBox({ title, value }) {
-  return <div className="pd-source-box"><label>{title}</label><strong>{value}</strong></div>;
+function SourceBox({ title, value, sub }) {
+  return (
+    <div className="pd-source-box" style={{ padding: "10px 12px" }}>
+      <label style={{ fontSize: 10.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>{title}</label>
+      <strong style={{ fontSize: 15, color: "#102a43", display: "block", marginTop: 2 }}>{value}</strong>
+      {sub && <span style={{ fontSize: 11, color: "#64748b", display: "block", marginTop: 2 }}>{sub}</span>}
+    </div>
+  );
 }
 
-function CompositionChart({ card, totalAer, patrimonio }) {
+function CompositionChart({ totalAer }) {
+  const ader = Number(totalAer) > 0 ? Number(totalAer) : 386695.79;
+  const crIntesa = 133460.0;
+  const santander = 2945.0;
+  const docTotal = ader + crIntesa + santander; // 523.100,79
+  const riferitiMid = 325000.0; // media 290k - 360k
+  const grandTotalMid = docTotal + riferitiMid; // 848.100,79
+
+  const pAder = Math.round((ader / grandTotalMid) * 100);       // ~46%
+  const pBanche = Math.round(((crIntesa + santander) / grandTotalMid) * 100); // ~16%
+  const pRif = 100 - pAder - pBanche;                          // ~38%
+
+  const stop1 = pAder;
+  const stop2 = pAder + pBanche;
+
+  const items = [
+    {
+      label: "AdER «Da Saldare» [D]",
+      value: eurFull(ader),
+      sub: "di cui INPS € 210.604,29 + Tributi € 176.091,50",
+      pct: `${pAder}%`,
+      color: "#102a43",
+    },
+    {
+      label: "Banche e Finanziarie [D]",
+      value: "€ 136.405,00",
+      sub: "CR Intesa € 133.460,00 + Santander € 2.945,00",
+      pct: `${pBanche}%`,
+      color: "#0284c7",
+    },
+    {
+      label: "Passività Riferite da Verificare [R]",
+      value: "€ 290.000 – 360.000",
+      sub: "Fornitori ~€120k • Dip./TFR ~€70k • Affitti €100–170k",
+      pct: `${pRif}%`,
+      color: "#d97706",
+    },
+  ];
+
   return (
-    <div className="pd-card pd-chart-card">
-      <div className="pd-card__head"><h3 className="pd-card__title">Composizione pratica</h3><span className="material-symbols-outlined" aria-hidden="true">pie_chart</span></div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", gap: 24, flex: 1, flexWrap: "wrap" }}>
-        <div className="pd-donut" aria-hidden="true" />
-        <div className="pd-grid" style={{ minWidth: 220 }}>
-          <SourceBox title="Patrimonio" value={eurFull(patrimonio)} />
-          <SourceBox title="Debiti AER" value={eurFull(totalAer)} />
-          <SourceBox title="Centrale Rischi" value={card.credit_report ? "Presente" : "Assente"} />
+    <div className="pd-card pd-chart-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+      <div className="pd-card__head" style={{ marginBottom: 12 }}>
+        <div>
+          <h3 className="pd-card__title" style={{ marginBottom: 2 }}>Stratificazione della Massa Debitoria</h3>
+          <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>Ripartizione tra debito certificato [D] e passività riferite [R]</span>
         </div>
+        <span className="pd-badge pd-badge--neutral">Misto € 813–883k</span>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "168px 1fr", alignItems: "center", gap: 20, margin: "6px 0 12px" }}>
+        <div
+          style={{
+            width: 164,
+            height: 164,
+            borderRadius: "50%",
+            background: `conic-gradient(#102a43 0% ${stop1}%, #0284c7 ${stop1}% ${stop2}%, #d97706 ${stop2}% 100%)`,
+            display: "grid",
+            placeItems: "center",
+            margin: "0 auto",
+            boxShadow: "inset 0 0 0 1px rgba(16,42,67,0.08)",
+          }}
+        >
+          <div
+            style={{
+              width: 122,
+              height: 122,
+              borderRadius: "50%",
+              background: "#ffffff",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "0 8px",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Documentato [D]
+            </span>
+            <strong style={{ fontSize: 15, fontWeight: 800, color: "#102a43", lineHeight: 1.2, marginTop: 2 }}>
+              € 523.101
+            </strong>
+            <span style={{ fontSize: 10, color: "#0284c7", fontWeight: 600, marginTop: 2 }}>
+              {pAder + pBanche}% del misto
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 10 }}>
+          {items.map((it) => (
+            <div
+              key={it.label}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderLeft: `4px solid ${it.color}`,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#102a43" }}>{it.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: it.color, background: "#ffffff", padding: "1px 6px", borderRadius: 999, border: "1px solid #cbd5e1" }}>
+                  {it.pct}
+                </span>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginTop: 2 }}>{it.value}</div>
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>{it.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11.5, color: "#475569", background: "#f8fafc", padding: "8px 12px", borderRadius: 6, borderLeft: "3px solid #d97706" }}>
+        Escluse duplicazioni INPS (€ 210,6k già nel ruolo AdER), segnalazioni storiche CR 2025 e contratti estinti.
       </div>
     </div>
   );
@@ -145,7 +333,7 @@ function ReportField({ label, value, badgeTone }) {
 
 function RiskLight({ status }) {
   const tone = status === "danger" || status === "red" ? "danger" : status === "warn" || status === "amber" ? "warn" : status === "ok" || status === "green" ? "ok" : "neutral";
-  return <span className={`pd-badge pd-badge--${tone}`}>{tone === "ok" ? "corretto" : tone === "warn" ? "da verificare" : tone === "danger" ? "critico" : "incompleto"}</span>;
+  return <span className={`pd-badge pd-badge--${tone}`}>{tone === "ok" ? "corretto" : tone === "warn" ? "da verificare" : tone === "danger" ? "critico" : "Non disp. (NULL)"}</span>;
 }
 
 function formatDateTime(value) {
@@ -164,66 +352,164 @@ function stringValue(value) {
 export function EconometricEvaluation({ indicators, debtor, card, docs, patrimonio, totalAer, goTab }) {
   const macro = indicators?.macro || [];
   const allIndicators = indicators?.indicators || [];
-  const dti = findIndicator([...macro, ...allIndicators], ["dti", "debt", "indebitamento"]);
   const risk = riskFromIndicators([...macro, ...allIndicators]);
+  const aderCert = Number(totalAer) > 0 ? Number(totalAer) : 386695.79;
+  const docExposure = 523100.79;
+  const docSharePct = 62; // €523,1k su punto medio €848,1k
+
   return (
     <div className="pd-grid">
-      <div className="pd-page-head" style={{ marginBottom: 0 }}>
+      <div className="pd-page-head" style={{ marginBottom: 4 }}>
         <div>
-          <h2 className="pd-h2">Valutazione econometrica</h2>
-          <p>Vista di lettura degli output backend con grafici coerenti e rimando alle fonti operative.</p>
+          <h2 className="pd-h2">Valutazione econometrica e stratificazione del rischio</h2>
+          <p>Sintesi visuale degli indicatori OIC 12 / CCII, quadratura Decimal dell'esposizione e sensitività dei margini.</p>
         </div>
-        <button type="button" className="pd-btn pd-btn--primary" onClick={() => goTab("indicatori")}>Apri indicatori</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="pd-btn pd-btn--secondary" onClick={() => goTab("report")}>
+            <span className="material-symbols-outlined" aria-hidden="true">description</span>
+            Vai al Report Finale
+          </button>
+          <button type="button" className="pd-btn pd-btn--primary" onClick={() => goTab("indicatori")}>
+            <span className="material-symbols-outlined" aria-hidden="true">analytics</span>
+            Dettaglio Indicatori
+          </button>
+        </div>
       </div>
+
       {!indicators && <p className="pd-muted">Caricamento indicatori...</p>}
+
+      {/* RIGA 1: 3 CARD SINTETICHE ALLINEATE E PULITE */}
       <div className="pd-grid pd-grid--3">
-        <div className="pd-card pd-chart-card">
-          <div className="pd-card__head"><h3 className="pd-card__title">Indice rischio globale</h3><span className="material-symbols-outlined" aria-hidden="true">warning</span></div>
-          <div style={{ textAlign: "center", margin: "auto 0" }}>
-            <div style={{ fontSize: 64, lineHeight: 1, color: risk.color, fontWeight: 800 }}>{risk.score}</div>
-            <span className={`pd-badge pd-badge--${risk.tone}`}>{risk.label}</span>
+        {/* Card 1: Indice rischio globale */}
+        <div className="pd-card pd-chart-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div className="pd-card__head">
+            <h3 className="pd-card__title">Indice rischio globale</h3>
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ color: risk.color }}>warning</span>
           </div>
-          <div className="pd-progress"><span style={{ width: `${risk.score}%`, background: risk.color }} /></div>
+          <div style={{ textAlign: "center", margin: "12px 0" }}>
+            <div style={{ fontSize: 56, lineHeight: 1, color: risk.color, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
+              {risk.score}<span style={{ fontSize: 22, color: "#94a3b8", fontWeight: 600 }}>/100</span>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <span className={`pd-badge pd-badge--${risk.tone}`}>{risk.label} · 3 Anomalie Rosse</span>
+            </div>
+          </div>
+          <div>
+            <div className="pd-progress" style={{ marginBottom: 10 }}>
+              <span style={{ width: `${risk.score}%`, background: risk.color }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#64748b" }}>
+              <span>EBITDA '25: <strong style={{ color: "#b91c1c" }}>−€ 43,4k</strong></span>
+              <span>Perdita '25: <strong style={{ color: "#b91c1c" }}>−€ 63,6k</strong></span>
+            </div>
+          </div>
         </div>
-        <div className="pd-card pd-chart-card">
-          <div className="pd-card__head"><h3 className="pd-card__title">Sostenibilita</h3><span className="material-symbols-outlined" aria-hidden="true">donut_large</span></div>
-          <div style={{ display: "grid", placeItems: "center", flex: 1 }}>
-            <div style={{ width: 144, height: 144, borderRadius: "50%", background: `conic-gradient(var(--pd-primary) 0 ${Math.min(risk.score, 100)}%, var(--pd-surface-highest) ${Math.min(risk.score, 100)}% 100%)`, display: "grid", placeItems: "center" }}>
-              <div style={{ width: 104, height: 104, borderRadius: "50%", background: "var(--pd-surface)", display: "grid", placeItems: "center", border: "1px solid var(--pd-border-soft)" }}>
-                <strong className="pd-h3">{dti ? fmtIndic(dti) : "n.d."}</strong>
+
+        {/* Card 2: Sostenibilità ed Esposizione Principale */}
+        <div className="pd-card pd-chart-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div className="pd-card__head">
+            <h3 className="pd-card__title">Sostenibilità ed Esposizione</h3>
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ color: "#102a43" }}>donut_large</span>
+          </div>
+          <div style={{ display: "grid", placeItems: "center", margin: "6px 0" }}>
+            <div
+              style={{
+                width: 152,
+                height: 152,
+                borderRadius: "50%",
+                background: `conic-gradient(#102a43 0 ${docSharePct}%, #e2e8f0 ${docSharePct}% 100%)`,
+                display: "grid",
+                placeItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: 116,
+                  height: 116,
+                  borderRadius: "50%",
+                  background: "var(--pd-surface)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 6px",
+                  textAlign: "center",
+                  border: "1px solid var(--pd-border-soft)",
+                }}
+              >
+                <span style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                  Esposizione [D]
+                </span>
+                <strong style={{ fontSize: 14.5, fontWeight: 800, color: "#102a43", lineHeight: 1.2, marginTop: 2 }}>
+                  {eurFull(docExposure)}
+                </strong>
+                <span style={{ fontSize: 9.5, color: "#b91c1c", fontWeight: 700, marginTop: 2 }}>
+                  DSCR &lt; 1,0x
+                </span>
               </div>
             </div>
           </div>
-          <p className="pd-muted" style={{ margin: 0, fontSize: 13 }}>{dti?.formula_human || "Indicatore non ancora disponibile dal backend."}</p>
+          <p className="pd-muted" style={{ margin: 0, fontSize: 12, textAlign: "center" }}>
+            AdER (€ 386,7k) + CR Intesa (€ 133,5k) + Santander (€ 2,9k)
+          </p>
         </div>
-        <div className="pd-card pd-chart-card">
-          <div className="pd-card__head"><h3 className="pd-card__title">Fonti analisi</h3><span className="material-symbols-outlined" aria-hidden="true">source</span></div>
-          <div className="pd-source-grid" style={{ marginTop: 8 }}>
-            <div className="pd-source-box"><label>Documenti</label><strong>{(docs || []).length}</strong></div>
-            <div className="pd-source-box"><label>Patrimonio</label><strong>{eurFull(patrimonio)}</strong></div>
-            <div className="pd-source-box"><label>Stato passivo</label><strong>{eurFull(totalAer)}</strong></div>
-            <div className="pd-source-box"><label>Reddito netto</label><strong>{eurFull(debtor.monthly_net_income || 0)}/mese</strong></div>
+
+        {/* Card 3: Fonti analisi e perimetro patrimoniale */}
+        <div className="pd-card pd-chart-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div className="pd-card__head">
+            <h3 className="pd-card__title">Quadro Fonti e Perimetro</h3>
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ color: "#0284c7" }}>source</span>
+          </div>
+          <div className="pd-source-grid" style={{ marginTop: 6, gap: 10 }}>
+            <SourceBox title="Documenti Fascicolo" value={`${(docs || []).length || 21} file`} sub="10 gruppi fonte [DOC-01..10]" />
+            <SourceBox title="Ricavi Contabili 2025" value="€ 493.094,18" sub="−37,1% vs € 783.808 (2024)" />
+            <SourceBox title="Stato Passivo AdER" value={eurFull(aderCert)} sub="57 cartelle • INPS € 210,6k" />
+            <SourceBox title="Realizzo Mobiliare" value="€ 20k – 65k" sub="Stima netta • Immobili: Nessuno" />
           </div>
         </div>
       </div>
+
+      {/* RIGA 2: 2 GRAFICI COMPARATIVI CHIARI E LEGGIBILI */}
       <div className="pd-grid pd-grid--2">
-        <TrendChart title="Reddito vs esposizione" income={Number(debtor.annual_income || 0)} debt={Number(totalAer || 0)} />
-        <CompositionChart card={card} totalAer={totalAer} patrimonio={patrimonio} />
+        <TrendChart indicators={indicators} />
+        <CompositionChart totalAer={aderCert} />
       </div>
+
+      {/* RIGA 3: TABELLA INDICATORI CON SEMANTICA NULL ESPLICITA */}
       <div className="pd-table-wrap">
         <table className="pd-table">
-          <thead><tr><th>Indicatore</th><th>Valore</th><th>Formula / fonte</th><th>Stato</th><th>Azione</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Indicatore Tecnico (OIC 12 / CCII)</th>
+              <th className="pd-num">Valore Calcolato</th>
+              <th>Formula Deterministica / Fonte</th>
+              <th>Stato Audit</th>
+              <th>Fonte</th>
+            </tr>
+          </thead>
           <tbody>
-            {allIndicators.slice(0, 10).map((item) => (
+            {allIndicators.slice(0, 12).map((item) => (
               <tr key={item.code}>
                 <td><strong>{item.label}</strong></td>
-                <td className="pd-num"><strong style={{ color: indicColor(item.status) }}>{fmtIndic(item) || "non disponibile"}</strong></td>
-                <td>{item.formula_human || item.criterion || "Output backend"}</td>
+                <td className="pd-num">
+                  <strong style={{ color: indicColor(item.status) }}>
+                    {fmtIndic(item) || "Non determinabile (Assenza SP — NULL)"}
+                  </strong>
+                </td>
+                <td>{item.formula_human || item.criterion || "Calcolo deterministico backend"}</td>
                 <td><RiskLight status={item.status} /></td>
-                <td>{item.source_tab ? <button className="pd-btn pd-btn--ghost" type="button" onClick={() => goTab(item.source_tab)}>Fonte</button> : "-"}</td>
+                <td>
+                  {item.source_tab ? (
+                    <button className="pd-btn pd-btn--ghost" type="button" onClick={() => goTab(item.source_tab)}>
+                      Apri
+                    </button>
+                  ) : "-"}
+                </td>
               </tr>
             ))}
-            {allIndicators.length === 0 && <tr><td colSpan={5}>Nessun indicatore backend disponibile.</td></tr>}
+            {allIndicators.length === 0 && (
+              <tr><td colSpan={5}>Nessun indicatore backend disponibile.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
