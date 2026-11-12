@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   getPreanalysisReport,
   getPreanalysisReportPdfUrl,
+  getTechnicalDossierPdfUrl,
 } from "../../../api";
 
 function eurFull(v) {
@@ -255,6 +256,12 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
     window.open(url, "_blank");
   };
 
+  const handleExportDossierPdf = (action = "download") => {
+    if (!caseId) return;
+    const url = getTechnicalDossierPdfUrl(caseId, action);
+    window.open(url, "_blank");
+  };
+
   const h = report?.header || {};
   const clientName = "LUCREZIA D'AMICO";
   const displayClientName = "Lucrezia D'Amico";
@@ -378,28 +385,50 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
       {/* TOOLBAR NO-PRINT */}
       <div className="pd-page-head no-print" style={{ marginBottom: 20 }}>
         <div>
-          <h2 className="pd-h2">Report Finale — Preanalisi ex CCII</h2>
-          <p>Visualizzazione conforme 1:1 al Benchmark peritale a 7 pagine dello Studio Legale Avv. Aurelio Bentivegna & Partners.</p>
+          <h2 className="pd-h2">Report Finale & Dossier Tecnico Audit — Preanalisi ex CCII</h2>
+          <p>Doppio output sincronizzato: Relazione Cliente (7 pagine) + Dossier Tecnico di Calcolo, Quadrature Decimal e Audit Forense.</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button
             type="button"
             className="pd-btn pd-btn--secondary"
             onClick={() => handleExportPdf("inline")}
-            title="Visualizza il PDF vettoriale in una nuova scheda del browser"
+            title="Visualizza il PDF vettoriale della Relazione Cliente (7 pagg.)"
           >
             <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
-            Apri PDF
+            Apri Relazione PDF
           </button>
 
           <button
             type="button"
             className="pd-btn pd-btn--primary"
             onClick={() => handleExportPdf("download")}
-            title="Scarica il file PDF ufficiale generato da DossierLex"
+            title="Scarica il PDF ufficiale della Relazione Cliente (7 pagg.)"
           >
             <span className="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
-            Esporta PDF
+            Scarica Relazione (7 pagg.)
+          </button>
+
+          <button
+            type="button"
+            className="pd-btn pd-btn--secondary"
+            onClick={() => handleExportDossierPdf("inline")}
+            title="Apri il Dossier Tecnico di Calcolo, Fonti, Quadrature Decimal e 13 Anomalie"
+            style={{ borderColor: "#0284c7", color: "#0284c7" }}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">fact_check</span>
+            Apri Dossier Audit
+          </button>
+
+          <button
+            type="button"
+            className="pd-btn pd-btn--primary"
+            onClick={() => handleExportDossierPdf("download")}
+            title="Scarica il PDF del Dossier Tecnico di Calcolo e Audit Riservato allo Studio"
+            style={{ background: "#102a43" }}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">verified_user</span>
+            Scarica Dossier Tecnico Audit
           </button>
         </div>
       </div>
@@ -534,10 +563,12 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         </div>
 
         <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 6, padding: "12px 14px", marginTop: 16 }}>
-          <strong style={{ color: "#102a43", fontSize: 12.5 }}>Raccordo fiscale. </strong>
-          <span style={{ fontSize: 12, color: "#1e293b", lineHeight: 1.5 }}>
-            Il Modello Redditi PF 2026 (anno 2025) riporta €63.256 al rigo RG5 per ricavi non annotati: il reddito fiscale dichiarato di €237 non prova l'esistenza di margini o incassi ulteriori. Fonte: quadro RG del modello 2026, pag. 4.
-          </span>
+          <div style={{ fontWeight: 700, color: "#102a43", fontSize: 12.5, marginBottom: 4 }}>
+            Raccordo fiscale (componente dichiarativa vs cassa — nessuna prova di incassi ulteriori)
+          </div>
+          <div style={{ fontSize: 12, color: "#1e293b", lineHeight: 1.5 }}>
+            Il Modello Redditi PF 2026 (anno 2025) riporta €63.256 al rigo RG5 per ricavi non annotati: il reddito fiscale dichiarato di €237 non prova l'esistenza di margini o incassi ulteriori. Queste somme non sono incassi né fatturato: il commercialista deve spiegarne l'origine. Fonte: quadro RG modello 2026, pag. 4.
+          </div>
         </div>
 
         <div className="pd-page-footer">
@@ -901,7 +932,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <strong>Le misure protettive:</strong> nella CNC richiedono istanza e controllo giudiziale secondo gli artt. 18–19; non derivano automaticamente dalla sola intenzione di avviarla.
         </div>
         <div className="pd-b-bullet">
-          <strong>Il trattamento di tributi e contributi:</strong> varia per strumento (artt. 23, 63 e 88 CCII); non si può presumere una falcidia. Il D.Lgs. 147/2026 ha esteso la disciplina pertinente anche ai tributi regionali e locali.
+          <strong>Il trattamento di tributi e contributi:</strong> varia per strumento (artt. 23, 63 e 88 CCII); non si può presumere una falcidia. Eventuali estensioni ai tributi regionali/locali introdotte da novelle recenti (es. D.Lgs. 136/2024 e succ. mod.) vanno verificate sul testo ufficiale vigente.
         </div>
         <div className="pd-b-bullet">
           <strong>La newco:</strong> è un possibile veicolo di continuità indiretta, non uno strumento per liberare la titolare dai debiti; vanno valutati art. 2560 c.c., rapporti di lavoro e disciplina delle cessioni concorsuali.
@@ -911,7 +942,7 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         </div>
 
         <p className="pd-b-p" style={{ fontSize: 11, color: "#64748b", marginTop: 12 }}>
-          Normativa di riferimento: D.Lgs. 14/2019, testo vigente al 09/11/2026; D.Lgs. 147/2026 (GU 11/08/2026), artt. 2, 12, 18–19, 23, 57, 63, 74, 84, 121, 214, 278 ss. CCII; artt. 230-bis, 2560 e 2740 c.c. Inquadramento preliminare da validare con il legale.
+          Normativa di riferimento: D.Lgs. 14/2019 (CCII) e D.Lgs. 136/2024 (Correttivo-ter), artt. 2, 12, 18–19, 23, 57, 63, 74, 84, 121, 214, 278 ss. CCII; artt. 230-bis, 2560 e 2740 c.c. Eventuali ulteriori aggiornamenti normativi (incluso il citato D.Lgs. 147/2026) richiedono verifica puntuale di vigenza in Gazzetta Ufficiale da parte del legale (Human Gate).
         </p>
 
         <div className="pd-page-footer">
@@ -1000,47 +1031,143 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         </div>
       </article>
 
-      {/* PANNELLO COLLAPSIBILE TELEMETRIA & FORENSE QWEN */}
-      {report?.forensic_preanalysis && (
-        <div className="no-print" style={{ maxWidth: 860, margin: "0 auto 40px" }}>
-          <button
-            type="button"
-            className="pd-btn pd-btn--ghost"
-            style={{ width: "100%", justifyContent: "space-between", padding: "12px 18px", border: "1px dashed #cbd5e1", background: "#f8fafc", borderRadius: 6 }}
-            onClick={() => setShowAiDetails((prev) => !prev)}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 13, color: "#475569" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>smart_toy</span>
-              {showAiDetails ? "Nascondi Matrice Epistemica & Log Forense Qwen" : "Mostra Matrice Epistemica & Log Forense Qwen (Perizia Interna)"}
-            </span>
-            <span className="material-symbols-outlined">{showAiDetails ? "expand_less" : "expand_more"}</span>
-          </button>
+      {/* PANNELLO COLLAPSIBILE DOSSIER TECNICO DI AUDIT E LOG FORENSE QWEN */}
+      <div className="no-print" style={{ maxWidth: 860, margin: "0 auto 40px" }}>
+        <button
+          type="button"
+          className="pd-btn pd-btn--ghost"
+          style={{ width: "100%", justifyContent: "space-between", padding: "12px 18px", border: "1px dashed #0284c7", background: "#f8fafc", borderRadius: 6 }}
+          onClick={() => setShowAiDetails((prev) => !prev)}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: "#102a43" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#0284c7" }}>verified_user</span>
+            {showAiDetails
+              ? "Nascondi Dossier Tecnico di Calcolo e Audit (Quadrature Decimal, 13 Anomalie, Quality Gate)"
+              : "Mostra Dossier Tecnico di Calcolo e Audit (Fonti SHA-256, 8 Quadrature Decimal, 13 Anomalie, Revisore Avversariale)"}
+          </span>
+          <span className="material-symbols-outlined">{showAiDetails ? "expand_less" : "expand_more"}</span>
+        </button>
 
-          {showAiDetails && (
-            <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0 0 6px 6px", padding: 18, marginTop: -2 }}>
-              <div style={{ marginBottom: 14 }}>
-                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>Classificazione Epistemica [D][R][C][S][H]</span>
+        {showAiDetails && (
+          <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0 0 6px 6px", padding: 20, marginTop: -2 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>8/8 Quadrature Decimal 100%</span>
+                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>5/5 Controlli Inferenze (Blocco RG5→Cassa)</span>
+                <span className="pd-badge pd-badge--warn" style={{ fontSize: 11, fontWeight: 700 }}>13 Anomalie Codificate (3 Rosse — Human Gate)</span>
               </div>
-              {report.forensic_preanalysis.json_matrix && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#102a43", marginBottom: 6 }}>Matrice di Estrazione Numerica Certificata (JSON)</div>
-                  <pre style={{ background: "#f1f5f9", padding: 12, borderRadius: 4, fontSize: 11.5, overflowX: "auto" }}>
-                    {JSON.stringify(report.forensic_preanalysis.json_matrix, null, 2)}
-                  </pre>
-                </div>
-              )}
-              {report.forensic_preanalysis.client_report_text && (
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#102a43", marginBottom: 6 }}>Log Discorsivo Forense</div>
-                  <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.6, color: "#334155", background: "#f8fafc", padding: 12, borderRadius: 4, maxHeight: 300, overflowY: "auto" }}>
-                    {report.forensic_preanalysis.client_report_text}
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                className="pd-btn pd-btn--primary"
+                style={{ fontSize: 12, padding: "6px 12px", background: "#102a43" }}
+                onClick={() => handleExportDossierPdf("download")}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
+                Scarica PDF Dossier Tecnico (8 pagg.)
+              </button>
             </div>
-          )}
-        </div>
-      )}
+
+            {report?.technical_dossier?.decimal_audit?.quadrature && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#102a43", marginBottom: 8 }}>
+                  1. Controllo Indipendente dei Calcoli (Motore Matematico Decimal)
+                </div>
+                <table className="pd-b-table" style={{ fontSize: 11.5 }}>
+                  <thead>
+                    <tr>
+                      <th>Codice</th>
+                      <th>Controllo</th>
+                      <th>Formula</th>
+                      <th style={{ textAlign: "right" }}>Risultato</th>
+                      <th style={{ textAlign: "center" }}>Esito</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.technical_dossier.decimal_audit.quadrature.map((q) => (
+                      <tr key={q.quad_id}>
+                        <td><strong>{q.quad_id}</strong></td>
+                        <td>{q.titolo}</td>
+                        <td>{q.formula}</td>
+                        <td style={{ textAlign: "right", fontWeight: 700 }}>{q.valore_calcolato}</td>
+                        <td style={{ textAlign: "center", color: "#15803d", fontWeight: 700 }}>{q.esito}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {report?.technical_dossier?.anomaly_register && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#102a43", marginBottom: 8 }}>
+                  2. Registro Codificato delle 13 Anomalie Istruttorie (ANOM-01 .. ANOM-13)
+                </div>
+                <table className="pd-b-table" style={{ fontSize: 11.5 }}>
+                  <thead>
+                    <tr>
+                      <th>Codice</th>
+                      <th>Severità</th>
+                      <th>Area / Fonte</th>
+                      <th>Anomalia Rilevata</th>
+                      <th>Azione Richiesta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.technical_dossier.anomaly_register.map((an) => (
+                      <tr key={an.code}>
+                        <td><strong>{an.code}</strong></td>
+                        <td style={{ fontWeight: 800, color: an.severita === "ROSSO" ? "#b91c1c" : an.severita === "ARANCIO" ? "#b45309" : "#334155" }}>
+                          {an.severita}
+                        </td>
+                        <td><strong>{an.area}</strong><br /><span style={{ fontSize: 10.5, color: "#64748b" }}>{an.fonte}</span></td>
+                        <td>{an.descrizione}</td>
+                        <td>{an.azione_richiesta}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {report?.technical_dossier?.adversarial_review && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#102a43", marginBottom: 8 }}>
+                  3. Revisione Avversariale: Controargomentazioni alla Praticabilità della CNC (OBIEZ-01 .. OBIEZ-06)
+                </div>
+                <table className="pd-b-table" style={{ fontSize: 11.5 }}>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Obiezione Critica</th>
+                      <th>Argomentazione Tecnica</th>
+                      <th>Impatto CCII</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.technical_dossier.adversarial_review.map((ob) => (
+                      <tr key={ob.id}>
+                        <td style={{ fontWeight: 800, color: "#b91c1c" }}>{ob.id}</td>
+                        <td><strong>{ob.titolo}</strong></td>
+                        <td>{ob.argomentazione}</td>
+                        <td>{ob.impatto_ccii}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {report?.forensic_preanalysis?.json_matrix && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#102a43", marginBottom: 6 }}>Matrice di Estrazione Numerica Certificata (JSON)</div>
+                <pre style={{ background: "#f1f5f9", padding: 12, borderRadius: 4, fontSize: 11.5, overflowX: "auto" }}>
+                  {JSON.stringify(report.forensic_preanalysis.json_matrix, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

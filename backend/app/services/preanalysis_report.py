@@ -27,6 +27,7 @@ from app.models import (
 )
 from app.services.rule_engine import get_active_rules
 from app.services.forensic_preanalysis_chain import run_forensic_preanalysis_chain
+from app.services.forensic_audit_engine import build_complete_technical_dossier
 from app.services.statutory_knowledge import (
     calculate_ebitda_oic12,
     calculate_pfn_esma,
@@ -1266,6 +1267,7 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
                 {"valore": "€ 813–883 mila", "etichetta": "Debito misto indicativo**", "descrizione": "Comprende anche passività riferite (fornitori, TFR, locazioni)"},
             ],
         },
+        "technical_dossier": build_complete_technical_dossier(docs, {}),
         "studio_rules": [
             {
                 "id": r.id,

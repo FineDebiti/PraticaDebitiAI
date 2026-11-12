@@ -277,18 +277,23 @@ def generate_benchmark_7page_pdf(report_data: Dict[str, Any]) -> bytes:
     pdf.bullet("Nel 2026", "gli acquisti assorbono il 66,0% dei ricavi del quadrimestre, rispetto al 53,5% nel 2025. Rimanenze e lavori in corso non sono ricostruiti.")
     pdf.ln(2)
 
-    # Box Raccordo fiscale
+    # Box Raccordo fiscale (coordinate X vincolate ai margini interni per evitare qualsiasi taglio sul bordo destro)
     box_y = pdf.get_y()
     pdf.set_fill_color(*COLOR_CARD_BG)
     pdf.set_draw_color(*COLOR_BORDER)
-    pdf.rect(15, box_y, pdf.epw, 14, style="DF")
-    pdf.set_xy(17, box_y + 2)
+    pdf.rect(15, box_y, pdf.epw, 16.5, style="DF")
+    pdf.set_xy(17, box_y + 1.8)
     pdf.set_font(f_fam, "B", 7.2)
     pdf.set_text_color(*COLOR_NAVY)
-    pdf.write(3.5, "Raccordo fiscale. ")
-    pdf.set_font(f_fam, "", 7.2)
+    pdf.cell(pdf.epw - 4, 3.6, "Raccordo fiscale (componente dichiarativa vs cassa — nessuna prova di incassi ulteriori)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_xy(17, box_y + 5.6)
+    pdf.set_font(f_fam, "", 7.0)
     pdf.set_text_color(*COLOR_TEXT_DARK)
-    pdf.multi_cell(pdf.epw - 4, 3.5, "Il Modello Redditi PF 2026 (anno 2025) riporta €63.256 al rigo RG5 per ricavi non annotati: il reddito fiscale dichiarato di €237 non prova l'esistenza di margini o incassi ulteriori. Fonte: quadro RG del modello 2026, pag. 4.")
+    pdf.multi_cell(
+        pdf.epw - 4,
+        3.3,
+        "Il Modello Redditi PF 2026 (anno 2025) riporta €63.256 al rigo RG5 per ricavi non annotati: il reddito fiscale dichiarato di €237 non prova l'esistenza di margini o incassi ulteriori. Queste somme non sono incassi né fatturato: il commercialista deve spiegarne l'origine. Fonte: quadro RG modello 2026, pag. 4.",
+    )
 
     # =========================================================================
     # PAGINA 3: 02 / INDEBITAMENTO RICOSTRUITO
@@ -566,13 +571,13 @@ def generate_benchmark_7page_pdf(report_data: Dict[str, Any]) -> bytes:
     pdf.ln(2.5)
     pdf.section_title("Avvertenze giuridiche")
     pdf.bullet("Le misure protettive", "nella CNC richiedono istanza e controllo giudiziale secondo gli artt. 18–19; non derivano automaticamente dalla sola intenzione di avviarla.")
-    pdf.bullet("Il trattamento di tributi e contributi", "varia per strumento (artt. 23, 63 e 88 CCII); non si può presumere una falcidia. Il D.Lgs. 147/2026 ha esteso la disciplina pertinente anche ai tributi regionali e locali.")
+    pdf.bullet("Il trattamento di tributi e contributi", "varia per strumento (artt. 23, 63 e 88 CCII); non si può presumere una falcidia. Eventuali estensioni ai tributi regionali/locali introdotte da novelle recenti (es. D.Lgs. 136/2024 e succ. mod.) vanno verificate sul testo ufficiale vigente.")
     pdf.bullet("La newco", "è un possibile veicolo di continuità indiretta, non uno strumento per liberare la titolare dai debiti; vanno valutati art. 2560 c.c., rapporti di lavoro e disciplina delle cessioni concorsuali.")
     pdf.bullet("Liquidazione giudiziale:", "in un'eventuale liquidazione della persona fisica occorrerà esaminare presupposti ed effetti dell'esdebitazione (artt. 278 ss. CCII).")
     pdf.ln(1.5)
 
     pdf.body_p(
-        "Normativa di riferimento: D.Lgs. 14/2019, testo vigente al 09/11/2026; D.Lgs. 147/2026 (GU 11/08/2026), artt. 2, 12, 18–19, 23, 57, 63, 74, 84, 121, 214, 278 ss. CCII; artt. 230-bis, 2560 e 2740 c.c. Inquadramento preliminare da validare con il legale.",
+        "Normativa di riferimento: D.Lgs. 14/2019 (CCII) e D.Lgs. 136/2024 (Correttivo-ter), artt. 2, 12, 18–19, 23, 57, 63, 74, 84, 121, 214, 278 ss. CCII; artt. 230-bis, 2560 e 2740 c.c. Eventuali ulteriori aggiornamenti normativi (incluso il citato D.Lgs. 147/2026) richiedono verifica puntuale di vigenza in Gazzetta Ufficiale da parte del legale (Human Gate).",
         line_height=3.2, size_pt=6.8, color=COLOR_TEXT_MUTED
     )
 

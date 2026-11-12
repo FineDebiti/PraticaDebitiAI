@@ -650,6 +650,8 @@ from app.services.report_regenerator import (
     regenerate_preanalysis_report,
     reset_preanalysis_report,
 )
+from app.services.forensic_audit_engine import build_complete_technical_dossier
+from app.services.technical_dossier_pdf_generator import generate_technical_dossier_pdf
 
 
 class RegenerateReportRequest(BaseModel):
@@ -663,6 +665,9 @@ def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
     _get_case(db, case_id)
     report_record, report_data = get_or_create_preanalysis_report(db, case_id)
     if isinstance(report_data, dict):
+        if "technical_dossier" not in report_data:
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {
             "version": report_record.version,
             "status": report_record.status,
@@ -743,4 +748,36 @@ def get_preanalysis_report_pdf(
             "Content-Length": str(len(pdf_bytes)),
         },
     )
+
+
+@router.get("/cases/{case_id}/preanalysis-report/dossier-pdf")
+def get_technical_dossier_pdf_endpoint(
+    case_id: str,
+    action: str = Query("download", pattern="^(download|inline)$"),
+    db: Session = Depends(get_db),
+):
+    """Genera e restituisce il Secondo Elaborato Standard: Dossier Tecnico di Calcolo e Audit Forense."""
+    case = _get_case(db, case_id)
+    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    if isinstance(report_data, dict):
+        if "technical_dossier" not in report_data:
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        report_data["_meta"] = {"version": report_record.version}
+
+    pdf_bytes = generate_technical_dossier_pdf(report_data)
+
+    clean_name = "".join(c if c.isalnum() else "_" for c in (case.client_name or "Cliente")).strip("_")
+    filename = f"Dossier_Tecnico_Audit_{clean_name}_{case_id[:8]}_v{report_record.version}.pdf"
+    disposition = "inline" if action == "inline" else f'attachment; filename="{filename}"'
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": disposition,
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
+
 

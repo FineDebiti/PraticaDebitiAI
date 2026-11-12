@@ -160,12 +160,35 @@ def list_documents(case_id: str, db: Session = Depends(get_db)):
 
 @router.delete("/cases/{case_id}/documents/{doc_id}")
 def delete_document(case_id: str, doc_id: str, db: Session = Depends(get_db)):
-    """Elimina un documento (record + file). I dati già estratti nelle sezioni
-    (AER/CR/bilancio) restano: il documento è solo la fonte caricata."""
+    """Elimina un documento (record + file) tracciando l'evento nell'audit trail (FieldEdit)
+    e rimuovendo i record derivati orfani collegati a source_document_id per impedire
+    la perdita silenziosa di tracciabilità."""
     from app.services.storage import get_storage
+    from app.models import (
+        FieldEdit, FinancialStatement, TaxDebtStatement,
+        CreditReportSummary, CreditExposure, DebtPosition, GuaranteeGiven,
+    )
     doc = db.get(Document, doc_id)
     if not doc or doc.case_id != case_id:
         raise HTTPException(404, "Documento non trovato")
+
+    # Traccia nell'audit log l'eliminazione della fonte con impronta SHA-256
+    db.add(FieldEdit(
+        case_id=case_id,
+        entity_type="document_source",
+        entity_id=doc_id,
+        field="original_filename",
+        old_value=f"{doc.original_filename} (sha256:{(doc.sha256 or '')[:16]})",
+        new_value="FONTE_ELIMINATA",
+        operator="Operatore",
+        reason=f"Eliminazione fonte documentale ({doc.doc_type}) e pulizia record derivati per coerenza audit.",
+    ))
+
+    # Rimuovi i record estratti da questa specifica fonte per evitare dati orfani non più verificabili
+    for model_cls in (FinancialStatement, TaxDebtStatement, CreditReportSummary, CreditExposure, DebtPosition, GuaranteeGiven):
+        for rec in db.query(model_cls).filter_by(source_document_id=doc_id).all():
+            db.delete(rec)
+
     if doc.storage_uri:
         try:
             get_storage().delete(doc.storage_uri)
@@ -173,7 +196,7 @@ def delete_document(case_id: str, doc_id: str, db: Session = Depends(get_db)):
             pass
     db.delete(doc)
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "audit_logged": True}
 
 
 @router.get("/cases/{case_id}/documents/{doc_id}/file")

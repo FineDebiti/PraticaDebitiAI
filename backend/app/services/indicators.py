@@ -164,46 +164,91 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
         "MOL / Valore della Produzione")
 
     # ---- SOSTENIBILITÀ DEL DEBITO ----
-    def _imp(nat: str) -> float:
+    def _imp_opt(nat: str) -> Optional[float]:
         b = deb.get(nat)
         if isinstance(b, dict):
+            val = b.get("importo")
+            if val not in (None, ""):
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return None
+        elif b not in (None, "") and not isinstance(b, (list, tuple)):
             try:
-                return float(b.get("importo") or 0.0)
+                return float(b)
             except (TypeError, ValueError):
-                return 0.0
-        return 0.0
+                return None
+        return None
 
-    # PFN secondo Orientamento ESMA 32-382-1138 (2021) n. 39 & CNDCEC marzo 2024
-    deb_banche = _imp("banche") or (cur("debiti_entro") or 0.0) * 0.4
-    tfr_val = cur("tfr") or 0.0
-    fin_soci = _imp("soci_finanziamenti")
-    trib_scad = _imp("tributari")
-    forn_scad = _imp("fornitori") * 0.3 if _imp("fornitori") else 0.0
+    def _imp(nat: str) -> float:
+        v = _imp_opt(nat)
+        return v if v is not None else 0.0
 
-    pfn_esma_res = calculate_pfn_esma(
-        debiti_bancari_breve=deb_banche,
-        debiti_bancari_medio_lungo=cur("debiti_oltre") or 0.0,
-        disponibilita_liquide=cur("disponibilita_liquide") or 0.0,
-        tfr_fondo=tfr_val,
-        finanziamenti_soci=fin_soci,
-        debiti_tributari_scaduti=trib_scad,
-        debiti_fornitori_scaduti_90gg=forn_scad,
+    # Verifica presenza reale di dati patrimoniali/debitori (regola NULL vs Zero: mai zero automatico se SP assente)
+    has_sp_or_deb = any(
+        x is not None
+        for x in (
+            cur("debiti_totali"),
+            cur("debiti_entro"),
+            cur("debiti_oltre"),
+            cur("disponibilita_liquide"),
+            cur("tfr"),
+            _imp_opt("banche"),
+            _imp_opt("tributari"),
+            _imp_opt("previdenziali"),
+            _imp_opt("fornitori"),
+            _imp_opt("soci_finanziamenti"),
+        )
     )
-    pfn_c = pfn_esma_res["pfn_totale"]
-    pfn_p = (prv("debiti_totali") or 0.0) - (prv("disponibilita_liquide") or 0.0) if prv("debiti_totali") is not None else None
+
+    if has_sp_or_deb:
+        deb_banche = _imp("banche")
+        tfr_val = cur("tfr") or 0.0
+        fin_soci = _imp("soci_finanziamenti")
+        trib_scad = _imp("tributari")
+        forn_scad = _imp("fornitori_scaduti")
+
+        pfn_esma_res = calculate_pfn_esma(
+            debiti_bancari_breve=deb_banche,
+            debiti_bancari_medio_lungo=cur("debiti_oltre") or 0.0,
+            disponibilita_liquide=cur("disponibilita_liquide") or 0.0,
+            tfr_fondo=tfr_val,
+            finanziamenti_soci=fin_soci,
+            debiti_tributari_scaduti=trib_scad,
+            debiti_fornitori_scaduti_90gg=forn_scad,
+        )
+        pfn_c: Optional[float] = pfn_esma_res["pfn_totale"]
+        pfn_status = "green" if (pfn_c or 0) <= 0 else ("amber" if (pfn_c or 0) < 500000 else "red")
+        pfn_note = "Debiti Finanziari + Debt-like items (TFR, tributi, soci) − Liquidità [ESMA / CNDCEC]"
+    else:
+        pfn_c = None
+        pfn_status = "na"
+        pfn_note = "Non calcolabile: assenza di Stato Patrimoniale / liquidità e debiti contabili (mai zero automatico)"
+
+    pfn_p = (
+        (prv("debiti_totali") or 0.0) - (prv("disponibilita_liquide") or 0.0)
+        if (prv("debiti_totali") is not None or prv("disponibilita_liquide") is not None)
+        else None
+    )
 
     add("pfn", "Posizione finanziaria netta (ESMA 2021)", "debito", pfn_c, pfn_p, "eur",
-        "Debiti Finanziari + Debt-like items (TFR, tributi, soci) − Liquidità [ESMA / CNDCEC]",
-        status_cur="green" if (pfn_c or 0) <= 0 else ("amber" if (pfn_c or 0) < 500000 else "red"))
+        pfn_note,
+        status_cur=pfn_status)
 
     # Rapporto PFN / EBITDA (Anni di rimborso del debito) & Soglie Bancarie
-    pfn_eb_eval = evaluate_pfn_ebitda(pfn_c, eb_cur["ebitda_standard"])
-    ratio_val = pfn_eb_eval["ratio"]
-    status_map = {"ok": "green", "warn": "amber", "danger": "red"}
-    add("pfn_ebitda", "PFN / EBITDA (Anni rimborso)", "debito",
-        ratio_val, None, "ratio",
-        pfn_eb_eval["valutazione_bancaria"],
-        status_cur=status_map.get(pfn_eb_eval["status"], "na"))
+    if pfn_c is not None and eb_cur["ebitda_standard"] is not None:
+        pfn_eb_eval = evaluate_pfn_ebitda(pfn_c, eb_cur["ebitda_standard"])
+        ratio_val = pfn_eb_eval["ratio"]
+        status_map = {"ok": "green", "warn": "amber", "danger": "red"}
+        add("pfn_ebitda", "PFN / EBITDA (Anni rimborso)", "debito",
+            ratio_val, None, "ratio",
+            pfn_eb_eval["valutazione_bancaria"],
+            status_cur=status_map.get(pfn_eb_eval["status"], "na"))
+    else:
+        add("pfn_ebitda", "PFN / EBITDA (Anni rimborso)", "debito",
+            None, None, "ratio",
+            "Non calcolabile per assenza di PFN contabile certificata",
+            status_cur="na")
 
     ebit_c, ebit_p = cur("differenza_valore_costi", ce), prv("differenza_valore_costi", ce)
     add("oneri_ebit", "Oneri finanziari / EBIT", "debito",

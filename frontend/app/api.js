@@ -292,6 +292,10 @@ export function getPreanalysisReportPdfUrl(caseId, orientation = "portrait", act
   return `${BASE}/api/cases/${caseId}/preanalysis-report/pdf?orientation=${orientation}&action=${action}`;
 }
 
+export function getTechnicalDossierPdfUrl(caseId, action = "download") {
+  return `${BASE}/api/cases/${caseId}/preanalysis-report/dossier-pdf?action=${action}`;
+}
+
 // ---------- Chat e Assistente AI di Pratica ----------
 export async function getCaseChat(caseId) {
   const r = await fetch(`${BASE}/api/cases/${caseId}/chat`, { cache: "no-store" });
