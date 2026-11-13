@@ -1435,7 +1435,16 @@ def export_audit_execution_csv(docs: Optional[List[Any]] = None, report_data: Op
     ])
 
     def _clean_cell(text: Any) -> str:
-        return str(text or "").replace(",", " / ").replace(";", " - ").replace('"', "").strip()
+        return (
+            str(text or "")
+            .replace("\r\n", " ")
+            .replace("\n", " ")
+            .replace("\r", " ")
+            .replace(", ", " - ")
+            .replace(";", " - ")
+            .replace('"', "")
+            .strip()
+        )
 
     for q in dossier["decimal_audit"]["quadrature"]:
         raw_sources = q.get("valori_sorgente_non_arrotondati", {})

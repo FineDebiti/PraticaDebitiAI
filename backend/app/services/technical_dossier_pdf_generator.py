@@ -111,6 +111,10 @@ class TechnicalDossierPDF(FPDF):
             new_x=XPos.LMARGIN,
             new_y=YPos.NEXT,
         )
+        # Ripristina stato grafico neutro affinché tabelle successive non ereditino COLOR_NAVY
+        self.set_fill_color(*COLOR_WHITE)
+        self.set_text_color(*COLOR_TEXT_DARK)
+        self.set_draw_color(*COLOR_BORDER)
         self.set_y(y0 + 12.0)
 
     def sub_heading(self, title: str):
@@ -141,14 +145,16 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     pdf = TechnicalDossierPDF(client_name=client_name, draft_date=draft_date, version=version)
     f_fam = pdf.font_family_name
 
-    # Stili tipografici nitidi e compatti (184mm larghezza utile A4 con margini 13mm)
-    header_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_WHITE, fill_color=COLOR_NAVY)
-    cell_regular = FontFace(family=f_fam, emphasis="", size_pt=5.8, color=COLOR_TEXT_DARK)
-    bold_style = FontFace(family=f_fam, emphasis="B", size_pt=5.9, color=COLOR_NAVY)
-    highlight_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_NAVY, fill_color=COLOR_ROW_ALT)
-    red_style = FontFace(family=f_fam, emphasis="B", size_pt=5.7, color=COLOR_RED_TXT, fill_color=COLOR_RED_BG)
-    amber_style = FontFace(family=f_fam, emphasis="B", size_pt=5.7, color=COLOR_AMBER_TXT, fill_color=COLOR_AMBER_BG)
-    green_style = FontFace(family=f_fam, emphasis="B", size_pt=5.7, color=COLOR_GREEN_TXT, fill_color=COLOR_GREEN_BG)
+    # Stili tipografici nitidi e bilanciati (184mm larghezza utile A4 con margini 13mm)
+    pdf.set_fill_color(*COLOR_WHITE)
+    header_style = FontFace(family=f_fam, emphasis="B", size_pt=6.6, color=COLOR_WHITE, fill_color=COLOR_NAVY)
+    cell_regular = FontFace(family=f_fam, emphasis="", size_pt=6.4, color=COLOR_TEXT_DARK, fill_color=COLOR_WHITE)
+    cell_alt = FontFace(family=f_fam, emphasis="", size_pt=6.4, color=COLOR_TEXT_DARK, fill_color=COLOR_CARD_BG)
+    bold_style = FontFace(family=f_fam, emphasis="B", size_pt=6.5, color=COLOR_NAVY)
+    highlight_style = FontFace(family=f_fam, emphasis="B", size_pt=6.5, color=COLOR_NAVY, fill_color=COLOR_ROW_ALT)
+    red_style = FontFace(family=f_fam, emphasis="B", size_pt=6.3, color=COLOR_RED_TXT, fill_color=COLOR_RED_BG)
+    amber_style = FontFace(family=f_fam, emphasis="B", size_pt=6.3, color=COLOR_AMBER_TXT, fill_color=COLOR_AMBER_BG)
+    green_style = FontFace(family=f_fam, emphasis="B", size_pt=6.3, color=COLOR_GREEN_TXT, fill_color=COLOR_GREEN_BG)
 
     # =========================================================================
     # PAGINA 1: COPERTINA AUDIT & SEZIONE 01 (MATRICE FONTI CON SHA-256 64 CHAR)
@@ -224,11 +230,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_w1,
         headings_style=header_style,
-        line_height=2.45,
-        padding=(0.45, 0.65),
+        line_height=2.75,
+        padding=(0.55, 0.70),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "CENTER", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
@@ -239,11 +244,11 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Copertura Dati e Limiti")
         row.cell("Stato")
 
-        for s in sources:
+        for idx, s in enumerate(sources):
             sha64 = s.get("sha256_full", "")
             sha_fmt = f"{sha64[:32]} {sha64[32:]}" if len(sha64) == 64 else sha64
             files_str = ", ".join(s.get("files_appartenenti", []))
-            row = table.row(style=cell_regular)
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(s["source_id"], style=bold_style)
             row.cell(f"{s['documento']}\nFile: {files_str}\nSHA-256: {sha_fmt}")
             row.cell(f"{s['data_documento']}\n{s.get('copertura_pagine', s['pagine'])}")
@@ -270,11 +275,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_w2,
         headings_style=header_style,
-        line_height=2.95,
-        padding=(0.65, 0.85),
+        line_height=3.9,
+        padding=(0.95, 1.0),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "RIGHT", "CENTER", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -285,8 +289,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Riferimento Pagina / Atto")
         row.cell("Formula / Criterio di Riconciliazione")
 
-        for ev in ev_list:
-            row = table.row(style=cell_regular)
+        for idx, ev in enumerate(ev_list):
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(ev["ev_id"], style=bold_style)
             row.cell(ev["grandezza"], style=bold_style)
             row.cell(ev["valore"], style=highlight_style)
@@ -311,11 +315,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_w3,
         headings_style=header_style,
-        line_height=2.95,
-        padding=(0.65, 0.85),
+        line_height=3.4,
+        padding=(0.8, 0.9),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "LEFT", "RIGHT", "CENTER", "CENTER"),
     ) as table:
         row = table.row()
@@ -326,9 +329,9 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Scarto")
         row.cell("Esito")
 
-        for q in quads:
+        for idx, q in enumerate(quads):
             src_str = ", ".join(f"{k}={v}" for k, v in q.get("valori_sorgente_non_arrotondati", {}).items())
-            row = table.row(style=cell_regular)
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(q["quad_id"], style=bold_style)
             row.cell(f"{q['titolo']}\n[{q.get('test_automatico', '')}]", style=bold_style)
             row.cell(f"{q['formula']}\nSorgenti: {src_str}")
@@ -348,11 +351,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_wd,
         headings_style=header_style,
-        line_height=2.9,
-        padding=(0.6, 0.8),
+        line_height=3.4,
+        padding=(0.8, 0.9),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -360,8 +362,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Partita Esaminata")
         row.cell("Fonte Documentale")
         row.cell("Trattamento Contabile e Criterio Anti-Duplicazione")
-        for code, part, src, desc in dup_rules:
-            row = table.row(style=cell_regular)
+        for idx, (code, part, src, desc) in enumerate(dup_rules):
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(code, style=bold_style)
             row.cell(part, style=bold_style)
             row.cell(src)
@@ -383,11 +385,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_wp,
         headings_style=header_style,
-        line_height=2.9,
-        padding=(0.65, 0.85),
+        line_height=3.9,
+        padding=(1.0, 1.0),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
@@ -397,8 +398,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Risposta Reattiva Osservata dal Motore")
         row.cell("Esito")
 
-        for pr in prove:
-            row = table.row(style=cell_regular)
+        for idx, pr in enumerate(prove):
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(pr["prova_id"], style=bold_style)
             row.cell(pr["titolo"], style=bold_style)
             row.cell(pr["input_test"])
@@ -418,11 +419,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_wi,
         headings_style=header_style,
-        line_height=2.95,
-        padding=(0.65, 0.85),
+        line_height=3.9,
+        padding=(1.0, 1.0),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
@@ -432,8 +432,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Formulazione Verificata nel Report")
         row.cell("Esito Gate")
 
-        for ic in inf_checks:
-            row = table.row(style=cell_regular)
+        for idx, ic in enumerate(inf_checks):
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(ic["rule_id"], style=bold_style)
             row.cell(ic["regola"], style=bold_style)
             row.cell(ic["inferenza_vietata"])
@@ -456,11 +456,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_wa,
         headings_style=header_style,
-        line_height=2.75,
-        padding=(0.55, 0.75),
+        line_height=3.7,
+        padding=(0.95, 0.95),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "CENTER", "LEFT", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -470,10 +469,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Anomalia o Incongruenza Rilevata")
         row.cell("Azione Istruttoria Obbligatoria")
 
-        for an in anomalies:
+        for idx, an in enumerate(anomalies):
             sev = an["severita"]
             sev_style = red_style if sev == "ROSSO" else (amber_style if sev == "ARANCIO" else bold_style)
-            row = table.row(style=cell_regular)
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(an["code"], style=bold_style)
             row.cell(sev, style=sev_style)
             row.cell(f"{an['area']}\n[{an['fonte']}]")
@@ -496,11 +495,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_wadv,
         headings_style=header_style,
-        line_height=3.2,
-        padding=(0.85, 1.0),
+        line_height=4.8,
+        padding=(1.5, 1.1),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -509,8 +507,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Evidenza Numerica / Fattuale a Supporto dell'Obiezione")
         row.cell("Rischio in Sede di CNC / CCII")
 
-        for ob in adv_list:
-            row = table.row(style=cell_regular)
+        for idx, ob in enumerate(adv_list):
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(ob["id"], style=red_style)
             row.cell(ob["titolo"], style=bold_style)
             row.cell(ob["argomentazione"])
@@ -528,11 +526,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_wc,
         headings_style=header_style,
-        line_height=2.95,
-        padding=(0.65, 0.85),
+        line_height=3.15,
+        padding=(0.75, 0.9),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -542,8 +539,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Versione Nuova Applicata")
         row.cell("Codice e Test Regressione")
 
-        for c in corrs:
-            row = table.row(style=cell_regular)
+        for idx, c in enumerate(corrs):
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(f"{c['corr_id']}\n{c.get('data_modifica', '')}\n({c.get('versioni', '')})", style=bold_style)
             row.cell(c["oggetto"], style=bold_style)
             row.cell(c["prima"])
@@ -558,11 +555,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     with pdf.table(
         col_widths=col_wqg,
         headings_style=header_style,
-        line_height=2.95,
-        padding=(0.65, 0.85),
+        line_height=3.15,
+        padding=(0.75, 0.9),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.ROWS,
-        cell_fill_color=COLOR_CARD_BG,
+        cell_fill_mode=TableCellFillMode.NONE,
         text_align=("CENTER", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
@@ -571,9 +567,9 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Requisito Misurabile del Benchmark")
         row.cell("Esito Verifica")
 
-        for item in checklist:
+        for idx, item in enumerate(checklist):
             st_face = green_style if item["status"] == "ok" else amber_style
-            row = table.row(style=cell_regular)
+            row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(item["test_id"], style=bold_style)
             row.cell(item["criterio"], style=bold_style)
             row.cell(item["target"])
