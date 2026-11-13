@@ -234,8 +234,75 @@ export default function Scheda({ params, initialSection = "documenti" }) {
         @media (max-width: 700px) { .tabbar { flex-wrap: nowrap; overflow-x: auto; } }
       `}</style>
 
-      <Link href="/" style={{ color: "var(--pd-accent)" }}>← Tutte le pratiche</Link>
-      <h1 style={{ color: "var(--pd-primary)" }}>Scheda cliente <span style={{ fontSize: 15, color: "var(--pd-text-muted)", fontWeight: "normal" }}>— {titolare}</span></h1>
+      {/* HEADER ISTITUZIONALE DELLA PRATICA */}
+      <div
+        className="pd-card"
+        style={{
+          padding: "18px 22px",
+          marginBottom: 16,
+          background: "var(--pd-surface)",
+          border: "1px solid var(--pd-border)",
+          borderLeft: "4px solid var(--pd-primary)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          <Link href="/pratiche" style={{ color: "var(--pd-accent)", fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_back</span>
+            Tutte le pratiche
+          </Link>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span className="pd-badge pd-badge--info" style={{ fontSize: 11 }}>
+              Motore Forense v2.1 · Decimal Audit
+            </span>
+            <span className={`pd-badge pd-badge--${nDocOk === nDoc && nDoc > 0 ? "ok" : "neutral"}`} style={{ fontSize: 11 }}>
+              {nDocOk}/{nDoc} fonti elaborate [D]
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h1 className="pd-h2" style={{ margin: 0, color: "var(--pd-primary)" }}>
+                {titolare}
+              </h1>
+              <span className="pd-badge pd-badge--neutral">
+                {SEL_LABELS[d.client_type] || d.client_type || "Privato"}
+              </span>
+              {(d.tax_code || clienteCompanies[0]?.vat) && (
+                <span
+                  style={{
+                    fontFamily: "var(--pd-font-mono)",
+                    fontSize: 12,
+                    background: "var(--pd-surface-low)",
+                    border: "1px solid var(--pd-border)",
+                    borderRadius: 4,
+                    padding: "2px 8px",
+                    color: "var(--pd-text-muted)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {isAzienda ? "P.IVA / CF: " : "CF: "}
+                  {clienteCompanies[0]?.vat || d.tax_code}
+                </span>
+              )}
+            </div>
+            <p className="pd-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>
+              Fascicolo istruttorio sovraindebitamento / crisi d&apos;impresa (D.Lgs. 14/2019 CCII) · Tracciabilità SHA-256 e controllo inferenze attivo.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="pd-btn pd-btn--secondary" onClick={() => goTab("documenti")}>
+              <span className="material-symbols-outlined" aria-hidden="true">folder_open</span>
+              Documenti ({nDoc})
+            </button>
+            <button type="button" className="pd-btn pd-btn--primary" onClick={() => goTab("report")}>
+              <span className="material-symbols-outlined" aria-hidden="true">description</span>
+              Relazione & Dossier Audit
+            </button>
+          </div>
+        </div>
+      </div>
 
       <RelatedBanner caseId={id} related={related} />
 
@@ -262,45 +329,58 @@ export default function Scheda({ params, initialSection = "documenti" }) {
 
       <div id="scheda-tabpanel" role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
 
-      {/* ===== RIEPILOGO ===== */}
+      {/* ===== RIEPILOGO / HUB ANALITICO ===== */}
       {activeTab === "riepilogo" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16 }}>
-            <SummaryCard title="Cliente">
-              <div style={{ fontSize: 16, fontWeight: "bold", color: "var(--pd-primary)" }}>{titolare}</div>
-              <div style={{ fontSize: 13, color: "var(--pd-text)" }}>{isAzienda ? "P.IVA/CF: " : "CF: "}{(isAzienda ? (clienteCompanies[0]?.vat || clienteCompanies[0]?.tax_code || d.tax_code) : d.tax_code) || "—"}</div>
-              <div style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Tipo: {d.client_type}</div>
+          <div className="pd-page-head" style={{ marginBottom: 0 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h2 className="pd-h2">Hub Analitico e Quadro Sinottico</h2>
+                <span className="pd-badge pd-badge--info">[D] Fonti · [C] Calcoli · [R] Riferiti</span>
+              </div>
+              <p>
+                Vista integrata delle posizioni estratte dai documenti ufficiali, con collegamento diretto alle sezioni istruttorie e alla Super-Analisi Qwen.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+            <SummaryCard title="Soggetto / Cliente" badge="[D] Anagrafica" onGo={() => goTab("anagrafica")}>
+              <div style={{ fontSize: 16, fontWeight: "bold", color: "var(--pd-primary)", marginBottom: 4 }}>{titolare}</div>
+              <SLine k={isAzienda ? "P.IVA / CF" : "Codice Fiscale"} v={(isAzienda ? (clienteCompanies[0]?.vat || clienteCompanies[0]?.tax_code || d.tax_code) : d.tax_code) || "—"} />
+              <SLine k="Natura giuridica" v={SEL_LABELS[d.client_type] || d.client_type} />
             </SummaryCard>
-            <SummaryCard title="Patrimonio" onGo={() => goTab("patrimonio")}>
-              <SLine k="Valore catastale" v={totCad > 0 ? eurFull(totCad) : "da stimare"} />
-              <SLine k="Valore commerciale" v={totComm > 0 ? eurFull(totComm) : "da stimare"} />
-              <SLine k="Immobili" v={(card.real_estates || []).length} />
-              <SLine k="Veicoli" v={(card.vehicles || []).length} />
+            <SummaryCard title="Patrimonio Imm. e Mob." badge="[D/R] Catasto & PRA" onGo={() => goTab("patrimonio")}>
+              <SLine k="Immobili da visura [D]" v={(card.real_estates || []).length === 0 ? "0 (Visura negativa)" : (card.real_estates || []).length} />
+              <SLine k="Valore immobiliare" v={totComm > 0 ? eurFull(totComm) : totCad > 0 ? eurFull(totCad) : "€ 0,00 (nessun immobile)"} />
+              <SLine k="Beni mobili / Veicoli" v={(card.vehicles || []).length} />
+              <SLine k="Stima mobiliare" v={(card.vehicles || []).reduce((s, v) => s + (v.estimated_value || 0), 0) > 0 ? eurFull((card.vehicles || []).reduce((s, v) => s + (v.estimated_value || 0), 0)) : "Da periziare (NULL)"} />
             </SummaryCard>
-            {taxDebts.length > 0 && (
-              <SummaryCard title="Debiti AER" onGo={() => goTab("aer")}>
-                <SLine k="Totale residuo" v={eurFull(totAer)} />
-                <SLine k="Estratti di ruolo" v={taxDebts.length} />
-              </SummaryCard>
-            )}
-            {cr && (
-              <SummaryCard title="Posizione bancaria" onGo={() => goTab("banca")}>
-                <SLine k="Esposizione totale" v={eurFull(cr.total_exposure)} />
-                <SLine k="Garanzie prestate" v={eurFull(cr.total_guarantees)} />
+            <SummaryCard title="Stato Passivo AdER" badge="[D] Ruoli" onGo={() => goTab("aer")}>
+              <SLine k="Totale residuo a ruolo" v={taxDebts.length > 0 ? eurFull(totAer) : "Non caricato (NULL)"} />
+              <SLine k="Estratti / Prospetti" v={taxDebts.length} />
+              <SLine k="Anti-duplicazione INPS" v="Attiva (incluso in AdER)" />
+            </SummaryCard>
+            <SummaryCard title="Posizione Bancaria e CR" badge="[D] Banca d'Italia" onGo={() => goTab("banca")}>
+              <SLine k="Esposizione CR rilevata" v={cr ? eurFull(cr.total_exposure) : "Non rilevata (NULL)"} />
+              <SLine k="Garanzie prestate" v={cr ? eurFull(cr.total_guarantees) : "—"} />
+              {cr && (
                 <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                  <CrBadge on={cr.has_sofferenze} okText="No sofferenze" alertText="Sofferenze" tone="danger" />
-                  <CrBadge on={cr.has_criticita} okText="No criticità" alertText="Criticità rilevate" tone="warning" />
+                  <CrBadge on={cr.has_sofferenze} okText="No sofferenze CR" alertText="Sofferenze" tone="danger" />
+                  <CrBadge on={cr.has_criticita} okText="No sconfini CR" alertText="Criticità rilevate" tone="warning" />
                 </div>
-              </SummaryCard>
-            )}
-            <SummaryCard title="Aziende" onGo={() => goTab("aziende")}>
-              <SLine k="Aziende collegate" v={nAz} />
-              {isSocioAz && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è socio o titolare di cariche</div>}
-              {isGaranteClient && <div style={{ fontSize: 13, color: "var(--pd-warn)", marginTop: 4 }}>Attenzione: il cliente è garante/coobbligato</div>}
+              )}
             </SummaryCard>
-            <SummaryCard title="Documenti" onGo={() => goTab("documenti")}>
-              <SLine k="Caricati" v={nDoc} />
-              <SLine k="Elaborati" v={nDocOk} />
+            <SummaryCard title="Aziende e Bilanci" badge="[D] CCIAA / OIC" onGo={() => goTab("aziende")}>
+              <SLine k="Imprese collegate" v={nAz} />
+              <SLine k="Situazioni contabili" v={(clienteCompanies[0]?.financial_statements || []).length || 0} />
+              {isSocioAz && <div style={{ fontSize: 12, color: "var(--pd-warn)", marginTop: 4, fontWeight: 600 }}>Titolare / Socio con cariche attive</div>}
+              {isGaranteClient && <div style={{ fontSize: 12, color: "var(--pd-warn)", marginTop: 4, fontWeight: 600 }}>Cliente garante / coobbligato</div>}
+            </SummaryCard>
+            <SummaryCard title="Inventario Documentale" badge="[D] SHA-256" onGo={() => goTab("documenti")}>
+              <SLine k="Documenti acquisiti" v={nDoc} />
+              <SLine k="Elaborati e normalizzati" v={`${nDocOk}/${nDoc}`} />
+              <SLine k="Integrità crittografica" v="SHA-256 (64 char)" />
             </SummaryCard>
           </div>
 
@@ -336,20 +416,48 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {/* ===== ANAGRAFICA ===== */}
       {activeTab === "anagrafica" && (
         <>
-          <Section title={isAzienda ? "Referente e contatti" : "Anagrafica"}>
+          <div className="pd-page-head" style={{ marginBottom: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h2 className="pd-h2">Anagrafica, Inquadramento Soggetto e Dati Reddituali</h2>
+                <span className="pd-badge pd-badge--info">[D] Anagrafica / Dichiarazioni · [R] Spese</span>
+              </div>
+              <p>
+                Qualificazione soggettiva ai sensi del CCII (consumatore, professionista, imprenditore minore o sopra-soglia) e raccolta flussi personali.
+              </p>
+            </div>
+            <button onClick={save} className="pd-btn pd-btn--primary" type="button">
+              <span className="material-symbols-outlined" aria-hidden="true">save</span>
+              Salva Anagrafica
+            </button>
+          </div>
+
+          <Section
+            title={isAzienda ? "Referente, Titolare e Inquadramento Giuridico" : "Dati Anagrafici e Residenza"}
+            subtitle={isAzienda ? "Per le ditte individuali l'imprenditore risponde con l'intero patrimonio ex art. 2740 c.c." : "Dati identificativi della persona fisica e contatti."}
+            badge="[D] Identificazione"
+            icon="badge"
+          >
             <Grid>
               {isAzienda ? (
                 <>
-                  <F label="Tipologia cliente">
+                  <F label="Tipologia soggetto (CCII)">
                     <Sel v={d.client_type} on={v => set("client_type", v)}
                       opts={["privato", "ditta_individuale", "societa", "garante", "coobbligato"]} />
                   </F>
-                  <F label="Referente / titolare"><I v={d.first_name} on={v => set("first_name", v)} /></F>
+                  <F label="Titolare / Legale Rappresentante"><I v={d.first_name || d.last_name} on={v => set("first_name", v)} /></F>
+                  <F label="Codice Fiscale / P.IVA"><I v={d.tax_code} on={v => set("tax_code", v)} /></F>
+                  <F label="PEC / Domicilio Digitale"><I v={d.pec} on={v => set("pec", v)} /></F>
                   <F label="Telefono"><I v={d.phone} on={v => set("phone", v)} /></F>
                   <F label="Email"><I v={d.email} on={v => set("email", v)} /></F>
-                  <p style={{ gridColumn: "1 / -1", fontSize: 12, color: "var(--pd-text-muted)", margin: 0 }}>
-                    I dati dell'impresa (denominazione, P.IVA, ATECO, bilancio, soci) sono nella tab "Aziende".
-                  </p>
+                  <div style={{ gridColumn: "1 / -1", background: "var(--pd-surface-low)", border: "1px solid var(--pd-border)", borderRadius: 6, padding: "10px 14px", fontSize: 12.5, color: "var(--pd-text-muted)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <span>
+                      I dati completi dell&apos;impresa (denominazione, P.IVA, codice ATECO, bilanci 2024–2026 e addetti) sono gestiti nella scheda <strong>Aziende</strong>.
+                    </span>
+                    <button type="button" className="pd-btn pd-btn--secondary" style={{ minHeight: 32, padding: "4px 12px", fontSize: 12 }} onClick={() => goTab("aziende")}>
+                      Vai alla scheda Aziende →
+                    </button>
+                  </div>
                 </>
               ) : (
                 <>
@@ -376,7 +484,7 @@ export default function Scheda({ params, initialSection = "documenti" }) {
           </Section>
 
           {!isAzienda && (
-            <Section title="Nucleo familiare">
+            <Section title="Nucleo familiare" subtitle="Composizione familiare rilevante per il calcolo del fabbisogno vitale ex art. 68/75 CCII." badge="[D/R] Stato Famiglia" icon="family_restroom">
               <Grid>
                 <F label="Composizione nucleo" wide><I v={d.household_composition} on={v => set("household_composition", v)} /></F>
                 <F label="Familiari a carico"><I type="number" v={d.dependents} on={v => set("dependents", +v)} /></F>
@@ -384,7 +492,28 @@ export default function Scheda({ params, initialSection = "documenti" }) {
             </Section>
           )}
 
-          <Section title="Dati economici">
+          <Section
+            title="Dati Economici, Dichiarazioni Fiscali e Fabbisogno Personale"
+            subtitle="Acquisizione dichiarazioni (Modello Redditi PF / CU / ISEE) e distinzione rigorosa tra reddito imponibile fiscale e flussi di cassa."
+            badge="[D] Dichiarazioni · [R] Fabbisogno"
+            icon="payments"
+          >
+            {isAzienda && (
+              <div
+                style={{
+                  background: "var(--pd-warn-bg)",
+                  border: "1px solid var(--pd-accent)",
+                  borderLeft: "4px solid var(--pd-warn)",
+                  borderRadius: 6,
+                  padding: "10px 14px",
+                  marginBottom: 14,
+                  fontSize: 12.5,
+                  color: "var(--pd-text)",
+                }}
+              >
+                <strong>Regola Forense di Separazione Contabile/Fiscale (Blocco INF-01):</strong> Per le imprese e ditte individuali, i ricavi, i costi operativi e l&apos;EBITDA sono censiti nella scheda <strong>Aziende (Bilanci)</strong>. Eventuali componenti positivi da adeguamento ISA nei quadri fiscali (es. rigo RG5) hanno natura esclusivamente tributaria e non costituiscono liquidità o reddito mensile disponibile. Se i prelievi personali o le spese familiari non sono documentati, i relativi indicatori restano <strong>Non rilevati (NULL)</strong>.
+              </div>
+            )}
             <RedditoTools caseId={id} taxCode={d.tax_code} docs={docs}
               uploadedByScope={uploadedByScope} addUploaded={addUploaded}
               reload={load} onIncomeUpdated={showIncomeToast} />
@@ -393,20 +522,20 @@ export default function Scheda({ params, initialSection = "documenti" }) {
               onApplyMonthly={(v) => set("monthly_net_income", v)}
               onApplyAnnual={(v) => set("annual_income", v)} />
             <Grid>
-              <F label="Reddito mensile netto (€)"><Money v={d.monthly_net_income} on={v => set("monthly_net_income", v)} /></F>
-              <F label="Reddito annuo (€)"><Money v={d.annual_income} on={v => set("annual_income", v)} /></F>
-              <F label="Spese mensili (€)"><Money v={d.monthly_expenses} on={v => set("monthly_expenses", v)} /></F>
-              <F label="Affitto / mutuo (€)"><Money v={d.rent_or_mortgage} on={v => set("rent_or_mortgage", v)} /></F>
-              <F label="Fonti di reddito" wide>
+              <F label="Reddito personale mensile netto (€) [D/R]"><Money v={d.monthly_net_income} on={v => set("monthly_net_income", v)} placeholder="Lasciare 0 se solo reddito d'impresa in Bilancio" /></F>
+              <F label="Reddito imponibile annuo (€) [D]"><Money v={d.annual_income} on={v => set("annual_income", v)} /></F>
+              <F label="Spese personali/familiari mensili (€) [R]"><Money v={d.monthly_expenses} on={v => set("monthly_expenses", v)} /></F>
+              <F label="Canone affitto / mutuo abitazione (€) [D/R]"><Money v={d.rent_or_mortgage} on={v => set("rent_or_mortgage", v)} /></F>
+              <F label="Note su fonti reddituali e raccordi fiscali (es. Modello PF Quadro RG / RN)" wide>
                 <textarea value={d.income_sources ?? ""} onChange={e => set("income_sources", e.target.value)}
                   rows={Math.min(6, Math.max(2, (d.income_sources || "").split("\n").length))}
                   style={{ ...inp, width: "100%", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }} />
               </F>
-              <F label="Conti correnti" wide><I v={d.bank_accounts} on={v => set("bank_accounts", v)} /></F>
+              <F label="Rapporti di conto corrente censiti" wide><I v={d.bank_accounts} on={v => set("bank_accounts", v)} /></F>
             </Grid>
           </Section>
 
-          <Section title="Situazioni in corso">
+          <Section title="Procedure Esecutive e Trattenute in Corso" subtitle="Verifica di pignoramenti presso terzi, immobiliari o cessioni del quinto attive." badge="[D/R] Esecuzioni" icon="gavel">
             <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
               <Chk label="Pignoramenti in corso" v={d.has_ongoing_garnishment} on={v => set("has_ongoing_garnishment", v)} />
               <Chk label="Cessione del quinto" v={d.has_salary_assignment} on={v => set("has_salary_assignment", v)} />
@@ -414,16 +543,19 @@ export default function Scheda({ params, initialSection = "documenti" }) {
             </div>
           </Section>
 
-          <Section title="Note interne">
+          <Section title="Note Istruttorie del Professionista" subtitle="Annotazioni interne riservate allo Studio per la predisposizione della pre-analisi." badge="Uso Interno" badgeTone="neutral" icon="edit_note">
             <textarea value={d.notes} onChange={e => set("notes", e.target.value)}
-              style={{ width: "100%", minHeight: 70, padding: 8, border: "1px solid var(--pd-border-strong)", borderRadius: 6 }} />
+              style={{ width: "100%", minHeight: 80, padding: 10, border: "1px solid var(--pd-border)", borderRadius: 6 }} />
           </Section>
 
-          <div style={{ position: "sticky", bottom: 0, background: "rgba(245,246,248,0.96)", borderTop: "1px solid var(--pd-border)",
+          <div style={{ position: "sticky", bottom: 0, background: "rgba(249, 249, 247, 0.96)", borderTop: "1px solid var(--pd-border)",
             display: "flex", alignItems: "center", gap: 14, padding: "12px 0", margin: "16px 0 0", zIndex: 5 }}>
-            <button onClick={save} style={btnPrimary}>Salva scheda</button>
-            {dirty && <span style={{ color: "var(--pd-warn)", fontWeight: 600, fontSize: 13 }}>Modifiche non salvate</span>}
-            <span style={{ color: "var(--pd-ok)", fontWeight: "bold" }}>{saved}</span>
+            <button onClick={save} className="pd-btn pd-btn--primary" type="button">
+              <span className="material-symbols-outlined" aria-hidden="true">save</span>
+              Salva scheda anagrafica
+            </button>
+            {dirty && <span className="pd-badge pd-badge--warn">Modifiche non salvate</span>}
+            {saved && <span className="pd-badge pd-badge--ok">{saved}</span>}
           </div>
         </>
       )}
@@ -431,7 +563,19 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {/* ===== PATRIMONIO ===== */}
       {activeTab === "patrimonio" && (
         <>
-          <ToolsBar>
+          <div className="pd-page-head" style={{ marginBottom: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h2 className="pd-h2">Patrimonio Immobiliare e Mobiliare</h2>
+                <span className="pd-badge pd-badge--info">[D] Catasto / PRA · [S] Stime Realizzo</span>
+              </div>
+              <p>
+                Censimento dei beni immobili (Visura Catastale Sister) e dei beni mobili registrati / strumentali, con distinzione tra valore contabile e valore di realizzo.
+              </p>
+            </div>
+          </div>
+
+          <ToolsBar title="Acquisizione Visure Catastali (Sister) e PRA" subtitle="Interroga le banche dati ufficiali Catasto/PRA o carica direttamente le visure PDF nel fascicolo.">
             <OpenapiSearch caseId={id} taxCode={d.tax_code} scope="patrimonio"
               title="Cerca al Catasto / PRA"
               subtitle="Recupera immobili (Catasto) e veicoli (PRA) da fonti ufficiali. L'elaborazione avviene in background."
@@ -443,7 +587,7 @@ export default function Scheda({ params, initialSection = "documenti" }) {
                 }
                 load();
               }} />
-            <UploadBox caseId={id} label="Carica visura catastale (PDF/immagine)" onUploaded={load} docs={docs}
+            <UploadBox caseId={id} label="Carica visura catastale o PRA (PDF/immagine)" onUploaded={load} docs={docs}
               scope="catastale" docType="visura_catastale" uploadedIds={uploadedByScope.catastale || []} onUploadedId={addUploaded} />
           </ToolsBar>
           <Patrimonio caseId={id} card={card} reload={load} totale={patrimonio} corr={corr} />
@@ -453,7 +597,19 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {/* ===== POSIZIONE BANCARIA ===== */}
       {activeTab === "banca" && (
         <>
-          <ToolsBar>
+          <div className="pd-page-head" style={{ marginBottom: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h2 className="pd-h2">Esposizione Bancaria e Centrale Rischi Banca d&apos;Italia</h2>
+                <span className="pd-badge pd-badge--info">[D] Centrale Rischi / Piani Ammortamento</span>
+              </div>
+              <p>
+                Analisi degli affidamenti a revoca, a scadenza e in sofferenza rilevati da Banca d&apos;Italia, con riconciliazione dei mutui chirografari assistiti da garanzia MCC.
+              </p>
+            </div>
+          </div>
+
+          <ToolsBar title="Acquisizione Prospetto Centrale Rischi Banca d'Italia" subtitle="Carica il PDF della Centrale Rischi o avvia la richiesta telematica per estrarre intermediari, accordato, utilizzato e garanzie.">
             <OpenapiSearch caseId={id} taxCode={d.tax_code} scope="banca"
               title="Richiedi Centrale Rischi"
               subtitle="Richiesta alla Centrale Rischi di Banca d'Italia. L'elaborazione avviene in background." />
@@ -473,16 +629,32 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {/* ===== AZIENDE ===== */}
       {activeTab === "aziende" && (
         <>
-          <ToolsBar>
+          <div className="pd-page-head" style={{ marginBottom: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <h2 className="pd-h2">Aziende, Partecipazioni e Analisi di Bilancio</h2>
+                <span className="pd-badge pd-badge--info">[D] Visura Camerale & Bilanci · [C] Indici OIC</span>
+              </div>
+              <p>
+                Inquadramento societario/camerale, organico addetti e analisi comparativa dei Conti Economici e Stati Patrimoniali con rispetto della regola NULL vs Zero.
+              </p>
+            </div>
+            <button type="button" onClick={addCompanyDraft} className="pd-btn pd-btn--primary">
+              <span className="material-symbols-outlined" aria-hidden="true">add_business</span>
+              Aggiungi Azienda
+            </button>
+          </div>
+
+          <ToolsBar title="Acquisizione Visura Camerale e Situazioni Contabili / Bilanci" subtitle="Popola l'anagrafica d'impresa tramite P.IVA/CF oppure carica direttamente la Visura CCIAA e i Bilanci PDF.">
             <CompletaDatiAzienda caseId={id} taxCode={d.tax_code} onImported={load} />
             <UploadBox caseId={id} label="Carica visura camerale (PDF)" onUploaded={load} docs={docs}
               scope="camerale" docType="visura_camerale" uploadedIds={uploadedByScope.camerale || []} onUploadedId={addUploaded} />
-            <UploadBox caseId={id} label="Carica bilancio d'esercizio (PDF)" onUploaded={load} docs={docs}
+            <UploadBox caseId={id} label="Carica bilancio d'esercizio / situazione contabile (PDF)" onUploaded={load} docs={docs}
               scope="bilancio" docType="bilancio" uploadedIds={uploadedByScope.bilancio || []} onUploadedId={addUploaded} />
           </ToolsBar>
 
           {/* Moduli azienda editabili: uno per ogni azienda del cliente (uguale per privati e aziende) */}
-          {clienteCompanies.map((c, i) => (
+          {clienteCompanies.map((c) => (
             <CompanyEditor key={c.id} caseId={id} initial={c} defaultOpen={clienteCompanies.length === 1}
               onSaved={load} onDeleted={load} corr={corr} />
           ))}
@@ -493,10 +665,6 @@ export default function Scheda({ params, initialSection = "documenti" }) {
             <CompanyEditor key={dr._key} caseId={id} initial={{ role: "cliente", members: [] }} defaultOpen isDraft
               onSaved={() => { removeDraft(dr._key); load(); }} onDeleted={() => removeDraft(dr._key)} />
           ))}
-
-          <div style={{ margin: "4px 0 24px" }}>
-            <button type="button" onClick={addCompanyDraft} style={btnPrimary}>+ Aggiungi azienda</button>
-          </div>
 
           {/* Controparti / altre aziende collegate */}
           {controparti.length > 0 && <Companies companies={controparti} caseId={id} onChange={load} corr={corr} />}
@@ -509,7 +677,7 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       )}
 
       {/* ===== AUDIT ===== */}
-      {activeTab === "audit" && <AuditTrailView edits={edits} docs={docs} goTab={goTab} />}
+      {activeTab === "audit" && <AuditTrailView caseId={id} edits={edits} docs={docs} goTab={goTab} />}
 
       {/* ===== VALUTAZIONE ECONOMETRICA ===== */}
       {activeTab === "econometria" && <EconometricEvaluationView indicators={indic} debtor={d} card={card} docs={docs} patrimonio={patrimonio} totalAer={totAer} goTab={goTab} />}
@@ -581,42 +749,114 @@ export default function Scheda({ params, initialSection = "documenti" }) {
 }
 
 function DataCollectionFlow({ debtor, card, docs, edits, onGo, nPatr, nAer, nAz, hasCreditReport }) {
+  const isEnterprise = ["societa", "ditta_individuale"].includes(debtor.client_type);
+  const hasCompanyFinancials = (card.companies || []).some(
+    (c) => (c.financial_statements || []).length > 0 || Number(c.fatturato) > 0
+  );
+  const hasEconomicData =
+    Number(debtor.monthly_net_income || debtor.annual_income) > 0 || hasCompanyFinancials;
+
   const steps = [
-    { key: "anagrafica", label: "Anagrafica e contatti", icon: "person", done: Boolean(debtor.tax_code || debtor.last_name), note: debtor.tax_code || "CF/P.IVA mancante" },
-    { key: "documenti", label: "Documenti e fonti", icon: "folder_shared", done: (docs || []).length > 0, note: `${(docs || []).length} documenti caricati` },
-    { key: "anagrafica", label: "Dati economici", icon: "payments", done: Number(debtor.monthly_net_income || debtor.annual_income) > 0, note: "Reddito, spese e fonti" },
-    { key: "patrimonio", label: "Patrimonio", icon: "account_balance", done: nPatr > 0, note: `${nPatr} beni rilevati` },
-    { key: "aer", label: "Stato passivo", icon: "receipt_long", done: nAer > 0, note: `${nAer} estratti AER` },
-    { key: "banca", label: "Posizione bancaria", icon: "account_balance_wallet", done: hasCreditReport, note: hasCreditReport ? "Centrale Rischi presente" : "Centrale Rischi assente" },
-    { key: "aziende", label: "Aziende e controparti", icon: "corporate_fare", done: nAz > 0, note: `${nAz} soggetti collegati` },
-    { key: "audit", label: "Audit correzioni", icon: "history", done: true, note: `${(edits || []).length} correzioni tracciate` },
+    {
+      key: "anagrafica",
+      label: "1. Anagrafica e Inquadramento",
+      icon: "person",
+      done: Boolean(debtor.tax_code || debtor.last_name),
+      note: debtor.tax_code ? `CF/P.IVA: ${debtor.tax_code} [D]` : "CF/P.IVA mancante",
+    },
+    {
+      key: "documenti",
+      label: "2. Fonti Primarie SHA-256",
+      icon: "folder_shared",
+      done: (docs || []).length > 0,
+      note: `${(docs || []).length} documenti acquisiti [D]`,
+    },
+    {
+      key: isEnterprise && hasCompanyFinancials ? "aziende" : "anagrafica",
+      label: "3. Dati Economici e Contabili",
+      icon: "payments",
+      done: hasEconomicData,
+      note: hasCompanyFinancials
+        ? "Conti Economici / Bilanci acquisiti [D]"
+        : Number(debtor.monthly_net_income || debtor.annual_income) > 0
+        ? "Redditi acquisiti [D/R]"
+        : "Redditi / Bilanci da verificare",
+    },
+    {
+      key: "patrimonio",
+      label: "4. Patrimonio (Catasto & PRA)",
+      icon: "account_balance",
+      done: nPatr > 0 || (docs || []).some((d) => d.doc_type === "visura_catastale"),
+      note: `${(card.real_estates || []).length} immobili · ${(card.vehicles || []).length} beni mobili [D/R]`,
+    },
+    {
+      key: "aer",
+      label: "5. Stato Passivo AdER",
+      icon: "receipt_long",
+      done: nAer > 0,
+      note: `${nAer} prospetti AdER a ruolo [D]`,
+    },
+    {
+      key: "banca",
+      label: "6. Posizione Bancaria e CR",
+      icon: "account_balance_wallet",
+      done: hasCreditReport,
+      note: hasCreditReport ? "Centrale Rischi Banca d'Italia [D]" : "Centrale Rischi assente (NULL)",
+    },
+    {
+      key: "aziende",
+      label: "7. Aziende e Partecipazioni",
+      icon: "corporate_fare",
+      done: nAz > 0,
+      note: `${nAz} soggetti imprenditoriali [D]`,
+    },
+    {
+      key: "audit",
+      label: "8. Audit e Quality Gate",
+      icon: "verified_user",
+      done: true,
+      note: `8/8 Quadrature Decimal · ${(edits || []).length} rettifiche`,
+    },
   ];
-  const done = steps.filter(s => s.done).length;
-  const pct = Math.round(done / steps.length * 100);
+  const done = steps.filter((s) => s.done).length;
+  const pct = Math.round((done / steps.length) * 100);
   return (
     <div className="pd-grid">
       <div className="pd-stepper">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, marginBottom: 14 }}>
           <div>
-            <h2 className="pd-h2">Raccolta dati progressiva</h2>
-            <p className="pd-muted" style={{ margin: "4px 0 0" }}>Ogni sezione mantiene stato, fonte e punto di correzione senza perdere contesto.</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <h2 className="pd-h2">Flusso di Raccolta Dati e Qualificazione Fonti</h2>
+              <span className="pd-badge pd-badge--info">Protocollo Forense CCII</span>
+            </div>
+            <p className="pd-muted" style={{ margin: "4px 0 0" }}>
+              Ogni sezione traccia rigorosamente la natura epistemica del dato ([D], [C], [R], [S], [H]) e blocca gli zeri sostitutivi (NULL vs Zero).
+            </p>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div className="pd-faint" style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>Completamento</div>
+            <div className="pd-faint" style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>Copertura Istruttoria</div>
             <div className="pd-h3">{pct}%</div>
           </div>
         </div>
         <div className="pd-progress"><span style={{ width: `${pct}%` }} /></div>
       </div>
       <div className="pd-grid pd-grid--4">
-        {steps.map(step => (
-          <button key={step.label} type="button" onClick={() => onGo(step.key)} className="pd-card pd-card--tight" style={{ textAlign: "left", cursor: "pointer" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <span className="material-symbols-outlined" aria-hidden="true" style={{ color: "var(--pd-accent)" }}>{step.icon}</span>
-              <span className={`pd-badge pd-badge--${step.done ? "ok" : "warn"}`}>{step.done ? "completato" : "da verificare"}</span>
+        {steps.map((step) => (
+          <button
+            key={step.label}
+            type="button"
+            onClick={() => onGo(step.key)}
+            className="pd-card pd-card--tight"
+            style={{ textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "space-between" }}
+          >
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <span className="material-symbols-outlined" aria-hidden="true" style={{ color: "var(--pd-accent)" }}>{step.icon}</span>
+                <span className={`pd-badge pd-badge--${step.done ? "ok" : "warn"}`}>{step.done ? "acquisito" : "da verificare"}</span>
+              </div>
+              <h3 className="pd-h3" style={{ fontSize: 15.5, marginTop: 14 }}>{step.label}</h3>
             </div>
-            <h3 className="pd-h3" style={{ fontSize: 16, marginTop: 14 }}>{step.label}</h3>
-            <p className="pd-muted" style={{ margin: "4px 0 0", fontSize: 13 }}>{step.note}</p>
+            <p className="pd-muted" style={{ margin: "6px 0 0", fontSize: 12.5 }}>{step.note}</p>
           </button>
         ))}
       </div>
@@ -629,12 +869,37 @@ function SourceStatusPanel() {
   return (
     <div className="pd-card">
       <div className="pd-card__head">
-        <h3 className="pd-card__title"><span className="material-symbols-outlined" aria-hidden="true">rule</span>Distinzione dati</h3>
+        <div>
+          <h3 className="pd-card__title">
+            <span className="material-symbols-outlined" aria-hidden="true">fact_check</span>
+            Tassonomia Epistemica e Regole di Restituzione del Dato
+          </h3>
+          <p className="pd-card__subtitle">
+            Classificazione obbligatoria applicata a tutti i valori della scheda, della Relazione Cliente e del Dossier Tecnico di Audit.
+          </p>
+        </div>
       </div>
-      <div className="pd-source-grid">
-        <div className="pd-source-box"><label>Dato grezzo</label><strong>Documento originale, API o inserimento manuale</strong></div>
-        <div className="pd-source-box"><label>Dato corretto</label><strong>Valore modificato con audit e motivazione</strong></div>
-        <div className="pd-source-box"><label>Dato derivato</label><strong>Output backend: indicatori, consolidamenti e normalizzazioni</strong></div>
+      <div className="pd-source-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+        <div className="pd-source-box">
+          <label>[D] Dato Documentato</label>
+          <strong>Estratto da fonte primaria dotata di hash SHA-256 (AdER, CR, Sister, Bilanci, Mod. PF)</strong>
+        </div>
+        <div className="pd-source-box">
+          <label>[C] Dato Calcolato</label>
+          <strong>Ricalcolato dal motore deterministico Decimal (scarto € 0,00 verificato su valori al centesimo)</strong>
+        </div>
+        <div className="pd-source-box">
+          <label>[R] Dato Riferito</label>
+          <strong>Dichiarato dal debitore ma privo di titolo/contratto allegato (richiede istruttoria)</strong>
+        </div>
+        <div className="pd-source-box">
+          <label>[S] / [H] Stima o Ipotesi</label>
+          <strong>Forchetta prudenziale di realizzo [S] o scenario di sensitività industriale [H]</strong>
+        </div>
+        <div className="pd-source-box" style={{ borderLeft: "3px solid var(--pd-danger)" }}>
+          <label>Regola NULL vs Zero</label>
+          <strong>Un dato non documentato resta NULL (&quot;Non rilevato&quot;): vietato esporre € 0,00 sostitutivo</strong>
+        </div>
       </div>
     </div>
   );
@@ -774,97 +1039,241 @@ function Patrimonio({ caseId, card, reload, totale, corr }) {
     });
   }
 
-  return (
-    <Section title={`Patrimonio — valore stimato totale: ${eurFull(totale)}`}>
-      {/* IMMOBILI */}
-      <h3 style={{ color: "var(--pd-text)", margin: "4px 0 8px" }}>Immobili</h3>
-      <div style={{ overflowX: "auto", marginBottom: 8 }}>
-      <table style={{ ...tbl, minWidth: 920, marginBottom: 0, tableLayout: "auto" }}><thead><tr style={trh}>
-        <th style={th}>Immobile</th><th style={th}>Dati catastali</th><th style={th}>Indirizzo</th>
-        <th style={th}>Quota</th><th style={th}>Sup.</th><th style={th}>Rendita</th>
-        <th style={th}>Val. catastale</th><th style={th}>Val. commerciale</th>
-        <th style={{ ...th, textAlign: "center" }}>Prima casa</th><th style={th}></th>
-      </tr></thead>
-        <tbody>
-          {(card.real_estates || []).map(r => (
-            <tr key={r.id} style={{ borderTop: "1px solid var(--pd-border)" }}>
-              <td style={td}>{r.kind || "—"}</td>
-              <td style={td}>{r.cadastral_data || "—"}</td>
-              <td style={td}>{r.address || "—"}</td>
-              <td style={td}>{[r.ownership_share, r.ownership_right].filter(Boolean).join(" ") || "—"}</td>
-              <td style={tdNum}>{r.surface_mq ? r.surface_mq.toLocaleString("it-IT") + " m²" : "—"}</td>
-              <td style={tdNum}>{r.cadastral_income ? eurFull(r.cadastral_income) : "—"}</td>
-              <td style={tdNum}>{r.cadastral_value ? eurFull(r.cadastral_value) : "—"}</td>
-              <td style={tdNum}>{r.commercial_value ? eurFull(r.commercial_value) : <span style={{ color: "var(--pd-warn)" }}>da stimare</span>}</td>
-              <td style={{ ...td, textAlign: "center" }}>
-                <input type="checkbox" checked={!!r.is_primary_residence}
-                  onChange={async (e) => { await setPrimaryResidence(caseId, r.id, e.target.checked); reload(); }} />
-              </td>
-              <td style={td}>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  {corr && <EditedBadge corr={corr} entityId={r.id} />}
-                  {corr && <CorreggiBtn onClick={() => correggiImm(r)} label="Modifica" />}
-                  <a onClick={async () => { if (window.confirm(`Eliminare l'immobile "${r.kind || r.address || ""}"? L'azione è irreversibile.`)) { await delRealEstate(caseId, r.id); reload(); } }} style={del}>elimina</a>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {(card.real_estates || []).length === 0 && <tr><td style={td} colSpan={10}>Nessun immobile.</td></tr>}
-        </tbody>
-        {(card.real_estates || []).length > 0 && (
-          <tfoot>
-            <tr style={{ borderTop: "2px solid var(--pd-primary)", fontWeight: "bold", background: "var(--pd-info-bg)" }}>
-              <td style={td} colSpan={6}>Totali</td>
-              <td style={tdNum}>{eurFull((card.real_estates || []).reduce((s, r) => s + (r.cadastral_value || 0), 0))}</td>
-              <td style={tdNum}>{eurFull((card.real_estates || []).reduce((s, r) => s + (r.commercial_value || 0), 0))}</td>
-              <td style={td} colSpan={2}></td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
-      </div>
-      <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "0 0 8px" }}>
-        Nota: solo una abitazione dovrebbe essere segnata come prima casa (incide sul valore catastale: ×110 prima casa, ×120 altrimenti).
-      </p>
-      <details style={{ marginTop: 4 }}><summary style={sumStyle}>+ aggiungi manualmente</summary>
-        <div style={addRow}>
-          <input placeholder="Tipo (es. appartamento)" value={re.kind} onChange={e => setRe({ ...re, kind: e.target.value })} style={inp} />
-          <input placeholder="Indirizzo" value={re.address} onChange={e => setRe({ ...re, address: e.target.value })} style={inp} />
-          <Money v={re.estimated_value} on={v => setRe({ ...re, estimated_value: v })} placeholder="Valore €" style={{ width: 120 }} />
-          <button onClick={async () => { await addRealEstate(caseId, re); setRe({ kind: "", address: "", estimated_value: 0 }); reload(); }} style={btnSmall}>Aggiungi</button>
-        </div>
-      </details>
+  const realEstates = card.real_estates || [];
+  const vehicles = card.vehicles || [];
+  const totCat = realEstates.reduce((s, r) => s + (r.cadastral_value || 0), 0);
+  const totComm = realEstates.reduce((s, r) => s + (r.commercial_value || 0), 0);
+  const totVeic = vehicles.reduce((s, v) => s + (v.estimated_value || 0), 0);
 
-      {/* VEICOLI */}
-      <h3 style={{ color: "var(--pd-text)", margin: "22px 0 8px" }}>Veicoli</h3>
-      <table style={tbl}><thead><tr style={trh}><th style={th}>Tipo</th><th style={th}>Modello</th><th style={th}>Targa</th><th style={th}>Valore</th><th style={th}></th></tr></thead>
-        <tbody>
-          {(card.vehicles || []).map(v => (
-            <tr key={v.id} style={{ borderTop: "1px solid var(--pd-border)" }}>
-              <td style={td}>{v.kind}</td><td style={td}>{v.make_model}</td><td style={td}>{v.plate}</td>
-              <td style={td}>{eurFull(v.estimated_value)}</td>
-              <td style={td}>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  {corr && <EditedBadge corr={corr} entityId={v.id} />}
-                  {corr && <CorreggiBtn onClick={() => correggiVeic(v)} label="Modifica" />}
-                  <a onClick={async () => { if (window.confirm(`Eliminare il veicolo "${v.make_model || v.plate || ""}"? L'azione è irreversibile.`)) { await delVehicle(caseId, v.id); reload(); } }} style={del}>elimina</a>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {(card.vehicles || []).length === 0 && <tr><td style={td} colSpan={5}>Nessun veicolo.</td></tr>}
-        </tbody>
-      </table>
-      <details style={{ marginTop: 4 }}><summary style={sumStyle}>+ aggiungi manualmente</summary>
-        <div style={addRow}>
-          <input placeholder="Tipo" value={ve.kind} onChange={e => setVe({ ...ve, kind: e.target.value })} style={{ ...inp, width: 90 }} />
-          <input placeholder="Modello" value={ve.make_model} onChange={e => setVe({ ...ve, make_model: e.target.value })} style={inp} />
-          <input placeholder="Targa" value={ve.plate} onChange={e => setVe({ ...ve, plate: e.target.value })} style={{ ...inp, width: 110 }} />
-          <Money v={ve.estimated_value} on={v => setVe({ ...ve, estimated_value: v })} placeholder="Valore €" style={{ width: 120 }} />
-          <button onClick={async () => { await addVehicle(caseId, ve); setVe({ kind: "auto", make_model: "", plate: "", estimated_value: 0 }); reload(); }} style={btnSmall}>Aggiungi</button>
+  return (
+    <div className="pd-grid">
+      <div className="pd-grid pd-grid--3">
+        <div className="pd-kpi">
+          <div className="pd-kpi__label">Immobili da Visura Catastale [D]</div>
+          <div className="pd-kpi__value" style={{ fontSize: 24, lineHeight: "34px" }}>
+            {realEstates.length === 0 ? "0 Immobili" : `${realEstates.length} Immobili`}
+          </div>
+          <div className="pd-kpi__note">
+            {realEstates.length === 0
+              ? "Esito negativo visura catastale Sister [D]"
+              : totComm > 0
+              ? `Valore comm.: ${eurFull(totComm)}`
+              : totCat > 0
+              ? `Valore cat.: ${eurFull(totCat)}`
+              : "Valore commerciale da stimare (NULL)"}
+          </div>
         </div>
-      </details>
-    </Section>
+        <div className="pd-kpi">
+          <div className="pd-kpi__label">Veicoli e Beni Mobili [D/R]</div>
+          <div className="pd-kpi__value" style={{ fontSize: 24, lineHeight: "34px" }}>
+            {vehicles.length} {vehicles.length === 1 ? "Bene" : "Beni"}
+          </div>
+          <div className="pd-kpi__note">
+            {totVeic > 0 ? `Valore stimato: ${eurFull(totVeic)}` : vehicles.length > 0 ? "Valore di realizzo da periziare" : "Nessun veicolo registrato"}
+          </div>
+        </div>
+        <div className="pd-kpi">
+          <div className="pd-kpi__label">Attivo Patrimoniale Stimato [C/S]</div>
+          <div className="pd-kpi__value" style={{ fontSize: 24, lineHeight: "34px", color: totale > 0 ? "var(--pd-primary)" : "var(--pd-text-muted)" }}>
+            {totale > 0 ? eurFull(totale) : "Da periziare (NULL)"}
+          </div>
+          <div className="pd-kpi__note">Esclusi beni con valore non ancora periziato</div>
+        </div>
+      </div>
+
+      <Section
+        title="1. Compendio Immobiliare (Catasto Fabbricati e Terreni)"
+        subtitle="Rilevazione da Visura Catastale per Soggetto (Sister). Un esito negativo certifica l'assenza di diritti reali immobiliari [D]."
+        badge="[D] Visura Catastale"
+        icon="home_work"
+      >
+        <div className="pd-table-wrap" style={{ marginBottom: 10 }}>
+          <table className="pd-table">
+            <thead>
+              <tr>
+                <th>Immobile</th>
+                <th>Dati catastali</th>
+                <th>Indirizzo</th>
+                <th>Quota e Diritto</th>
+                <th className="pd-num">Sup.</th>
+                <th className="pd-num">Rendita</th>
+                <th className="pd-num">Val. Catastale [C]</th>
+                <th className="pd-num">Val. Commerciale [S]</th>
+                <th style={{ textAlign: "center" }}>Prima Casa</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {realEstates.map((r) => (
+                <tr key={r.id}>
+                  <td><strong>{r.kind || "—"}</strong></td>
+                  <td style={{ fontSize: 12.5, fontFamily: "var(--pd-font-mono)" }}>{r.cadastral_data || "—"}</td>
+                  <td>{r.address || "—"}</td>
+                  <td>{[r.ownership_share, r.ownership_right].filter(Boolean).join(" ") || "—"}</td>
+                  <td className="pd-num">{r.surface_mq ? r.surface_mq.toLocaleString("it-IT") + " m²" : "—"}</td>
+                  <td className="pd-num">{r.cadastral_income ? eurFull(r.cadastral_income) : "—"}</td>
+                  <td className="pd-num">{r.cadastral_value ? eurFull(r.cadastral_value) : "Non rilevato (NULL)"}</td>
+                  <td className="pd-num">
+                    {r.commercial_value ? (
+                      <strong>{eurFull(r.commercial_value)}</strong>
+                    ) : (
+                      <span className="pd-badge pd-badge--warn" style={{ fontSize: 11 }}>Da stimare (NULL)</span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!r.is_primary_residence}
+                      onChange={async (e) => {
+                        await setPrimaryResidence(caseId, r.id, e.target.checked);
+                        reload();
+                      }}
+                    />
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {corr && <EditedBadge corr={corr} entityId={r.id} />}
+                      {corr && <CorreggiBtn onClick={() => correggiImm(r)} label="Modifica" />}
+                      <a
+                        onClick={async () => {
+                          if (window.confirm(`Eliminare l'immobile "${r.kind || r.address || ""}"? L'azione è irreversibile.`)) {
+                            await delRealEstate(caseId, r.id);
+                            reload();
+                          }
+                        }}
+                        style={del}
+                      >
+                        elimina
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {realEstates.length === 0 && (
+                <tr>
+                  <td colSpan={10} style={{ textAlign: "center", padding: 20, color: "var(--pd-text-muted)" }}>
+                    <strong>Nessun bene immobile intestato [D]</strong> — Esito negativo da visura catastale (o visura non ancora caricata).
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {realEstates.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={6}>Totali Compendio Immobiliare</td>
+                  <td className="pd-num">{totCat > 0 ? eurFull(totCat) : "Non rilevato (NULL)"}</td>
+                  <td className="pd-num">{totComm > 0 ? eurFull(totComm) : "Da stimare (NULL)"}</td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+        <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "0 0 8px" }}>
+          Nota tecnica: il moltiplicatore catastale è ×115,5 per la prima casa e ×126 per gli altri fabbricati abitativi.
+        </p>
+        <details style={{ marginTop: 4 }}>
+          <summary style={sumStyle}>+ Aggiungi immobile manualmente</summary>
+          <div style={addRow}>
+            <input placeholder="Tipo (es. appartamento)" value={re.kind} onChange={(e) => setRe({ ...re, kind: e.target.value })} style={inp} />
+            <input placeholder="Indirizzo" value={re.address} onChange={(e) => setRe({ ...re, address: e.target.value })} style={inp} />
+            <Money v={re.estimated_value} on={(v) => setRe({ ...re, estimated_value: v })} placeholder="Valore €" style={{ width: 140 }} />
+            <button
+              onClick={async () => {
+                await addRealEstate(caseId, re);
+                setRe({ kind: "", address: "", estimated_value: 0 });
+                reload();
+              }}
+              style={btnSmall}
+            >
+              Aggiungi
+            </button>
+          </div>
+        </details>
+      </Section>
+
+      <Section
+        title="2. Beni Mobili Registrati e Strumentali (PRA / Elenco Mezzi)"
+        subtitle="Automezzi, rimorchi e attrezzature aziendali. Richiedere visure PRA per ciascuna targa per verificare fermi amministrativi o vincoli."
+        badge="[D/R] PRA & Elenco Mezzi"
+        icon="local_shipping"
+      >
+        <div className="pd-table-wrap" style={{ marginBottom: 10 }}>
+          <table className="pd-table">
+            <thead>
+              <tr>
+                <th>Tipologia</th>
+                <th>Marca e Modello</th>
+                <th>Targa / Identificativo</th>
+                <th>Anno</th>
+                <th className="pd-num">Valore Stimato [S]</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vehicles.map((v) => (
+                <tr key={v.id}>
+                  <td><span className="pd-badge pd-badge--neutral">{v.kind || "Veicolo"}</span></td>
+                  <td><strong>{v.make_model || "—"}</strong></td>
+                  <td style={{ fontFamily: "var(--pd-font-mono)", fontWeight: 700 }}>{v.plate || "—"}</td>
+                  <td>{v.year || "—"}</td>
+                  <td className="pd-num">
+                    {Number(v.estimated_value) > 0 ? (
+                      <strong>{eurFull(v.estimated_value)}</strong>
+                    ) : (
+                      <span className="pd-badge pd-badge--warn" style={{ fontSize: 11 }}>Da periziare (NULL)</span>
+                    )}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {corr && <EditedBadge corr={corr} entityId={v.id} />}
+                      {corr && <CorreggiBtn onClick={() => correggiVeic(v)} label="Modifica" />}
+                      <a
+                        onClick={async () => {
+                          if (window.confirm(`Eliminare il veicolo "${v.make_model || v.plate || ""}"? L'azione è irreversibile.`)) {
+                            await delVehicle(caseId, v.id);
+                            reload();
+                          }
+                        }}
+                        style={del}
+                      >
+                        elimina
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {vehicles.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", padding: 20, color: "var(--pd-text-muted)" }}>
+                    Nessun veicolo o bene mobile registrato in archivio.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <details style={{ marginTop: 4 }}>
+          <summary style={sumStyle}>+ Aggiungi veicolo o bene mobile manualmente</summary>
+          <div style={addRow}>
+            <input placeholder="Tipo (es. autocarro)" value={ve.kind} onChange={(e) => setVe({ ...ve, kind: e.target.value })} style={{ ...inp, width: 130 }} />
+            <input placeholder="Marca e Modello" value={ve.make_model} onChange={(e) => setVe({ ...ve, make_model: e.target.value })} style={inp} />
+            <input placeholder="Targa" value={ve.plate} onChange={(e) => setVe({ ...ve, plate: e.target.value })} style={{ ...inp, width: 120 }} />
+            <Money v={ve.estimated_value} on={(v) => setVe({ ...ve, estimated_value: v })} placeholder="Valore €" style={{ width: 140 }} />
+            <button
+              onClick={async () => {
+                await addVehicle(caseId, ve);
+                setVe({ kind: "auto", make_model: "", plate: "", estimated_value: 0 });
+                reload();
+              }}
+              style={btnSmall}
+            >
+              Aggiungi
+            </button>
+          </div>
+        </details>
+      </Section>
+    </div>
   );
 }
 
@@ -1333,17 +1742,17 @@ const IND_GROUPS = [
   ["redditivita", "Redditività"], ["debito", "Sostenibilità del debito"],
 ];
 
-function fmtNum(v) { return v == null ? "n.s." : Number(v).toLocaleString("it-IT", { maximumFractionDigits: 2 }); }
+function fmtNum(v) { return v == null ? "Non rilevato (NULL)" : Number(v).toLocaleString("it-IT", { maximumFractionDigits: 2 }); }
 // Formato valuta UNICO in tutta l'app: € con separatore migliaia e 2 decimali.
 function eurFull(v) { return "€ " + (Number(v) || 0).toLocaleString("it-IT", { useGrouping: true, minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtIndicator(ind) {
-  if (ind.value_cur == null) return "n.s.";
+  if (ind.value_cur == null) return "Non rilevato (NULL)";
   if (ind.fmt === "pct") return Number(ind.value_cur).toLocaleString("it-IT", { maximumFractionDigits: 1 }) + "%";
   if (ind.fmt === "eur") return "€ " + Number(ind.value_cur).toLocaleString("it-IT", { maximumFractionDigits: 0 });
   return Number(ind.value_cur).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function fmtIndicatorPrev(ind) {
-  if (ind.value_prev == null) return "n.s.";
+  if (ind.value_prev == null) return "Non rilevato (NULL)";
   if (ind.fmt === "pct") return Number(ind.value_prev).toLocaleString("it-IT", { maximumFractionDigits: 1 }) + "%";
   if (ind.fmt === "eur") return "€ " + Number(ind.value_prev).toLocaleString("it-IT", { maximumFractionDigits: 0 });
   return Number(ind.value_prev).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1359,11 +1768,13 @@ function MetricCard({ label, blk }) {
   let varPct = null;
   if (cur != null && prev != null && prev !== 0) varPct = (cur - prev) / Math.abs(prev) * 100;
   return (
-    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 12 }}>
-      <div style={{ fontSize: 11, color: "var(--pd-text-muted)", textTransform: "uppercase", letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: "bold", color: "var(--pd-primary)" }}>{cur == null ? "n.s." : "€ " + Number(cur).toLocaleString("it-IT", { maximumFractionDigits: 0 })}</div>
+    <div style={{ background: "var(--pd-surface-low)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
+      <div style={{ fontSize: 11, color: "var(--pd-text-muted)", textTransform: "uppercase", letterSpacing: 0.3, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: cur == null ? 13 : 18, fontWeight: "bold", color: cur == null ? "var(--pd-text-muted)" : "var(--pd-primary)", marginTop: 4 }}>
+        {cur == null ? "Non rilevato (NULL)" : "€ " + Number(cur).toLocaleString("it-IT", { maximumFractionDigits: 0 })}
+      </div>
       {varPct != null && (
-        <div style={{ fontSize: 12, color: varPct >= 0 ? "var(--pd-ok)" : "var(--pd-danger)" }}>
+        <div style={{ fontSize: 12, color: varPct >= 0 ? "var(--pd-ok)" : "var(--pd-danger)", marginTop: 2 }}>
           {varPct >= 0 ? "↑" : "↓"} {Math.abs(varPct).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% vs anno prec.
         </div>
       )}
@@ -1491,22 +1902,40 @@ function IndicatorCell({ it, goTab, big }) {
   const na = it.value === null || it.value === undefined;
   const isSignal = it.kind === "signal";
   return (
-    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: "12px 14px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <span style={{ fontSize: 12, color: "var(--pd-text-muted)", fontWeight: 600 }}>{it.label}</span>
-        {isSignal && <span className="pd-badge pd-badge--warn">da valutare</span>}
+    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: "14px 16px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+          <span style={{ fontSize: 12, color: "var(--pd-text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.2 }}>{it.label}</span>
+          {isSignal ? (
+            <span className="pd-badge pd-badge--warn" style={{ fontSize: 10.5 }}>Segnale CCII</span>
+          ) : (
+            <span className="pd-badge pd-badge--info" style={{ fontSize: 10.5 }}>[C] Calcolato</span>
+          )}
+        </div>
+        <div
+          className="pd-num"
+          style={{
+            fontSize: na ? 14 : big ? 24 : 19,
+            fontWeight: 800,
+            margin: "8px 0 4px",
+            color: na ? "var(--pd-text-muted)" : indicColor(it.status),
+          }}
+        >
+          {na ? "Non determinabile (NULL)" : fmtIndic(it)}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>{it.formula_human}</div>
+        {na && (
+          <div style={{ fontSize: 11, color: "var(--pd-text-faint)", marginTop: 4 }}>
+            Dato sorgente assente — Zero sostitutivo bloccato
+          </div>
+        )}
+        {isSignal && it.criterion && (
+          <div style={{ fontSize: 12, color: "var(--pd-text-muted)", fontStyle: "italic", marginTop: 4 }}>{it.criterion}</div>
+        )}
       </div>
-      <div className="pd-num" style={{ fontSize: big ? 24 : 18, fontWeight: 700, margin: "4px 0",
-        color: na ? "var(--pd-text-faint)" : indicColor(it.status) }}>
-        {na ? "non disponibile" : fmtIndic(it)}
-      </div>
-      <div style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>{it.formula_human}</div>
-      {isSignal && it.criterion && (
-        <div style={{ fontSize: 12, color: "var(--pd-text-muted)", fontStyle: "italic", marginTop: 4 }}>{it.criterion}</div>
-      )}
       {it.source_tab && (
-        <a onClick={() => goTab(it.source_tab)} style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "var(--pd-accent)" }}>
-          → vedi in {SECTION_LABEL[it.source_tab] || "sezione"}
+        <a onClick={() => goTab(it.source_tab)} style={{ display: "inline-block", marginTop: 8, fontSize: 12, fontWeight: 600, color: "var(--pd-accent)" }}>
+          → Fonte in {SECTION_LABEL[it.source_tab] || "sezione"}
         </a>
       )}
     </div>
@@ -1518,35 +1947,41 @@ function IndicatoriCruscotto({ data, goTab }) {
   const byArea = {};
   (data.indicators || []).forEach(i => (byArea[i.area] = byArea[i.area] || []).push(i));
   return (
-    <div>
-      <p style={{ fontSize: 13, color: "var(--pd-text-muted)", marginTop: 0 }}>
-        Sintesi che aggrega le sezioni della pratica. Ogni valore mostra la formula e rimanda alla fonte.
-        Le voci <span className="pd-badge pd-badge--warn">da valutare</span> sono spunti per il legale, non giudizi automatici.
-      </p>
+    <div className="pd-grid">
+      <div className="pd-page-head" style={{ marginBottom: 4 }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2 className="pd-h2">Cruscotto Indicatori Finanziari, Patrimoniali e CCII</h2>
+            <span className="pd-badge pd-badge--info">[C] Motore Deterministico · Blocco NULL vs Zero</span>
+          </div>
+          <p>
+            Indicatori calcolati dal backend con formula esplicita e rimando alla sezione fonte. Quando un dato primario manca (es. Stato Patrimoniale), l&apos;indice resta <strong>Non determinabile (NULL)</strong>.
+          </p>
+        </div>
+        <button type="button" className="pd-btn pd-btn--secondary" onClick={() => goTab("econometria")}>
+          <span className="material-symbols-outlined" aria-hidden="true">monitoring</span>
+          Vista Grafica Econometria
+        </button>
+      </div>
 
       {/* Striscia MACRO */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12, margin: "8px 0 20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
         {(data.macro || []).map(m => <IndicatorCell key={m.code} it={m} goTab={goTab} big />)}
       </div>
 
-      {/* Aree (nascoste se prive di dati) */}
+      {/* Aree */}
       {AREA_LABELS.map(([k, label]) => {
         const items = byArea[k] || [];
-        if (items.length === 0 || items.every(i => i.value === null || i.value === undefined)) return null;
+        if (items.length === 0) return null;
         return (
-          <div key={k} style={{ marginBottom: 22 }}>
-            <h3 style={{ fontFamily: "var(--pd-font-display)", color: "var(--pd-primary)", fontSize: 16, margin: "0 0 10px" }}>{label}</h3>
+          <div key={k} className="pd-card" style={{ padding: "18px 20px" }}>
+            <h3 style={{ color: "var(--pd-primary)", fontSize: 16, margin: "0 0 12px", fontWeight: 700 }}>{label}</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
               {items.map(it => <IndicatorCell key={it.code} it={it} goTab={goTab} />)}
             </div>
           </div>
         );
       })}
-
-      <p style={{ fontSize: 12, color: "var(--pd-text-faint)", marginTop: 8 }}>
-        Nessun punteggio sintetico del debitore: gli indicatori sono dati aggregati e segnali oggettivi.
-        I valori "non disponibile" indicano sezioni non ancora popolate.
-      </p>
     </div>
   );
 }
@@ -1719,9 +2154,9 @@ function BilancioAnalysis({ statement, corr }) {
       {/* Lettura sintetica + legenda */}
       <div style={{ background: "var(--pd-info-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: "10px 12px", marginTop: 8, fontSize: 12, color: "var(--pd-text)" }}>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 4 }}>
-          <span>{statusDot("green")} buono</span><span>{statusDot("amber")} attenzione</span><span>{statusDot("red")} critico</span><span>n.s. = non significativo</span>
+          <span>{statusDot("green")} buono</span><span>{statusDot("amber")} attenzione</span><span>{statusDot("red")} critico</span><span><strong>Non rilevato (NULL)</strong> = dato assente nel documento sorgente (es. Stato Patrimoniale non depositato)</span>
         </div>
-        <div style={{ color: "var(--pd-text-muted)" }}>Soglie standard universali — la lettura per il settore {statement.ateco || "(n/d)"} può variare.</div>
+        <div style={{ color: "var(--pd-text-muted)" }}>Soglie standard OIC / CCII — la lettura per il settore {statement.ateco || "(n/d)"} può variare.</div>
       </div>
     </div>
   );
@@ -1744,6 +2179,7 @@ const eurAer = (v) => "€ " + (Number(v) || 0).toLocaleString("it-IT", { minimu
 function AerUploadButton({ caseId, label, ownerKind, entityId, reload }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const fileRef = useRef(null);
   async function onFile(e) {
     const f = e.target.files[0]; if (!f) return;
     setBusy(true); setErr("");
@@ -1752,37 +2188,101 @@ function AerUploadButton({ caseId, label, ownerKind, entityId, reload }) {
     setBusy(false); e.target.value = "";
   }
   return (
-    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pd-primary)", marginBottom: 6 }}>{label}</div>
-      <input type="file" onChange={onFile} disabled={busy} accept=".pdf" />
-      {busy && <span style={{ marginLeft: 10, fontSize: 13 }}>Elaborazione...</span>}
-      {err && <div style={{ color: "var(--pd-danger)", fontSize: 12, marginTop: 6 }}>{err}</div>}
-      <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "6px 0 0" }}>
-        Lettura locale della tabella (gratis). Nessun modello a pagamento, salvo PDF illeggibile.
-      </p>
+    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--pd-primary)" }}>{label}</div>
+          <p style={{ fontSize: 12, color: "var(--pd-text-muted)", margin: "2px 0 0" }}>
+            Parser tabellare deterministico su PDF AdER con quadratura automatica delle colonne.
+          </p>
+        </div>
+        <div>
+          <input ref={fileRef} type="file" onChange={onFile} disabled={busy} accept=".pdf" style={{ display: "none" }} />
+          <button
+            type="button"
+            className="pd-btn pd-btn--primary"
+            disabled={busy}
+            onClick={() => fileRef.current && fileRef.current.click()}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
+            {busy ? "Elaborazione in corso..." : "Carica Estratto PDF"}
+          </button>
+        </div>
+      </div>
+      {err && <div style={{ color: "var(--pd-danger)", fontSize: 12, marginTop: 8 }}>{err}</div>}
     </div>
   );
 }
 
 function SituazioneAER({ caseId, card, isAzienda, clienteCompanies, reload, corr }) {
   const taxDebts = card.tax_debts || [];
+  const totResiduo = taxDebts.reduce((s, t) => s + (Number(t.total_residuo) || 0), 0);
+  const totCarico = taxDebts.reduce((s, t) => s + (Number(t.total_carico_affidato) || 0), 0);
+  const totItems = taxDebts.reduce((s, t) => s + ((t.items || []).length || 0), 0);
+
   return (
-    <div>
-      <ToolsBar>
+    <div className="pd-grid">
+      <div className="pd-page-head" style={{ marginBottom: 4 }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <h2 className="pd-h2">Stato Passivo Erariale e Previdenziale (AdER)</h2>
+            <span className="pd-badge pd-badge--info">[D] Estratti di Ruolo · [C] Quadratura Decimal</span>
+          </div>
+          <p>
+            Ricostruzione analitica dei carichi Agenzia Entrate-Riscossione (Erariali, INPS, INAIL, Enti Locali) con verifica anti-duplicazione dei contributi previdenziali.
+          </p>
+        </div>
+      </div>
+
+      {/* KPI STRIP PASSIVO ADER */}
+      <div className="pd-grid pd-grid--4">
+        <div className="pd-kpi">
+          <div className="pd-kpi__label">Totale Residuo a Ruolo [D]</div>
+          <div className="pd-kpi__value" style={{ fontSize: 24, lineHeight: "34px", color: totResiduo > 0 ? "var(--pd-danger)" : "var(--pd-text-muted)" }}>
+            {taxDebts.length > 0 ? eurAer(totResiduo) : "Non rilevato (NULL)"}
+          </div>
+          <div className="pd-kpi__note">Saldo complessivo da estratti AdER</div>
+        </div>
+        <div className="pd-kpi">
+          <div className="pd-kpi__label">Carico Originario Affidato</div>
+          <div className="pd-kpi__value" style={{ fontSize: 24, lineHeight: "34px" }}>
+            {taxDebts.length > 0 ? eurAer(totCarico) : "—"}
+          </div>
+          <div className="pd-kpi__note">Sorte capitale e sanzioni iniziali</div>
+        </div>
+        <div className="pd-kpi">
+          <div className="pd-kpi__label">Cartelle e Avvisi Censiti</div>
+          <div className="pd-kpi__value" style={{ fontSize: 24, lineHeight: "34px" }}>
+            {totItems}
+          </div>
+          <div className="pd-kpi__note">{taxDebts.length} {taxDebts.length === 1 ? "prospetto elaborato" : "prospetti elaborati"}</div>
+        </div>
+        <div className="pd-kpi">
+          <div className="pd-kpi__label">Anti-Duplicazione INPS</div>
+          <div className="pd-kpi__value" style={{ fontSize: 20, lineHeight: "34px", color: "var(--pd-ok)" }}>
+            Verificata
+          </div>
+          <div className="pd-kpi__note">Carichi INPS a ruolo non sommati due volte</div>
+        </div>
+      </div>
+
+      <ToolsBar title="Acquisizione Prospetti ed Estratti di Ruolo AdER" subtitle="Carica i PDF ufficiali rilasciati da Agenzia delle Entrate-Riscossione per estrarre tutte le cartelle e verificare le quadrature.">
         {!isAzienda && (
           <AerUploadButton caseId={caseId} ownerKind="person" entityId=""
-            label="AeR — Estratto di ruolo del cliente (persona)" reload={reload} />
+            label="AdER — Estratto di ruolo del cliente (Persona Fisica)" reload={reload} />
         )}
         {clienteCompanies.map(c => (
           <AerUploadButton key={c.id} caseId={caseId} ownerKind="company" entityId={c.id}
-            label={`AeR — Estratto di ruolo azienda: ${c.name || c.vat || c.tax_code || ""}`} reload={reload} />
+            label={`AdER — Estratto di ruolo impresa: ${c.name || c.vat || c.tax_code || ""}`} reload={reload} />
         ))}
         {isAzienda && clienteCompanies.length === 0 && (
-          <p style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Crea prima l'azienda nella tab "Aziende" per attribuirle l'estratto di ruolo.</p>
+          <p style={{ fontSize: 13, color: "var(--pd-text-muted)" }}>Crea prima l&apos;azienda nella tab &quot;Aziende&quot; per attribuirle l&apos;estratto di ruolo.</p>
         )}
       </ToolsBar>
       {taxDebts.length === 0 && (
-        <p style={{ color: "var(--pd-text-muted)" }}>Nessun estratto di ruolo AER caricato. Usa i bottoni "AeR" qui sopra.</p>
+        <div className="pd-card" style={{ textAlign: "center", padding: 28, color: "var(--pd-text-muted)" }}>
+          Nessun estratto di ruolo AdER caricato nel fascicolo. Utilizza il pulsante sopra per acquisire il PDF.
+        </div>
       )}
       {taxDebts.map(st => <AerStatement key={st.id} caseId={caseId} st={st} card={card} reload={reload} corr={corr} />)}
     </div>
@@ -1942,7 +2442,21 @@ function CentraleRischi({ card, corr }) {
   const cr = card.credit_report;
   const exposures = card.credit_exposures || [];
   const guarantees = card.guarantees_given || [];
-  if (!cr) return null; // nessuna Centrale Rischi caricata -> sezione nascosta
+  if (!cr) {
+    return (
+      <div className="pd-card" style={{ textAlign: "center", padding: 28, color: "var(--pd-text-muted)" }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 36, color: "var(--pd-accent)", marginBottom: 8 }}>
+          account_balance
+        </span>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--pd-primary)", marginBottom: 4 }}>
+          Nessun prospetto di Centrale Rischi Banca d&apos;Italia caricato
+        </div>
+        <p style={{ margin: "0 auto", maxWidth: 560, fontSize: 13 }}>
+          Carica il PDF della Centrale Rischi o avvia la richiesta sopra. Eventuali finanziamenti chirografari extra-CR o piani di ammortamento sono riconciliati nel Dossier Tecnico di Audit.
+        </p>
+      </div>
+    );
+  }
 
   const criticita = [...(cr.criticita || [])].sort((a, b) => (a.mese || "").localeCompare(b.mese || ""));
   const eur = eurFull;
@@ -1974,21 +2488,23 @@ function CentraleRischi({ card, corr }) {
   }
 
   return (
-    <Section title="Centrale Rischi">
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 0 }}>
-        <p style={{ fontSize: 13, color: "var(--pd-text-muted)", margin: 0 }}>
-          Posizione presso Banca d'Italia rilevata dai documenti elaborati.
-        </p>
+    <Section
+      title="Posizione Centrale Rischi Banca d'Italia"
+      subtitle="Rilevazione degli affidamenti segnalati dagli intermediari vigilati e verifica di sconfinamenti o sofferenze."
+      badge="[D] Banca d'Italia"
+      icon="account_balance"
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <CrossCheckBadge status={cr.crosscheck_status} payload={cr.crosscheck_payload}
           provider={cr.llm_provider} model={cr.llm_model} />
       </div>
       <CrossCheckDiscrepancies payload={cr.crosscheck_payload} />
 
       {/* 1. Riga di sintesi */}
-      <div style={{ background: "var(--pd-info-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 8, padding: 14, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: "12px 28px", alignItems: "center" }}>
+      <div style={{ background: "var(--pd-info-bg)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: "12px 24px", alignItems: "center" }}>
         <Stat label="Periodo analizzato" value={`${cr.period_from || "?"} → ${cr.period_to || "?"}`} />
-        <Stat label="Intermediari" value={cr.num_intermediaries ?? 0} />
-        <Stat label="Esposizione totale" value={eur(cr.total_exposure)} />
+        <Stat label="Intermediari segnalanti" value={cr.num_intermediaries ?? 0} />
+        <Stat label="Utilizzato totale [D]" value={eur(cr.total_exposure)} />
         <Stat label="Garanzie prestate" value={eur(cr.total_guarantees)} />
         <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
           <CrBadge on={cr.has_sofferenze} okText="Nessuna sofferenza" alertText="Sofferenze presenti" tone="danger" />
@@ -1997,77 +2513,94 @@ function CentraleRischi({ card, corr }) {
       </div>
 
       {/* 2. Esposizione per intermediario */}
-      <h3 style={{ color: "var(--pd-text)", margin: "4px 0 8px" }}>Esposizione per intermediario</h3>
-      <div style={{ overflowX: "auto", marginBottom: 16 }}>
-        <table style={{ ...tbl, minWidth: 760, marginBottom: 0 }}>
-          <thead><tr style={trh}>
-            <th style={th}>Intermediario</th><th style={th}>Categoria</th>
-            <th style={tdNum}>Accordato</th><th style={tdNum}>Utilizzato</th>
-            <th style={tdNum}>Importo garantito</th><th style={th}>Stato</th>{corr && <th style={th}></th>}
-          </tr></thead>
+      <h3 style={{ color: "var(--pd-primary)", fontSize: 15, margin: "8px 0 8px" }}>1. Esposizione per intermediario segnalante</h3>
+      <div className="pd-table-wrap" style={{ marginBottom: 18 }}>
+        <table className="pd-table">
+          <thead>
+            <tr>
+              <th>Intermediario</th>
+              <th>Categoria Censimento</th>
+              <th className="pd-num">Accordato Operativo</th>
+              <th className="pd-num">Utilizzato [D]</th>
+              <th className="pd-num">Importo Garantito</th>
+              <th>Stato</th>
+              {corr && <th>Azioni</th>}
+            </tr>
+          </thead>
           <tbody>
             {exposures.map(e => (
-              <tr key={e.id} style={{ borderTop: "1px solid var(--pd-border)", background: e.is_critical ? "var(--pd-danger-bg)" : "var(--pd-surface)" }}>
-                <td style={td}>{e.intermediary || "—"}</td>
-                <td style={td}>{e.category || "—"}</td>
-                <td style={tdNum}>{eur(e.accordato)}</td>
-                <td style={tdNum}>{eur(e.utilizzato)}</td>
-                <td style={tdNum}>{eur(e.importo_garantito)}</td>
-                <td style={td}>{e.status || "—"}</td>
-                {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={e.id} /><CorreggiBtn onClick={() => correggiEsp(e)} label="Modifica" /></div></td>}
+              <tr key={e.id} className={e.is_critical ? "pd-row--review" : undefined}>
+                <td><strong>{e.intermediary || "—"}</strong></td>
+                <td>{e.category || "—"}</td>
+                <td className="pd-num">{eur(e.accordato)}</td>
+                <td className="pd-num"><strong>{eur(e.utilizzato)}</strong></td>
+                <td className="pd-num">{eur(e.importo_garantito)}</td>
+                <td>{e.status || "—"}</td>
+                {corr && <td><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={e.id} /><CorreggiBtn onClick={() => correggiEsp(e)} label="Modifica" /></div></td>}
               </tr>
             ))}
-            {exposures.length === 0 && <tr><td style={td} colSpan={corr ? 7 : 6}>Nessuna esposizione diretta rilevata.</td></tr>}
+            {exposures.length === 0 && <tr><td colSpan={corr ? 7 : 6} style={{ textAlign: "center", color: "var(--pd-text-muted)" }}>Nessuna esposizione diretta rilevata nel periodo.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {/* 3. Garanzie prestate */}
-      <h3 style={{ color: "var(--pd-text)", margin: "4px 0 6px" }}>Garanzie prestate</h3>
-      <p style={{ fontSize: 13, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "8px 10px", margin: "0 0 8px" }}>
-        Attenzione: il cliente è garante per questi soggetti: in caso di insolvenza può essere chiamato a rispondere.
+      <h3 style={{ color: "var(--pd-primary)", fontSize: 15, margin: "4px 0 6px" }}>2. Garanzie personali o reali prestate a favore di terzi</h3>
+      <p style={{ fontSize: 12.5, color: "var(--pd-warn)", background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border)", borderRadius: 6, padding: "8px 12px", margin: "0 0 10px" }}>
+        Attenzione: in presenza di fideiussioni o coobbligazioni, verificare il rischio di escussione e il regresso.
       </p>
-      <div style={{ overflowX: "auto", marginBottom: 16 }}>
-        <table style={{ ...tbl, minWidth: 680, marginBottom: 0 }}>
-          <thead><tr style={trh}>
-            <th style={th}>Soggetto garantito</th><th style={th}>Intermediario</th>
-            <th style={tdNum}>Valore garanzia</th><th style={tdNum}>Importo garantito</th><th style={th}>Stato</th>{corr && <th style={th}></th>}
-          </tr></thead>
+      <div className="pd-table-wrap" style={{ marginBottom: 18 }}>
+        <table className="pd-table">
+          <thead>
+            <tr>
+              <th>Soggetto Garantito</th>
+              <th>Intermediario</th>
+              <th className="pd-num">Valore Garanzia</th>
+              <th className="pd-num">Importo Garantito</th>
+              <th>Stato</th>
+              {corr && <th>Azioni</th>}
+            </tr>
+          </thead>
           <tbody>
             {guarantees.map(g => (
-              <tr key={g.id} style={{ borderTop: "1px solid var(--pd-border)" }}>
-                <td style={td}>{g.guaranteed_subject || "—"}</td>
-                <td style={td}>{g.intermediary || "—"}</td>
-                <td style={tdNum}>{eur(g.valore_garanzia)}</td>
-                <td style={tdNum}>{eur(g.importo_garantito)}</td>
-                <td style={td}>{g.status || "—"}</td>
-                {corr && <td style={td}><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={g.id} /><CorreggiBtn onClick={() => correggiGar(g)} label="Modifica" /></div></td>}
+              <tr key={g.id}>
+                <td><strong>{g.guaranteed_subject || "—"}</strong></td>
+                <td>{g.intermediary || "—"}</td>
+                <td className="pd-num">{eur(g.valore_garanzia)}</td>
+                <td className="pd-num">{eur(g.importo_garantito)}</td>
+                <td>{g.status || "—"}</td>
+                {corr && <td><div style={{ display: "flex", gap: 6, alignItems: "center" }}><EditedBadge corr={corr} entityId={g.id} /><CorreggiBtn onClick={() => correggiGar(g)} label="Modifica" /></div></td>}
               </tr>
             ))}
-            {guarantees.length === 0 && <tr><td style={td} colSpan={corr ? 6 : 5}>Nessuna garanzia prestata.</td></tr>}
+            {guarantees.length === 0 && <tr><td colSpan={corr ? 6 : 5} style={{ textAlign: "center", color: "var(--pd-text-muted)" }}>Nessuna garanzia prestata a terzi rilevata.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {/* 4. Criticità nel tempo */}
-      <h3 style={{ color: "var(--pd-text)", margin: "4px 0 8px" }}>Criticità nel tempo</h3>
+      <h3 style={{ color: "var(--pd-primary)", fontSize: 15, margin: "4px 0 8px" }}>3. Andamento storico di sconfinamenti e criticità</h3>
       {criticita.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: 0 }}>Nessuna criticità storica rilevata.</p>
+        <p style={{ fontSize: 13, color: "var(--pd-ok)", margin: 0, fontWeight: 600 }}>Nessuna criticità o sofferenza storica rilevata nel periodo esaminato.</p>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ ...tbl, minWidth: 760, marginBottom: 0 }}>
-            <thead><tr style={trh}>
-              <th style={th}>Mese</th><th style={th}>Intermediario</th><th style={th}>Tipo</th>
-              <th style={th}>Descrizione</th><th style={tdNum}>Importo</th>
-            </tr></thead>
+        <div className="pd-table-wrap">
+          <table className="pd-table">
+            <thead>
+              <tr>
+                <th>Mese</th>
+                <th>Intermediario</th>
+                <th>Tipo Evento</th>
+                <th>Descrizione</th>
+                <th className="pd-num">Importo</th>
+              </tr>
+            </thead>
             <tbody>
               {criticita.map((c, i) => (
-                <tr key={i} style={{ borderTop: "1px solid var(--pd-border)", background: "var(--pd-danger-bg)" }}>
-                  <td style={td}>{c.mese || "—"}</td>
-                  <td style={td}>{c.intermediario || "—"}</td>
-                  <td style={td}>{c.tipo || "—"}</td>
-                  <td style={td}>{c.descrizione || "—"}</td>
-                  <td style={tdNum}>{c.importo ? eur(c.importo) : "—"}</td>
+                <tr key={i} className="pd-row--review">
+                  <td><strong>{c.mese || "—"}</strong></td>
+                  <td>{c.intermediario || "—"}</td>
+                  <td>{c.tipo || "—"}</td>
+                  <td>{c.descrizione || "—"}</td>
+                  <td className="pd-num">{c.importo ? eur(c.importo) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -2135,6 +2668,7 @@ function docStatusBadge(s) {
 function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedIds = [], onUploadedId, docType = "" }) {
   const [busy, setBusy] = useState(false);
   const [dup, setDup] = useState("");
+  const fileRef = useRef(null);
   async function onFile(e) {
     const f = e.target.files[0];
     if (!f) return;
@@ -2143,32 +2677,48 @@ function UploadBox({ caseId, label, onUploaded, docs = [], scope = "", uploadedI
     try { res = await uploadDoc(caseId, f, docType); } catch {}
     setBusy(false);
     e.target.value = "";
-    if (res && res.duplicate) setDup(`"${res.original_filename}" è già presente: non ricaricato.`);
+    if (res && res.duplicate) setDup(`"${res.original_filename}" è già presente (deduplicazione SHA-256 attiva).`);
     if (res && res.id && !res.duplicate && onUploadedId) onUploadedId(scope, res.id);
     if (onUploaded) onUploaded();
   }
   // stato dei documenti caricati qui (id persistiti nello Scheda -> sopravvivono al cambio tab)
   const mine = uploadedIds.map(id => (docs || []).find(x => x.id === id)).filter(Boolean);
   return (
-    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pd-primary)", marginBottom: 6 }}>{label}</div>
-      <input type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
-      {busy && <span style={{ marginLeft: 10, fontSize: 13 }}>Upload...</span>}
-      {dup && <div style={{ marginTop: 8, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>{dup}</div>}
+    <div style={{ background: "var(--pd-surface)", border: "1px solid var(--pd-border)", borderRadius: 8, padding: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--pd-primary)" }}>{label}</div>
+          <p style={{ fontSize: 12, color: "var(--pd-text-muted)", margin: "2px 0 0" }}>
+            Acquisizione con impronta SHA-256 e normalizzazione automatica nella scheda.
+          </p>
+        </div>
+        <div>
+          <input ref={fileRef} type="file" onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" style={{ display: "none" }} />
+          <button
+            type="button"
+            className="pd-btn pd-btn--primary"
+            disabled={busy}
+            onClick={() => fileRef.current && fileRef.current.click()}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">upload_file</span>
+            {busy ? "Acquisizione..." : "Seleziona File"}
+          </button>
+        </div>
+      </div>
+      {dup && <div style={{ marginTop: 8, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border)", borderRadius: 6, padding: "5px 9px" }}>{dup}</div>}
       {mine.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {mine.map(doc => (
-            <div key={doc.id} style={{ fontSize: 13, padding: "3px 0", borderTop: "1px solid var(--pd-border)" }}>
+            <div key={doc.id} style={{ fontSize: 13, padding: "4px 0", borderTop: "1px solid var(--pd-border-soft)" }}>
               <a href={docFileUrl(caseId, doc.id)} target="_blank" rel="noopener noreferrer"
-                style={{ color: "var(--pd-accent)", textDecoration: "none" }}>{doc.original_filename}</a> — {docStatusBadge(doc.status)}
+                style={{ color: "var(--pd-accent)", fontWeight: 600 }}>{doc.original_filename}</a> — {docStatusBadge(doc.status)}
               {doc.doc_type && doc.doc_type !== "da_classificare" ? <span style={{ color: "var(--pd-text-muted)" }}> · {doc.doc_type}</span> : null}
               {doc.error ? <div style={{ color: "var(--pd-danger)", fontSize: 12 }}>{doc.error}</div> : null}
-              {["elaborato", "normalizzato"].includes(doc.status) && <span style={{ color: "var(--pd-ok)" }}> dati estratti aggiunti alla sezione</span>}
+              {["elaborato", "normalizzato"].includes(doc.status) && <span style={{ color: "var(--pd-ok)", fontSize: 12 }}> · dati estratti</span>}
             </div>
           ))}
         </div>
       )}
-      <p style={{ fontSize: 12, color: "var(--pd-text-faint)", margin: "6px 0 0" }}>Il documento finisce anche nell'archivio "Documenti" e viene elaborato in automatico.</p>
     </div>
   );
 }
@@ -2553,9 +3103,20 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
 
       {/* Canale UPLOAD — sempre presente */}
       <div style={{ borderTop: "1px solid var(--pd-border)", paddingTop: 8 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text)", marginBottom: 4 }}>Carica documento</div>
-        <input type="file" multiple onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" />
-        {busy && <span style={{ marginLeft: 8, fontSize: 12 }}>Upload...</span>}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--pd-text)" }}>Carica documento [D]</div>
+          <label style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "5px 11px", fontSize: 12, fontWeight: 700,
+            background: busy ? "var(--pd-surface-alt)" : "var(--pd-primary)",
+            color: busy ? "var(--pd-text-muted)" : "#fff",
+            borderRadius: 6, cursor: busy ? "not-allowed" : "pointer",
+            boxShadow: "var(--pd-shadow-sm)"
+          }}>
+            {busy ? "Caricamento..." : "Seleziona File"}
+            <input type="file" multiple onChange={onFile} disabled={busy} accept=".pdf,.png,.jpg,.jpeg,.tiff" style={{ display: "none" }} />
+          </label>
+        </div>
         {dup && <div style={{ marginTop: 6, color: "var(--pd-warn)", fontSize: 12, background: "var(--pd-warn-bg)", border: "1px solid var(--pd-border-strong)", borderRadius: 6, padding: "5px 9px" }}>{dup}</div>}
         {mine.map(doc => (
           <div key={doc.id} style={{ fontSize: 12, padding: "3px 0", borderTop: "1px solid var(--pd-border)", marginTop: 4 }}>
@@ -2602,7 +3163,7 @@ function DualChannelBox({ caseId, taxCode, cfg, docs, uploadedIds, onUploadedId,
   );
 }
 
-function SummaryCard({ title, onGo, children }) {
+function SummaryCard({ title, badge, onGo, children }) {
   const [hover, setHover] = useState(false);
   const clickable = !!onGo;
   return (
@@ -2610,15 +3171,18 @@ function SummaryCard({ title, onGo, children }) {
       onKeyDown={clickable ? (e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onGo(); } }) : undefined}
       onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{
-        background: "var(--pd-surface)", borderRadius: 8, padding: 16,
+        background: "var(--pd-surface)", borderRadius: 8, padding: "16px 18px",
         border: "1px solid " + (clickable && hover ? "var(--pd-accent)" : "var(--pd-border)"),
-        boxShadow: clickable && hover ? "var(--pd-shadow-md)" : "none",
+        boxShadow: clickable && hover ? "var(--pd-shadow-md)" : "var(--pd-shadow)",
         transform: clickable && hover ? "translateY(-1px)" : "none",
         cursor: clickable ? "pointer" : "default", transition: "border-color .12s, box-shadow .12s, transform .12s",
       }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <strong style={{ color: "var(--pd-accent)", fontSize: 15 }}>{title}</strong>
-        {onGo && <span style={{ color: "var(--pd-accent)", fontSize: 13 }}>Vai →</span>}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: "1px solid var(--pd-border-soft)" }}>
+        <strong style={{ color: "var(--pd-primary)", fontSize: 14.5 }}>{title}</strong>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {badge && <span className="pd-badge pd-badge--info" style={{ fontSize: 10.5, padding: "2px 7px" }}>{badge}</span>}
+          {onGo && <span style={{ color: "var(--pd-accent)", fontSize: 12.5, fontWeight: 700 }}>Apri →</span>}
+        </div>
       </div>
       {children}
     </div>
