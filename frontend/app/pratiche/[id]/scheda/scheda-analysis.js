@@ -334,9 +334,27 @@ function ReportField({ label, value, badgeTone }) {
   return <div className="pd-source-box"><label>{label}</label>{badgeTone ? <span className={`pd-badge pd-badge--${badgeTone}`}>{value}</span> : <strong>{value}</strong>}</div>;
 }
 
-function RiskLight({ status }) {
-  const tone = status === "danger" || status === "red" ? "danger" : status === "warn" || status === "amber" ? "warn" : status === "ok" || status === "green" ? "ok" : "neutral";
-  return <span className={`pd-badge pd-badge--${tone}`}>{tone === "ok" ? "corretto" : tone === "warn" ? "da verificare" : tone === "danger" ? "critico" : "Non disp. (NULL)"}</span>;
+function RiskLight({ status, hasValue = true }) {
+  if (!hasValue) {
+    return <span className="pd-badge pd-badge--neutral">Non disp. (NULL)</span>;
+  }
+  const tone =
+    status === "danger" || status === "red"
+      ? "danger"
+      : status === "warn" || status === "amber"
+        ? "warn"
+        : status === "ok" || status === "green"
+          ? "ok"
+          : "info";
+  const label =
+    tone === "ok"
+      ? "corretto"
+      : tone === "warn"
+        ? "da verificare"
+        : tone === "danger"
+          ? "critico"
+          : "rilevato";
+  return <span className={`pd-badge pd-badge--${tone}`}>{label}</span>;
 }
 
 function formatDateTime(value) {
@@ -479,42 +497,68 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
       </div>
 
       {/* RIGA 3: TABELLA INDICATORI CON SEMANTICA NULL ESPLICITA */}
-      <div className="pd-table-wrap">
-        <table className="pd-table">
-          <thead>
-            <tr>
-              <th>Indicatore Tecnico (OIC 12 / CCII)</th>
-              <th className="pd-num">Valore Calcolato</th>
-              <th>Formula Deterministica / Fonte</th>
-              <th>Stato Audit</th>
-              <th>Fonte</th>
-            </tr>
-          </thead>
-          <tbody>
-            {allIndicators.slice(0, 12).map((item) => (
-              <tr key={item.code}>
-                <td><strong>{item.label}</strong></td>
-                <td className="pd-num">
-                  <strong style={{ color: indicColor(item.status) }}>
-                    {fmtIndic(item) || "Non determinabile (Assenza SP — NULL)"}
-                  </strong>
-                </td>
-                <td>{item.formula_human || item.criterion || "Calcolo deterministico backend"}</td>
-                <td><RiskLight status={item.status} /></td>
-                <td>
-                  {item.source_tab ? (
-                    <button className="pd-btn pd-btn--ghost" type="button" onClick={() => goTab(item.source_tab)}>
-                      Apri
-                    </button>
-                  ) : "-"}
-                </td>
+      <div className="pd-card" style={{ padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--pd-border-soft)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <h3 className="pd-card__title" style={{ fontSize: 15.5, margin: 0 }}>
+              Indicatori Deterministici di Fascicolo (AdER, Patrimonio e Indebitamento)
+            </h3>
+            <p className="pd-card__subtitle" style={{ fontSize: 12, margin: "2px 0 0" }}>
+              Valori calcolati direttamente dai documenti caricati; i campi privi di fonte attiva restano esplicitamente <strong>NULL</strong>.
+            </p>
+          </div>
+          <button type="button" className="pd-btn pd-btn--ghost" onClick={() => goTab("indicatori")}>
+            Vedi tutti gli indicatori →
+          </button>
+        </div>
+        <div className="pd-table-wrap" style={{ border: 0, borderRadius: 0 }}>
+          <table className="pd-table">
+            <thead>
+              <tr>
+                <th>Indicatore Chiave (Fascicolo / CCII)</th>
+                <th className="pd-num">Valore Rilevato</th>
+                <th>Formula Deterministica / Fonte</th>
+                <th>Stato Audit</th>
+                <th>Scheda</th>
               </tr>
-            ))}
-            {allIndicators.length === 0 && (
-              <tr><td colSpan={5}>Nessun indicatore backend disponibile.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {allIndicators.slice(0, 12).map((item) => {
+                const formatted = fmtIndic(item);
+                const hasVal = item.value !== null && item.value !== undefined;
+                return (
+                  <tr key={item.code}>
+                    <td>
+                      <strong>{item.label}</strong>
+                      {item.area && (
+                        <div style={{ fontSize: 11, color: "var(--pd-text-faint)", textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 }}>
+                          {item.area}
+                        </div>
+                      )}
+                    </td>
+                    <td className="pd-num">
+                      <strong style={{ color: hasVal ? indicColor(item.status) : "var(--pd-text-muted)" }}>
+                        {formatted || "Non disponibile (NULL)"}
+                      </strong>
+                    </td>
+                    <td>{item.formula_human || item.criterion || "Calcolo deterministico backend"}</td>
+                    <td><RiskLight status={item.status} hasValue={hasVal} /></td>
+                    <td>
+                      {item.source_tab ? (
+                        <button className="pd-btn pd-btn--ghost" type="button" onClick={() => goTab(item.source_tab)}>
+                          Apri
+                        </button>
+                      ) : "-"}
+                    </td>
+                  </tr>
+                );
+              })}
+              {allIndicators.length === 0 && (
+                <tr><td colSpan={5}>Nessun indicatore backend disponibile.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -671,64 +715,103 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
         }
       `}</style>
 
-      {/* TOOLBAR NO-PRINT */}
-      <div className="pd-page-head no-print" style={{ marginBottom: 20 }}>
-        <div>
-          <h2 className="pd-h2">Report Finale & Dossier Tecnico Audit — Preanalisi ex CCII</h2>
-          <p>Doppio output sincronizzato: Relazione Cliente (7 pagine) + Dossier Tecnico di Calcolo, Quadrature Decimal e Audit Forense.</p>
+      {/* TOOLBAR NO-PRINT: RELAZIONE PRINCIPALE + AUDIT INTERNO SU RICHIESTA */}
+      <div className="pd-card no-print" style={{ marginBottom: 20, padding: "18px 20px", background: "var(--pd-surface)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--pd-border-soft)" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <h2 className="pd-h2" style={{ margin: 0 }}>DossierLex — Preanalisi completata</h2>
+              <span className="pd-badge pd-badge--ok">Un solo processo di analisi e verifica</span>
+            </div>
+            <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--pd-text-muted)" }}>
+              La <strong>Relazione Cliente (7 pagg.)</strong> è l&apos;output principale pronto per consultazione e consegna; l&apos;<strong>Audit Interno</strong> resta sempre conservato nel sistema ed esportabile in PDF su richiesta.
+            </p>
+          </div>
         </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "max-content max-content",
-            gap: "8px 10px",
-            alignItems: "stretch",
-            flexShrink: 0,
-          }}
-        >
-          <button
-            type="button"
-            className="pd-btn pd-btn--secondary"
-            onClick={() => handleExportPdf("inline")}
-            title="Visualizza il PDF vettoriale della Relazione Cliente (7 pagg.)"
-            style={{ width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
-          >
-            <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
-            Apri Relazione PDF
-          </button>
 
-          <button
-            type="button"
-            className="pd-btn pd-btn--primary"
-            onClick={() => handleExportPdf("download")}
-            title="Scarica il PDF ufficiale della Relazione Cliente (7 pagg.)"
-            style={{ width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
-          >
-            <span className="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
-            Scarica Relazione (7 pagg.)
-          </button>
+        <div className="pd-grid pd-grid--2" style={{ gap: 14 }}>
+          {/* BLOCCO SINISTRO: OUTPUT PRINCIPALE RELAZIONE CLIENTE */}
+          <div style={{ border: "1.5px solid var(--pd-primary)", borderRadius: 8, padding: "14px 16px", background: "var(--pd-surface-low)", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="material-symbols-outlined" style={{ color: "var(--pd-primary)", fontSize: 20 }}>description</span>
+                  <strong style={{ fontSize: 15, color: "var(--pd-primary)" }}>Relazione Cliente (7 pagg.)</strong>
+                </div>
+                <span className="pd-badge pd-badge--info">Output Principale</span>
+              </div>
+              <p style={{ margin: 0, fontSize: 12.5, color: "var(--pd-text-muted)" }}>
+                PDF da consultare, condividere o consegnare al cliente.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="pd-btn pd-btn--secondary"
+                onClick={() => handleExportPdf("inline")}
+                title="Visualizza il PDF vettoriale della Relazione Cliente (7 pagg.)"
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+                Apri Relazione PDF
+              </button>
+              <button
+                type="button"
+                className="pd-btn pd-btn--primary"
+                onClick={() => handleExportPdf("download")}
+                title="Scarica il PDF ufficiale della Relazione Cliente (7 pagg.)"
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+                Scarica Relazione (7 pagg.)
+              </button>
+            </div>
+          </div>
 
-          <button
-            type="button"
-            className="pd-btn pd-btn--secondary"
-            onClick={() => handleExportDossierPdf("inline")}
-            title="Apri il Dossier Tecnico di Calcolo, Fonti, Quadrature Decimal e 13 Anomalie"
-            style={{ borderColor: "#0284c7", color: "#0284c7", width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
-          >
-            <span className="material-symbols-outlined" aria-hidden="true">fact_check</span>
-            Apri Dossier Audit
-          </button>
-
-          <button
-            type="button"
-            className="pd-btn pd-btn--primary"
-            onClick={() => handleExportDossierPdf("download")}
-            title="Scarica il PDF del Dossier Tecnico di Calcolo e Audit Riservato allo Studio"
-            style={{ background: "#102a43", width: "100%", justifyContent: "center", whiteSpace: "nowrap" }}
-          >
-            <span className="material-symbols-outlined" aria-hidden="true">verified_user</span>
-            Scarica Dossier Tecnico Audit
-          </button>
+          {/* BLOCCO DESTRO: AUDIT INTERNO CONSERVATO + EXPORT SU RICHIESTA */}
+          <div style={{ border: "1px solid var(--pd-border)", borderRadius: 8, padding: "14px 16px", background: "var(--pd-surface)", display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="material-symbols-outlined" style={{ color: "#102a43", fontSize: 20 }}>verified_user</span>
+                  <strong style={{ fontSize: 15, color: "#102a43" }}>Audit Interno &amp; Dossier Tecnico</strong>
+                </div>
+                <span className="pd-badge pd-badge--warn">PDF su richiesta</span>
+              </div>
+              <p style={{ margin: 0, fontSize: 12.5, color: "var(--pd-text-muted)" }}>
+                8/8 Quadrature Decimal · 13 Anomalie (3 Rosse) · Human Gate in attesa. Conservato nel sistema.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="pd-btn pd-btn--ghost"
+                onClick={() => goTab && goTab("audit")}
+                title="Consulta il Quality Gate e il tracciato Audit nella scheda dedicata"
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">fact_check</span>
+                Consulta Audit in App
+              </button>
+              <button
+                type="button"
+                className="pd-btn pd-btn--secondary"
+                onClick={() => handleExportDossierPdf("inline")}
+                title="Apri anteprima PDF del Dossier Tecnico Audit (7 pagg.)"
+                style={{ borderColor: "#0284c7", color: "#0284c7" }}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+                Apri PDF Audit
+              </button>
+              <button
+                type="button"
+                className="pd-btn pd-btn--secondary"
+                onClick={() => handleExportDossierPdf("download")}
+                title="Esporta su richiesta il PDF del Dossier Tecnico di Calcolo e Audit Riservato allo Studio"
+                style={{ borderColor: "#102a43", color: "#102a43" }}
+              >
+                <span className="material-symbols-outlined" aria-hidden="true">download</span>
+                Esporta Dossier PDF (su richiesta)
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1488,24 +1571,24 @@ export function AuditTrail({ caseId, edits, docs, goTab }) {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {effectiveCaseId && (
             <>
-              <a
+              <button
+                type="button"
                 className="pd-btn pd-btn--secondary"
-                href={getAuditExportUrl(effectiveCaseId, "json")}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={() => window.open(getAuditExportUrl(effectiveCaseId, "json"), "_blank", "noopener,noreferrer")}
+                title="Scarica il file JSON completo dell'esecuzione Decimal e dei 5 test v2.1"
               >
                 <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
                 Esporta Audit JSON
-              </a>
-              <a
+              </button>
+              <button
+                type="button"
                 className="pd-btn pd-btn--secondary"
-                href={getAuditExportUrl(effectiveCaseId, "csv")}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={() => window.open(getAuditExportUrl(effectiveCaseId, "csv"), "_blank", "noopener,noreferrer")}
+                title="Scarica il file CSV delle quadrature Decimal compatibile con Excel e LibreOffice Calc"
               >
                 <span className="material-symbols-outlined" aria-hidden="true">table_view</span>
                 Esporta Audit CSV
-              </a>
+              </button>
             </>
           )}
           <button className="pd-btn pd-btn--primary" type="button" onClick={() => goTab("report")}>
