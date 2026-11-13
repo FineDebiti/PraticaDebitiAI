@@ -223,18 +223,44 @@ def build_source_matrix(
         },
     ]
 
-    # Arricchisce con gli hash SHA-256 reali a 64 caratteri presenti a DB
+    # Arricchisce con gli hash SHA-256 reali a 64 caratteri presenti a DB tramite matching semantico
+    def _match_source_index(filename: str, doc_type: str) -> Optional[int]:
+        low = f"{filename} {doc_type}".lower()
+        if "camerale" in low or "ordinaria" in low or "cciaa" in low:
+            return 0  # DOC-01
+        if "contabile" in low or "bilancio" in low:
+            return 1  # DOC-02
+        if "unico" in low or "redditi" in low or "730" in low or "dichiarazione" in low:
+            return 2  # DOC-03
+        if "saldati" in low or "rottamazione" in low or "procedure" in low or "fermo" in low:
+            return 4  # DOC-05
+        if "ruolo" in low or "ader" in low or "aer" in low or "saldare" in low or "cartell" in low:
+            return 3  # DOC-04
+        if "centrale" in low or "banca d" in low or "banca_d" in low or " cr" in low or "_cr" in low:
+            return 5  # DOC-06
+        if "ctc" in low or "crif" in low or "tutela del credito" in low:
+            return 6  # DOC-07
+        if "catast" in low or "sister" in low or "immobili" in low:
+            return 7  # DOC-08
+        if "pra" in low or "panda" in low or "veicol" in low or "mobili" in low or "targa" in low:
+            return 8  # DOC-09
+        if "incontro" in low or "riepilogo" in low or "verbale" in low or "memoria" in low:
+            return 9  # DOC-10
+        return None
+
     if docs:
         for idx, d in enumerate(docs):
             fname = getattr(d, "original_filename", None) or f"doc_{idx + 1}.pdf"
+            dtype = getattr(d, "doc_type", None) or ""
             sha_full = getattr(d, "sha256", None) or hashlib.sha256(fname.encode("utf-8")).hexdigest()
-            if idx < len(benchmark_sources):
-                benchmark_sources[idx]["sha256_full"] = sha_full
-                benchmark_sources[idx]["sha256_prefix"] = sha_full[:16]
-                benchmark_sources[idx]["db_document_id"] = getattr(d, "id", "")
-                if fname not in benchmark_sources[idx]["files_appartenenti"]:
-                    benchmark_sources[idx]["files_appartenenti"].append(fname)
-                benchmark_sources[idx]["file_attivo"] = True
+            matched_idx = _match_source_index(fname, dtype)
+            if matched_idx is not None and matched_idx < len(benchmark_sources):
+                target = benchmark_sources[matched_idx]
+                if not target.get("sha256_full"):
+                    target["sha256_full"] = sha_full
+                    target["sha256_prefix"] = sha_full[:16]
+                    target["db_document_id"] = getattr(d, "id", "")
+                target["file_attivo"] = True
 
     for s in benchmark_sources:
         canonical_seed = f"{s['source_id']}::{s['documento']}::{','.join(s['files_appartenenti'])}"
@@ -1390,10 +1416,12 @@ def export_audit_execution_json(docs: Optional[List[Any]] = None, report_data: O
 
 
 def export_audit_execution_csv(docs: Optional[List[Any]] = None, report_data: Optional[Dict[str, Any]] = None) -> str:
-    """Esporta le quadrature Decimal e i valori non arrotondati in formato CSV verificabile."""
+    """Esporta le quadrature Decimal e i valori non arrotondati in formato CSV verificabile,
+    compatibile al 100% con LibreOffice Calc ed Excel (UTF-8 BOM, nessuna virgola o JSON annidato nelle celle)."""
     dossier = build_complete_technical_dossier(docs=docs, report_data=report_data)
     output = io.StringIO()
-    writer = csv.writer(output, delimiter=";")
+    output.write("\ufeff")  # UTF-8 BOM per apertura immediata in LibreOffice Calc / Excel
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n", quoting=csv.QUOTE_MINIMAL)
     writer.writerow([
         "QUAD_ID",
         "TITOLO",
@@ -1405,16 +1433,22 @@ def export_audit_execution_csv(docs: Optional[List[Any]] = None, report_data: Op
         "ESITO",
         "TEST_AUTOMATICO",
     ])
+
+    def _clean_cell(text: Any) -> str:
+        return str(text or "").replace(",", " / ").replace(";", " - ").replace('"', "").strip()
+
     for q in dossier["decimal_audit"]["quadrature"]:
+        raw_sources = q.get("valori_sorgente_non_arrotondati", {})
+        flat_sources = " | ".join(f"{k}={v}" for k, v in raw_sources.items())
         writer.writerow([
-            q["quad_id"],
-            q["titolo"],
-            q["formula_codice"],
-            json.dumps(q["valori_sorgente_non_arrotondati"], ensure_ascii=False),
-            q["valore_calcolato_raw"],
-            q["valore_atteso_raw"],
-            q["scarto_raw"],
-            q["esito"],
-            q["test_automatico"],
+            _clean_cell(q["quad_id"]),
+            _clean_cell(q["titolo"]),
+            _clean_cell(q["formula_codice"]),
+            _clean_cell(flat_sources),
+            _clean_cell(q["valore_calcolato_raw"]),
+            _clean_cell(q["valore_atteso_raw"]),
+            _clean_cell(q["scarto_raw"]),
+            _clean_cell(q["esito"]),
+            _clean_cell(q["test_automatico"]),
         ])
     return output.getvalue()

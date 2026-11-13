@@ -117,6 +117,20 @@ def test_5_sha256_completi_64_caratteri_e_coerenza_7_pagine_pdf():
     assert dossier_pdf_bytes.startswith(b"%PDF")
     with pdfplumber.open(io.BytesIO(dossier_pdf_bytes)) as pdf:
         assert len(pdf.pages) == dossier["expected_pages"] == 7
+        p1_txt = pdf.pages[0].extract_text() or ""
+        p2_txt = pdf.pages[1].extract_text() or ""
+        p3_txt = pdf.pages[2].extract_text() or ""
+        p4_txt = pdf.pages[3].extract_text() or ""
+        p5_txt = pdf.pages[4].extract_text() or ""
+        p6_txt = pdf.pages[5].extract_text() or ""
+        p7_txt = pdf.pages[6].extract_text() or ""
+        assert "SEZIONE 01" in p1_txt and "DOC-10" in p1_txt
+        assert "SEZIONE 02" in p2_txt and "EV-13" in p2_txt
+        assert "SEZIONE 03" in p3_txt and "QUAD-08" in p3_txt
+        assert "SEZIONE 04" in p4_txt and "COLLAUDO-05" in p4_txt
+        assert "SEZIONE 05" in p5_txt and "ANOM-13" in p5_txt
+        assert "SEZIONE 06" in p6_txt and "OBIEZ-06" in p6_txt
+        assert "SEZIONE 07" in p7_txt and "QG-06" in p7_txt
         full_text = "\n".join((p.extract_text() or "") for p in pdf.pages)
         assert "523.100,79" in full_text
         assert "HUMAN GATE IN ATTESA" in full_text

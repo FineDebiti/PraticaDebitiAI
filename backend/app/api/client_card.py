@@ -676,9 +676,8 @@ def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
     _get_case(db, case_id)
     report_record, report_data = get_or_create_preanalysis_report(db, case_id)
     if isinstance(report_data, dict):
-        if "technical_dossier" not in report_data:
-            docs = db.query(Document).filter_by(case_id=case_id).all()
-            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        docs = db.query(Document).filter_by(case_id=case_id).all()
+        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {
             "version": report_record.version,
             "status": report_record.status,
@@ -771,9 +770,8 @@ def get_technical_dossier_pdf_endpoint(
     case = _get_case(db, case_id)
     report_record, report_data = get_or_create_preanalysis_report(db, case_id)
     if isinstance(report_data, dict):
-        if "technical_dossier" not in report_data:
-            docs = db.query(Document).filter_by(case_id=case_id).all()
-            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        docs = db.query(Document).filter_by(case_id=case_id).all()
+        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {"version": report_record.version}
 
     pdf_bytes = generate_technical_dossier_pdf(report_data)

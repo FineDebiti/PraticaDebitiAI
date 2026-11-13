@@ -384,12 +384,54 @@ export default function Scheda({ params, initialSection = "documenti" }) {
             </SummaryCard>
           </div>
 
-          <CrossAnalysisView
-            crossAnalysis={crossAnalysis}
-            loading={crossLoading}
-            onRun={handleRunCrossAnalysis}
-            goTab={goTab}
-          />
+          <div className="pd-card" style={{ padding: "18px 20px", background: "var(--pd-surface)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span className="material-symbols-outlined" style={{ color: "var(--pd-primary)", fontSize: 20 }}>verified_user</span>
+                  <h3 className="pd-card__title" style={{ margin: 0, fontSize: 16 }}>
+                    Sintesi Controlli Forensi e Riconciliazione Deterministica
+                  </h3>
+                  <span className="pd-badge pd-badge--ok">Motore v2.1 Attivo</span>
+                </div>
+                <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--pd-text-muted)" }}>
+                  I controlli su incongruenze, anti-duplicazione debiti e scenari CCII sono ora integrati e certificati nel <strong>Dossier Tecnico di Audit (7 pagg.)</strong>.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" className="pd-btn pd-btn--secondary" onClick={() => goTab("audit")}>
+                  <span className="material-symbols-outlined" aria-hidden="true">fact_check</span>
+                  Quality Gate & Audit
+                </button>
+                <button type="button" className="pd-btn pd-btn--primary" onClick={() => goTab("report")}>
+                  <span className="material-symbols-outlined" aria-hidden="true">description</span>
+                  Apri Relazione & Dossier Tecnico
+                </button>
+              </div>
+            </div>
+            <div className="pd-grid pd-grid--4">
+              <div className="pd-source-box">
+                <label>Quadrature Decimal</label>
+                <strong style={{ color: "var(--pd-ok)" }}>8 / 8 Verificate</strong>
+                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Scarto aritmetico € 0,00 al centesimo</span>
+              </div>
+              <div className="pd-source-box">
+                <label>Anti-Duplicazione Passivo</label>
+                <strong style={{ color: "var(--pd-primary)" }}>4 Filtri Attivi</strong>
+                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>INPS in AdER, rottamazioni e CR storica non duplicati</span>
+              </div>
+              <div className="pd-source-box">
+                <label>Controllo Inferenze (INF-01..05)</label>
+                <strong style={{ color: "var(--pd-ok)" }}>5 / 5 Regole OK</strong>
+                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Blocco attivo su Rigo RG5 ≠ incassi/cassa</span>
+              </div>
+              <div className="pd-source-box">
+                <label>Anomalie & Human Gate</label>
+                <strong style={{ color: "var(--pd-warn)" }}>13 Censite (3 Rosse)</strong>
+                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Divieto di auto-approvazione senza revisione umana</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

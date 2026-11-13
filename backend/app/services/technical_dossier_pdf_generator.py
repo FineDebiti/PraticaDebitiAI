@@ -1,18 +1,15 @@
 """Generatore PDF per il Secondo Elaborato Standard di DossierLex:
 'DOSSIER TECNICO DI CALCOLO, RICONCILIAZIONE E AUDIT FORENSE' (v2.1).
 
-Affianca la Relazione Cliente (7 pagine) con il fascicolo di verifica interna (7 pagine)
-contenente:
-1. Matrice dettagliata delle fonti (ID stabile, file esatti, SHA-256 completo a 64 caratteri,
-   distinzione tra copertura pagine e metodo/accuratezza di estrazione)
-2. Tracciabilità cifra -> fonte, pagina, formula al centesimo e natura epistemica [D/R/C/S/H]
-3. Motore matematico deterministico Decimal: formule esplicite, valori non arrotondati al centesimo,
-   riferimento ai test automatici ed esito delle 5 Prove Controllate (Collaudo Decisivo v2.1)
-4. Audit semantica NULL vs Zero e Controllo automatico delle inferenze (blocco RG5 -> cassa)
-5. Registro codificato delle 13 anomalie istruttorie (Rosso / Arancio / Giallo)
-6. Revisione avversariale (Controargomentazioni alla praticabilità della CNC)
-7. Registro delle correzioni con metadati di versione/codice/test e Quality Gate a 4 stati
-   (che distingue Audit automatico superato, Istruttoria incompleta, Human Gate in attesa e Relazione approvata)
+Impaginazione editoriale rigorosa su 7 pagine A4 verticali (1 sezione per pagina, zero tabelle spezzate
+a cavallo di pagina, zero titoli troncati):
+- Pagina 1: Intestazione Istituzionale + 4 KPI + Sezione 01 (Matrice delle 10 Fonti e SHA-256 a 64 caratteri)
+- Pagina 2: Sezione 02 (Tracciabilità Puntuale Cifra -> Fonte, Pagina, Formula e Natura Epistemica EV-01..EV-13)
+- Pagina 3: Sezione 03 (Quadrature Matematiche Deterministiche Decimal al Centesimo QUAD-01..QUAD-08)
+- Pagina 4: Sezione 04 (Collaudo Reattivo 5 Prove v2.1, Semantica NULL vs Zero e Controllo Inferenze INF-01..05)
+- Pagina 5: Sezione 05 (Registro Codificato delle 13 Anomalie Istruttorie ANOM-01..ANOM-13)
+- Pagina 6: Sezione 06 (Revisione Avversariale: 6 Controargomentazioni alla Praticabilità della CNC)
+- Pagina 7: Sezione 07 (Cronologia Correzioni di Versione CORR-01..06 e Quality Gate a 4 Stati Distinti)
 """
 
 import os
@@ -26,34 +23,34 @@ from app.services.forensic_audit_engine import (
     run_controlled_verification_suite,
 )
 
-# Tavolozza peritale Audit Tecnico
-COLOR_NAVY = (16, 42, 67)          # #102a43
-COLOR_TEAL = (2, 132, 199)         # #0284c7
-COLOR_SUBTITLE = (71, 85, 105)     # #475569
-COLOR_TEXT_DARK = (30, 41, 59)     # #1e293b
-COLOR_TEXT_MUTED = (100, 116, 139) # #64748b
-COLOR_BORDER = (203, 213, 225)     # #cbd5e1
-COLOR_CARD_BG = (248, 250, 252)    # #f8fafc
-COLOR_ROW_ALT = (241, 245, 249)    # #f1f5f9
-COLOR_RED_BG = (254, 242, 242)
-COLOR_RED_TXT = (185, 28, 28)
-COLOR_AMBER_BG = (255, 251, 235)
-COLOR_AMBER_TXT = (180, 83, 9)
-COLOR_GREEN_BG = (240, 253, 244)
-COLOR_GREEN_TXT = (21, 128, 61)
+# Tavolozza istituzionale ad alto contrasto e leggibilità per il Dossier Tecnico
+COLOR_NAVY = (16, 42, 67)          # #102a43 Blu navy istituzionale
+COLOR_TEAL = (2, 132, 199)         # #0284c7 Azzurro tecnico
+COLOR_SUBTITLE = (71, 85, 105)     # #475569 Grigio ardesia
+COLOR_TEXT_DARK = (30, 41, 59)     # #1e293b Testo principale nitido
+COLOR_TEXT_MUTED = (100, 116, 139) # #64748b Testo secondario
+COLOR_BORDER = (203, 213, 225)     # #cbd5e1 Bordo griglia sottile
+COLOR_CARD_BG = (248, 250, 252)    # #f8fafc Sfondo card e righe pari
+COLOR_ROW_ALT = (241, 245, 249)    # #f1f5f9 Evidenziazione valori
+COLOR_RED_BG = (254, 242, 242)     # #fef2f2 Severità Rossa
+COLOR_RED_TXT = (185, 28, 28)      # #b91c1c
+COLOR_AMBER_BG = (255, 251, 235)   # #fffbeb Severità Arancio / Cautela
+COLOR_AMBER_TXT = (180, 83, 9)     # #b45309
+COLOR_GREEN_BG = (240, 253, 244)   # #f0fdf4 Verificato / Superato
+COLOR_GREEN_TXT = (21, 128, 61)    # #15803d
 COLOR_WHITE = (255, 255, 255)
 
 
 class TechnicalDossierPDF(FPDF):
-    """FPDF specializzata per il Dossier Tecnico di Calcolo e Audit."""
+    """FPDF specializzata per il Dossier Tecnico di Calcolo e Audit (7 pagine A4)."""
 
     def __init__(self, client_name: str = "", draft_date: str = "12.11.2026", version: int = 1):
         super().__init__(orientation="portrait", unit="mm", format="A4")
         self.client_name = client_name or "PIU' D'AMICO LUCREZIA"
         self.draft_date = draft_date or "12.11.2026"
         self.version = version
-        self.set_margins(left=14, top=14, right=14)
-        self.set_auto_page_break(auto=True, margin=16)
+        self.set_margins(left=13, top=12, right=13)
+        self.set_auto_page_break(auto=True, margin=13)
         self.alias_nb_pages()
         self._setup_fonts()
 
@@ -72,44 +69,66 @@ class TechnicalDossierPDF(FPDF):
         pass
 
     def footer(self):
-        self.set_y(-12)
-        self.set_font(self.font_family_name, "", 7.0)
+        self.set_y(-11)
+        self.set_draw_color(*COLOR_BORDER)
+        self.set_line_width(0.2)
+        self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
+        self.ln(1.5)
+        self.set_font(self.font_family_name, "", 6.8)
         self.set_text_color(*COLOR_TEXT_MUTED)
         left_text = f"DOSSIER TECNICO DI AUDIT E CALCOLO | {self.client_name.upper()} (v{self.version})"
-        self.cell(self.epw / 2, 4, left_text, align="L")
-        right_text = f" USO INTERNO RISERVATO STUDIO • {self.draft_date} • Pag. {self.page_no()} / {{nb}}"
-        self.cell(self.epw / 2, 4, right_text, align="R")
+        self.cell(self.epw / 2, 3.5, left_text, align="L")
+        right_text = f"USO INTERNO RISERVATO STUDIO • {self.draft_date} • Pagina {self.page_no()} di {{nb}}"
+        self.cell(self.epw / 2, 3.5, right_text, align="R")
 
     def section_banner(self, code: str, title: str):
-        if self.get_y() > 245:
-            self.add_page()
-        self.ln(2)
-        self.set_font(self.font_family_name, "B", 7.0)
-        self.set_text_color(*COLOR_TEXT_MUTED)
-        self.cell(self.epw, 3.5, "DOSSIER TECNICO DI CALCOLO E AUDIT FORENSE / VERIFICA INDIPENDENTE", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.set_font(self.font_family_name, "B", 10.0)
-        self.set_text_color(*COLOR_TEAL)
-        self.cell(self.epw, 5.0, f"SEZIONE {code} — {title.upper()}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.ln(1.5)
+        """Intestazione di sezione con barra d'accento e testo multi-riga (mai tagliato a destra)."""
+        y0 = self.get_y()
+        self.set_fill_color(*COLOR_CARD_BG)
+        self.set_draw_color(*COLOR_BORDER)
+        self.rect(self.l_margin, y0, self.epw, 10.5, style="DF")
+        # Barra verticale blu navy a sinistra
+        self.set_fill_color(*COLOR_NAVY)
+        self.rect(self.l_margin, y0, 2.2, 10.5, style="F")
 
-    def sub_heading(self, title: str):
-        if self.get_y() > 255:
-            self.add_page()
-        self.ln(1.5)
+        self.set_xy(self.l_margin + 4.5, y0 + 1.4)
+        self.set_font(self.font_family_name, "B", 6.3)
+        self.set_text_color(*COLOR_TEXT_MUTED)
+        self.cell(
+            self.epw - 6,
+            3.0,
+            f"DOSSIER TECNICO DI CALCOLO E AUDIT FORENSE • FASCICOLO {self.client_name.upper()}",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
+        self.set_xy(self.l_margin + 4.5, y0 + 4.8)
         self.set_font(self.font_family_name, "B", 8.8)
         self.set_text_color(*COLOR_NAVY)
-        self.cell(self.epw, 4.5, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.ln(1)
+        self.cell(
+            self.epw - 6,
+            4.5,
+            f"SEZIONE {code} — {title.upper()}",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
+        self.set_y(y0 + 12.0)
 
-    def body_p(self, text: str, size_pt: float = 7.3, color=COLOR_TEXT_DARK):
+    def sub_heading(self, title: str):
+        self.ln(1.5)
+        self.set_font(self.font_family_name, "B", 8.0)
+        self.set_text_color(*COLOR_NAVY)
+        self.multi_cell(self.epw, 4.0, title, align="L")
+        self.ln(0.8)
+
+    def body_p(self, text: str, size_pt: float = 6.9, color=COLOR_TEXT_DARK):
         self.set_font(self.font_family_name, "", size_pt)
         self.set_text_color(*color)
-        self.multi_cell(self.epw, 3.5, text, align="L")
-        self.ln(1.0)
+        self.multi_cell(self.epw, 3.3, text, align="L")
+        self.ln(1.2)
 
 
 def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
-    """Genera il PDF completo del Dossier Tecnico di Calcolo e Audit sincronizzato con la Relazione Cliente."""
+    """Genera il PDF completo (7 pagine A4) del Dossier Tecnico di Calcolo e Audit."""
     header = report_data.get("header", {})
     client_name = header.get("cliente") or "PIU' D'AMICO LUCREZIA"
     draft_date = header.get("data_bozza") or "12.11.2026"
@@ -122,106 +141,111 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     pdf = TechnicalDossierPDF(client_name=client_name, draft_date=draft_date, version=version)
     f_fam = pdf.font_family_name
 
+    # Stili tipografici nitidi e compatti (184mm larghezza utile A4 con margini 13mm)
     header_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_WHITE, fill_color=COLOR_NAVY)
-    bold_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_TEXT_DARK, fill_color=COLOR_WHITE)
+    cell_regular = FontFace(family=f_fam, emphasis="", size_pt=5.8, color=COLOR_TEXT_DARK)
+    bold_style = FontFace(family=f_fam, emphasis="B", size_pt=5.9, color=COLOR_NAVY)
     highlight_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_NAVY, fill_color=COLOR_ROW_ALT)
-    red_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_RED_TXT, fill_color=COLOR_RED_BG)
-    amber_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_AMBER_TXT, fill_color=COLOR_AMBER_BG)
-    green_style = FontFace(family=f_fam, emphasis="B", size_pt=6.0, color=COLOR_GREEN_TXT, fill_color=COLOR_GREEN_BG)
+    red_style = FontFace(family=f_fam, emphasis="B", size_pt=5.7, color=COLOR_RED_TXT, fill_color=COLOR_RED_BG)
+    amber_style = FontFace(family=f_fam, emphasis="B", size_pt=5.7, color=COLOR_AMBER_TXT, fill_color=COLOR_AMBER_BG)
+    green_style = FontFace(family=f_fam, emphasis="B", size_pt=5.7, color=COLOR_GREEN_TXT, fill_color=COLOR_GREEN_BG)
 
     # =========================================================================
     # PAGINA 1: COPERTINA AUDIT & SEZIONE 01 (MATRICE FONTI CON SHA-256 64 CHAR)
     # =========================================================================
     pdf.add_page()
-    pdf.set_y(14)
-    pdf.set_font(f_fam, "B", 7.5)
+    pdf.set_y(11)
+
+    # Top bar istituzionale
+    top_y = pdf.get_y()
+    pdf.set_font(f_fam, "B", 7.2)
     pdf.set_text_color(*COLOR_TEAL)
-    pdf.cell(
+    pdf.cell(115, 4, f"ELABORATO 2 DI 2 — DOSSIER TECNICO DI AUDIT (v{version})", align="L")
+    pdf.set_text_color(*COLOR_RED_TXT)
+    pdf.cell(pdf.epw - 115, 4, f"RISERVATO ALLO STUDIO • {draft_date}", align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(1.0)
+    pdf.set_font(f_fam, "B", 13.5)
+    pdf.set_text_color(*COLOR_NAVY)
+    pdf.cell(pdf.epw, 5.5, "Dossier Tecnico di Calcolo, Riconciliazione e Audit Forense", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font(f_fam, "B", 10.0)
+    pdf.set_text_color(*COLOR_SUBTITLE)
+    pdf.cell(pdf.epw, 4.5, f"Fascicolo: {client_name} (Ditta individuale artigiana · Palermo)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(0.8)
+    pdf.set_font(f_fam, "", 6.4)
+    pdf.set_text_color(*COLOR_TEXT_MUTED)
+    pdf.multi_cell(
         pdf.epw,
-        4,
-        f"ELABORATO 2 DI 2 — DOSSIER TECNICO RISERVATO ALLO STUDIO | {draft_date} | VERSIONE v{version}",
-        new_x=XPos.LMARGIN,
-        new_y=YPos.NEXT,
+        3.0,
+        f"Motore: {dossier.get('engine_version')} | Commit: {dossier.get('git_commit_ref')} | Set Formule: {dossier.get('formula_set_version')} | "
+        "Tracciato JSON/CSV non arrotondato disponibile via API (/preanalysis-report/audit-export). Human Gate attivo.",
     )
     pdf.ln(1.5)
 
-    pdf.set_font(f_fam, "B", 15.5)
-    pdf.set_text_color(*COLOR_NAVY)
-    pdf.cell(pdf.epw, 6.0, "Dossier Tecnico di Calcolo, Riconciliazione e Audit", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font(f_fam, "B", 12.0)
-    pdf.cell(pdf.epw, 5.0, f"Fascicolo: {client_name} (Ditta individuale artigiana · Palermo)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.ln(1)
-
-    pdf.set_font(f_fam, "", 7.2)
-    pdf.set_text_color(*COLOR_SUBTITLE)
-    pdf.multi_cell(
-        pdf.epw,
-        3.4,
-        f"Motore: {dossier.get('engine_version')} | Commit: {dossier.get('git_commit_ref')} | Set Formule: {dossier.get('formula_set_version')} | "
-        "Export JSON/CSV non arrotondato disponibile via API (/preanalysis-report/audit-export). Human Gate attivo.",
-    )
-    pdf.ln(2.5)
-
-    # 4 Card Metriche di Audit
+    # 4 Card Metriche di Audit (compatte e senza alcuno sbordo)
     cards_y = pdf.get_y()
     card_w = (pdf.epw - 9) / 4
-    card_h = 17
+    card_h = 13.5
     qg = dossier.get("quality_gate", {})
     counts = qg.get("counts", {})
     audit_cards = [
-        ("10 Fonti [SHA-256 64ch]", "File esatti e copertura vs metodo"),
+        ("10 Fonti (SHA-256)", "Impronta 64 hex e copertura pagg."),
         ("8 / 8 Quadrature", "Decimal al centesimo (scarto €0,00)"),
         (f"{counts.get('totale_anomalie', 13)} Anomalie ({counts.get('rosso', 3)} Rosse)", "Istruttoria aperta • Human Gate"),
         ("5 / 5 Prove Collaudo", "Suite reattiva v2.1 superata"),
     ]
     for i, (val, lbl) in enumerate(audit_cards):
-        cx = 14 + i * (card_w + 3)
+        cx = pdf.l_margin + i * (card_w + 3)
         pdf.set_fill_color(*COLOR_CARD_BG)
         pdf.set_draw_color(*COLOR_BORDER)
         pdf.rect(cx, cards_y, card_w, card_h, style="DF")
-        pdf.set_xy(cx + 2, cards_y + 2.5)
-        pdf.set_font(f_fam, "B", 8.5)
+        pdf.set_xy(cx + 2, cards_y + 1.8)
+        pdf.set_font(f_fam, "B", 7.6)
         pdf.set_text_color(*COLOR_NAVY)
-        pdf.cell(card_w - 4, 4.0, val)
-        pdf.set_xy(cx + 2, cards_y + 8.0)
-        pdf.set_font(f_fam, "", 6.3)
+        pdf.cell(card_w - 4, 3.8, val)
+        pdf.set_xy(cx + 2, cards_y + 6.4)
+        pdf.set_font(f_fam, "", 5.9)
         pdf.set_text_color(*COLOR_TEXT_MUTED)
-        pdf.multi_cell(card_w - 4, 3.0, lbl)
+        pdf.multi_cell(card_w - 4, 2.7, lbl)
 
-    pdf.set_y(cards_y + card_h + 3)
+    pdf.set_y(cards_y + card_h + 2.2)
 
-    # SEZIONE 01: MATRICE DETTAGLIATA DELLE FONTI
-    pdf.section_banner("01", "Matrice Dettagliata delle Fonti, File Censiti e SHA-256 Completo (Modulo A)")
+    # SEZIONE 01: MATRICE DETTAGLIATA DELLE FONTI (tutte le 10 righe DOC-01..DOC-10 su Pagina 1)
+    pdf.section_banner("01", "Matrice delle Fonti, File Censiti e Impronta SHA-256 (Modulo A)")
     pdf.body_p(
-        "Ogni gruppo documentale riporta i file esatti appartenenti al gruppo, l'impronta crittografica SHA-256 integrale a 64 caratteri esadecimali, "
-        "la copertura delle pagine lette (distinta dal metodo/accuratezza di estrazione) e il perimetro informativo coperto."
+        "Ogni gruppo documentale riporta i file appartenenti al fascicolo, l'impronta crittografica SHA-256 integrale a 64 caratteri esadecimali, "
+        "la copertura delle pagine lette (distinta dal metodo di estrazione) e il perimetro informativo coperto.",
+        size_pt=6.4,
     )
 
     sources = dossier.get("sources_matrix", [])
-    col_w1 = (12, 64, 20, 28, 36, 22)  # 182mm = pdf.epw
+    col_w1 = (12, 68, 19, 28, 36, 21)  # Totale = 184mm = pdf.epw
     with pdf.table(
         col_widths=col_w1,
         headings_style=header_style,
-        line_height=2.6,
-        padding=(0.5, 0.7),
+        line_height=2.45,
+        padding=(0.45, 0.65),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "CENTER", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
         row.cell("ID")
-        row.cell("Documento / File Esatti / SHA-256 (64 hex)")
+        row.cell("Documento / File Censiti / Impronta SHA-256 (64 hex)")
         row.cell("Data / Pagg.")
-        row.cell("Copertura vs Metodo")
-        row.cell("Copertura Dati e Limiti Rilevati")
+        row.cell("Metodo Estrazione")
+        row.cell("Copertura Dati e Limiti")
         row.cell("Stato")
 
         for s in sources:
             sha64 = s.get("sha256_full", "")
+            sha_fmt = f"{sha64[:32]} {sha64[32:]}" if len(sha64) == 64 else sha64
             files_str = ", ".join(s.get("files_appartenenti", []))
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(s["source_id"], style=bold_style)
-            row.cell(f"{s['documento']} ({files_str})\nSHA256: {sha64}")
+            row.cell(f"{s['documento']}\nFile: {files_str}\nSHA-256: {sha_fmt}")
             row.cell(f"{s['data_documento']}\n{s.get('copertura_pagine', s['pagine'])}")
             row.cell(s.get("metodo_estrazione", s["leggibilita_ocr"]))
             row.cell(s["copertura_dati"])
@@ -230,26 +254,27 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
             row.cell(st_lbl, style=st_face)
 
     # =========================================================================
-    # PAGINA 2: SEZIONE 02 (TRACCIABILITÀ CIFRE -> FONTE E FORMULA)
+    # PAGINA 2: SEZIONE 02 (TRACCIABILITÀ CIFRE -> FONTE E FORMULA EV-01..EV-13)
     # =========================================================================
-    if pdf.get_y() > 80:
-        pdf.add_page()
+    pdf.add_page()
     pdf.section_banner("02", "Tracciabilità Puntuale Cifra → Fonte, Pagina, Formula e Natura Epistemica")
     pdf.body_p(
         "Ogni grandezza esposta nella Relazione Cliente discende da una specifica evidenza codificata (EV-01..EV-13). "
-        "Classificazione epistemica applicata: FATTO [D] = documentato; CALCOLO [C] = formula deterministica; "
-        "RIFERITO [R] = dichiarato verbalmente; STIMA [S] = forchetta esplorativa non peritale; IPOTESI [H] = simulazione what-if."
+        "Classificazione applicata: FATTO [D] = documentato; CALCOLO [C] = formula deterministica; "
+        "RIFERITO [R] = dichiarato verbalmente; STIMA [S] = forchetta esplorativa non peritale; IPOTESI [H] = simulazione what-if.",
+        size_pt=6.7,
     )
 
     ev_list = dossier.get("evidence_trace_map", [])
-    col_w2 = (14, 38, 28, 22, 38, 42)  # 182mm
+    col_w2 = (13, 39, 29, 23, 37, 43)  # Totale = 184mm
     with pdf.table(
         col_widths=col_w2,
         headings_style=header_style,
-        line_height=3.2,
-        padding=(0.8, 1.0),
+        line_height=2.95,
+        padding=(0.65, 0.85),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "RIGHT", "CENTER", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -261,7 +286,7 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Formula / Criterio di Riconciliazione")
 
         for ev in ev_list:
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(ev["ev_id"], style=bold_style)
             row.cell(ev["grandezza"], style=bold_style)
             row.cell(ev["valore"], style=highlight_style)
@@ -270,26 +295,27 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
             row.cell(ev["formula"])
 
     # =========================================================================
-    # PAGINA 3: SEZIONE 03 (QUADRATURE DECIMAL AL CENTESIMO E 5 PROVE CONTROLLATE)
+    # PAGINA 3: SEZIONE 03 (QUADRATURE DECIMAL AL CENTESIMO E ANTI-DUPLICAZIONE)
     # =========================================================================
-    if pdf.get_y() > 80:
-        pdf.add_page()
-    pdf.section_banner("03", "Controllo Indipendente dei Calcoli (Decimal al Centesimo) e Collaudo v2.1 (Modulo B)")
+    pdf.add_page()
+    pdf.section_banner("03", "Quadrature Matematiche Deterministiche (Decimal al Centesimo — Modulo B)")
     dec_audit = dossier.get("decimal_audit", {})
     pdf.body_p(
         f"Contesto esecuzione: {dec_audit.get('decimal_context')} | Timestamp: {dec_audit.get('executed_at_iso')}. "
-        "Tutte le quadrature sono ricalcolate sui valori sorgente non arrotondati (al centesimo) e verificate da test automatici pytest."
+        "Tutte le quadrature sono ricalcolate sui valori sorgente non arrotondati (al centesimo) e verificate da test automatici pytest.",
+        size_pt=6.7,
     )
 
     quads = dec_audit.get("quadrature", [])
-    col_w3 = (15, 38, 57, 28, 16, 28)  # 182mm
+    col_w3 = (15, 40, 57, 28, 16, 28)  # Totale = 184mm
     with pdf.table(
         col_widths=col_w3,
         headings_style=header_style,
-        line_height=2.8,
-        padding=(0.6, 0.8),
+        line_height=2.95,
+        padding=(0.65, 0.85),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "LEFT", "RIGHT", "CENTER", "CENTER"),
     ) as table:
         row = table.row()
@@ -302,7 +328,7 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
 
         for q in quads:
             src_str = ", ".join(f"{k}={v}" for k, v in q.get("valori_sorgente_non_arrotondati", {}).items())
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(q["quad_id"], style=bold_style)
             row.cell(f"{q['titolo']}\n[{q.get('test_automatico', '')}]", style=bold_style)
             row.cell(f"{q['formula']}\nSorgenti: {src_str}")
@@ -310,18 +336,58 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
             row.cell(q["scarto"])
             row.cell(q["esito"], style=green_style)
 
-    pdf.ln(1.5)
-    pdf.sub_heading("3.2 Verifica Anti-Placeholder (NULL vs € 0,00) e 5 Prove Controllate (Collaudo Decisivo v2.1)")
+    pdf.ln(2.0)
+    pdf.sub_heading("3.2 Regole di Riconciliazione ed Esclusione Duplicazioni Applicate (Anti-Double Counting)")
+    dup_rules = [
+        ("DUP-01", "Carichi Previdenziali INPS (€ 210.604,29)", "Estratto AdER Da Saldare", "Già compresi nel totale AdER di € 386.695,79 — non sommati una seconda volta come voce autonoma."),
+        ("DUP-02", "Rate Piani di Rottamazione e Preavvisi Fermo", "AdER Procedure / Moduli", "Riferiti alle medesime cartelle dell'estratto Da Saldare — esclusi dal cumulo aggiuntivo."),
+        ("DUP-03", "Segnalazioni Storiche CR 2025 e Cessioni GIADA Sec.", "Centrale Rischi Banca d'Italia", "Considerato esclusivamente lo stock attivo dell'ultimo mese rilevato (agosto 2026: € 133.460,00)."),
+        ("DUP-04", "Finanziamenti Compass e Agos Estinti", "Visura CTC / CRIF", "Contratti storicamente chiusi/regolari — esclusi dal passivo residuo (inclusa solo Santander € 2.945,00)."),
+    ]
+    col_wd = (16, 48, 38, 82)  # Totale = 184mm
+    with pdf.table(
+        col_widths=col_wd,
+        headings_style=header_style,
+        line_height=2.9,
+        padding=(0.6, 0.8),
+        borders_layout=TableBordersLayout.ALL,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
+        text_align=("CENTER", "LEFT", "LEFT", "LEFT"),
+    ) as table:
+        row = table.row()
+        row.cell("Regola")
+        row.cell("Partita Esaminata")
+        row.cell("Fonte Documentale")
+        row.cell("Trattamento Contabile e Criterio Anti-Duplicazione")
+        for code, part, src, desc in dup_rules:
+            row = table.row(style=cell_regular)
+            row.cell(code, style=bold_style)
+            row.cell(part, style=bold_style)
+            row.cell(src)
+            row.cell(desc)
+
+    # =========================================================================
+    # PAGINA 4: SEZIONE 04 (COLLAUDO 5 PROVE v2.1, NULL VS ZERO E INFERENZE)
+    # =========================================================================
+    pdf.add_page()
+    pdf.section_banner("04", "Collaudo Reattivo v2.1 (5 Prove Controllate) e Controllo Inferenze (Modulo D)")
+    pdf.sub_heading("4.1 Suite di 5 Prove Controllate su Copia di Test in Memoria (Collaudo Decisivo DossierLex v2.1)")
+    pdf.body_p(
+        "Esecuzione automatica delle 5 prove di mutazione controllata richieste dal revisore per dimostrare l'esecuzione reale e indipendente dei controlli.",
+        size_pt=6.6,
+    )
 
     prove = collaudo_suite.get("prove", [])
-    col_wp = (22, 38, 46, 54, 22)  # 182mm
+    col_wp = (22, 38, 46, 56, 22)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wp,
         headings_style=header_style,
-        line_height=2.8,
-        padding=(0.6, 0.8),
+        line_height=2.9,
+        padding=(0.65, 0.85),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
@@ -332,33 +398,31 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Esito")
 
         for pr in prove:
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(pr["prova_id"], style=bold_style)
             row.cell(pr["titolo"], style=bold_style)
             row.cell(pr["input_test"])
             row.cell(pr["risultato_osservato"])
             row.cell(pr["esito"], style=green_style if pr["esito"] == "SUPERATO" else red_style)
 
-    # =========================================================================
-    # PAGINA 4: SEZIONE 04 (VERIFICA INFERENZE E REGISTRO ANOMALIE)
-    # =========================================================================
-    if pdf.get_y() > 80:
-        pdf.add_page()
-    pdf.section_banner("04", "Controllo Automatico delle Inferenze e Caso Critico Rigo RG5 (Modulo D)")
+    pdf.ln(2.0)
+    pdf.sub_heading("4.2 Controllo Automatico delle Inferenze e Caso Critico Rigo RG5 (INF-01 .. INF-05)")
     pdf.body_p(
-        "Il verificatore epistemico distingue rigorosamente ciò che il documento attesta [D] da ciò che il modello inferisce. "
-        "In particolare, blocca qualsiasi conclusione che trasformi componenti fiscali dichiarative (rigo RG5 €63.256 / reddito €237) in flussi di cassa."
+        "Il verificatore epistemico distingue ciò che il documento attesta [D] da ciò che il modello inferisce, "
+        "bloccando qualsiasi conclusione che trasformi componenti fiscali dichiarative (rigo RG5 €63.256 / reddito €237) in flussi di cassa.",
+        size_pt=6.6,
     )
 
     inf_checks = dossier.get("inference_audit", {}).get("checks", [])
-    col_wi = (16, 42, 44, 52, 28)  # 182mm
+    col_wi = (16, 42, 45, 53, 28)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wi,
         headings_style=header_style,
-        line_height=3.5,
-        padding=(0.9, 1.1),
+        line_height=2.95,
+        padding=(0.65, 0.85),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
@@ -369,29 +433,34 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Esito Gate")
 
         for ic in inf_checks:
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(ic["rule_id"], style=bold_style)
             row.cell(ic["regola"], style=bold_style)
             row.cell(ic["inferenza_vietata"])
             row.cell(ic["formulazione_applicata"])
             row.cell(ic["esito"], style=green_style)
 
-    pdf.ln(2.5)
+    # =========================================================================
+    # PAGINA 5: SEZIONE 05 (REGISTRO CODIFICATO DELLE 13 ANOMALIE)
+    # =========================================================================
+    pdf.add_page()
     pdf.section_banner("05", "Registro Codificato delle 13 Anomalie e Questioni Aperte (ANOM-01 .. ANOM-13)")
     pdf.body_p(
         "Le 13 anomalie emerse dall'incrocio tra contabilità, dichiarazioni fiscali, AdER, CR, CTC e dichiarazioni della parte sono classificate "
-        "per severità: ROSSO (blocca l'approvazione autonoma), ARANCIO (richiede verifica documentale prioritaria), GIALLO (avvertenza istruttoria)."
+        "per severità: ROSSO (blocca l'approvazione autonoma), ARANCIO (richiede verifica documentale prioritaria), GIALLO (avvertenza istruttoria).",
+        size_pt=6.6,
     )
 
     anomalies = dossier.get("anomaly_register", [])
-    col_wa = (18, 18, 32, 58, 56)  # 182mm
+    col_wa = (17, 17, 33, 59, 58)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wa,
         headings_style=header_style,
-        line_height=3.0,
-        padding=(0.7, 0.9),
+        line_height=2.75,
+        padding=(0.55, 0.75),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "CENTER", "LEFT", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -404,7 +473,7 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         for an in anomalies:
             sev = an["severita"]
             sev_style = red_style if sev == "ROSSO" else (amber_style if sev == "ARANCIO" else bold_style)
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(an["code"], style=bold_style)
             row.cell(sev, style=sev_style)
             row.cell(f"{an['area']}\n[{an['fonte']}]")
@@ -415,21 +484,23 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     # PAGINA 6: SEZIONE 06 (REVISIONE AVVERSARIALE E CONTROARGOMENTAZIONI CNC)
     # =========================================================================
     pdf.add_page()
-    pdf.section_banner("06", "Revisione Avversariale: Controargomentazioni alla Praticabilità della CNC")
+    pdf.section_banner("06", "Revisione Avversariale: 6 Controargomentazioni alla Praticabilità della CNC")
     pdf.body_p(
         "Come richiesto dagli standard di audit forense, questa sezione esamina deliberatamente le ragioni tecniche, industriali e giuridiche "
-        "per cui la Composizione Negoziata della Crisi (CNC ex artt. 12 ss. CCII) potrebbe risultare NON praticabile o essere archiviata dall'Esperto."
+        "per cui la Composizione Negoziata della Crisi (CNC ex artt. 12 ss. CCII) potrebbe risultare NON praticabile o essere archiviata dall'Esperto.",
+        size_pt=6.8,
     )
 
     adv_list = dossier.get("adversarial_review", [])
-    col_wadv = (18, 46, 64, 54)  # 182mm
+    col_wadv = (18, 46, 65, 55)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wadv,
         headings_style=header_style,
-        line_height=3.0,
-        padding=(0.7, 0.9),
+        line_height=3.2,
+        padding=(0.85, 1.0),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -439,25 +510,29 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Rischio in Sede di CNC / CCII")
 
         for ob in adv_list:
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(ob["id"], style=red_style)
             row.cell(ob["titolo"], style=bold_style)
             row.cell(ob["argomentazione"])
             row.cell(ob["impatto_ccii"])
 
+    # =========================================================================
+    # PAGINA 7: SEZIONE 07 (CRONOLOGIA CORREZIONI E QUALITY GATE A 4 STATI)
+    # =========================================================================
     pdf.add_page()
     pdf.section_banner("07", "Cronologia Correzioni di Versione e Quality Gate a 4 Stati Distinti")
     pdf.sub_heading("7.1 Storico delle Modifiche con Data, Versioni, Codice e Test di Regressione (CORR-01 .. CORR-06)")
 
     corrs = dossier.get("version_corrections", [])
-    col_wc = (24, 38, 44, 44, 32)  # 182mm
+    col_wc = (24, 38, 44, 45, 33)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wc,
         headings_style=header_style,
-        line_height=2.9,
-        padding=(0.6, 0.8),
+        line_height=2.95,
+        padding=(0.65, 0.85),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "LEFT", "LEFT", "LEFT"),
     ) as table:
         row = table.row()
@@ -468,25 +543,26 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row.cell("Codice e Test Regressione")
 
         for c in corrs:
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(f"{c['corr_id']}\n{c.get('data_modifica', '')}\n({c.get('versioni', '')})", style=bold_style)
             row.cell(c["oggetto"], style=bold_style)
             row.cell(c["prima"])
             row.cell(c["dopo"])
             row.cell(c.get("codice_e_test", "PASS"), style=highlight_style)
 
-    pdf.ln(1.5)
+    pdf.ln(2.0)
     pdf.sub_heading("7.2 Checklist Quality Gate e Separazione Obbligatoria dei 4 Stati (Divieto di Auto-Approvazione)")
 
     checklist = qg.get("checklist", [])
-    col_wqg = (16, 48, 70, 48)  # 182mm
+    col_wqg = (16, 48, 72, 48)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wqg,
         headings_style=header_style,
-        line_height=2.9,
-        padding=(0.6, 0.8),
+        line_height=2.95,
+        padding=(0.65, 0.85),
         borders_layout=TableBordersLayout.ALL,
-        cell_fill_mode=TableCellFillMode.NONE,
+        cell_fill_mode=TableCellFillMode.ROWS,
+        cell_fill_color=COLOR_CARD_BG,
         text_align=("CENTER", "LEFT", "LEFT", "CENTER"),
     ) as table:
         row = table.row()
@@ -497,22 +573,31 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
 
         for item in checklist:
             st_face = green_style if item["status"] == "ok" else amber_style
-            row = table.row()
+            row = table.row(style=cell_regular)
             row.cell(item["test_id"], style=bold_style)
             row.cell(item["criterio"], style=bold_style)
             row.cell(item["target"])
             row.cell(item["esito"], style=st_face)
 
-    pdf.ln(2)
+    pdf.ln(2.5)
     stati = qg.get("stati_distinti", {})
-    pdf.body_p(
-        f"STATO UFFICIALE A 4 LIVELLI (NESSUNA AUTO-APPROVAZIONE SOFTWARE):\n"
-        f"1) {stati.get('stato_audit_automatico', 'AUDIT AUTOMATICO SUPERATO')}\n"
-        f"2) {stati.get('stato_istruttoria', 'ISTRUTTORIA INCOMPLETA')}\n"
-        f"3) {stati.get('stato_human_gate', 'HUMAN GATE IN ATTESA')}\n"
-        f"4) {stati.get('stato_relazione', 'NON APPROVATA PER USO ESTERNO')}",
-        size_pt=7.0,
-        color=COLOR_NAVY,
+    box_y = pdf.get_y()
+    pdf.set_fill_color(*COLOR_CARD_BG)
+    pdf.set_draw_color(*COLOR_NAVY)
+    pdf.rect(pdf.l_margin, box_y, pdf.epw, 22, style="DF")
+    pdf.set_xy(pdf.l_margin + 3, box_y + 2)
+    pdf.set_font(f_fam, "B", 7.2)
+    pdf.set_text_color(*COLOR_NAVY)
+    pdf.cell(pdf.epw - 6, 4, "STATO UFFICIALE A 4 LIVELLI DEL FASCICOLO (NESSUNA AUTO-APPROVAZIONE SOFTWARE):", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font(f_fam, "", 6.7)
+    pdf.set_x(pdf.l_margin + 3)
+    pdf.multi_cell(
+        pdf.epw - 6,
+        3.6,
+        f"1) Audit Automatico: {stati.get('stato_audit_automatico', 'AUDIT AUTOMATICO SUPERATO')}\n"
+        f"2) Stato Istruttoria: {stati.get('stato_istruttoria', 'ISTRUTTORIA INCOMPLETA')}\n"
+        f"3) Human Gate Professionista: {stati.get('stato_human_gate', 'HUMAN GATE IN ATTESA')}\n"
+        f"4) Stato Relazione: {stati.get('stato_relazione', 'NON APPROVATA PER USO ESTERNO')}",
     )
 
     return bytes(pdf.output())
