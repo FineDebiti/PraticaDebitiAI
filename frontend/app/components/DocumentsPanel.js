@@ -33,7 +33,6 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
   const [uploadProgress, setUploadProgress] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [notice, setNotice] = useState("");
-  const [copiedId, setCopiedId] = useState(null);
   const [priority, setPriority] = useState("ordinaria");
   const [docType, setDocType] = useState("da_classificare");
   const prevStatuses = useRef({});
@@ -130,15 +129,6 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
     await deleteDoc(caseId, doc.id);
     refresh();
     if (onProcessed) onProcessed();
-  }
-
-  function copySha(doc) {
-    if (!doc.sha256) return;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(doc.sha256);
-      setCopiedId(doc.id);
-      setTimeout(() => setCopiedId(null), 2000);
-    }
   }
 
   if (!data) return <p className="pd-muted">Caricamento inventario documentale...</p>;
@@ -386,7 +376,6 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
               {docs.map((d) => {
                 const q = confidence(d);
                 const shaFull = d.sha256 || "";
-                const shaShort = shaFull ? `${shaFull.slice(0, 16)}…${shaFull.slice(-8)}` : "Non calcolato";
                 const sizeLabel = formatBytes(d.size_bytes);
                 return (
                   <tr key={d.id} className={d.error || (q > 0 && q < 70) ? "pd-row--review" : undefined}>
@@ -416,35 +405,6 @@ export default function DocumentsPanel({ caseId, onProcessed }) {
                       <div style={{ fontWeight: 700, color: "var(--pd-text)", fontSize: 13.5 }}>
                         {DOC_TYPE_LABELS[d.doc_type] || d.doc_type || "In classificazione"}
                       </div>
-                      {shaFull ? (
-                        <button
-                          type="button"
-                          onClick={() => copySha(d)}
-                          title={`SHA-256 completo (64 char): ${shaFull} — Clicca per copiare`}
-                          style={{
-                            marginTop: 4,
-                            background: "var(--pd-surface-low)",
-                            border: "1px solid var(--pd-border)",
-                            borderRadius: 4,
-                            padding: "2px 7px",
-                            fontFamily: "var(--pd-font-mono)",
-                            fontSize: 11,
-                            color: "var(--pd-text-muted)",
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <span>SHA256: {shaShort}</span>
-                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
-                            {copiedId === d.id ? "check" : "content_copy"}
-                          </span>
-                          {copiedId === d.id && <strong style={{ color: "var(--pd-ok)" }}>Copiato!</strong>}
-                        </button>
-                      ) : (
-                        <div className="pd-faint" style={{ fontSize: 11.5, marginTop: 3 }}>Hash in calcolo...</div>
-                      )}
                     </td>
                     <td>
                       {statusBadge(d.status)}
