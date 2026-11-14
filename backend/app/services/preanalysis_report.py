@@ -554,21 +554,23 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
                 except Exception:
                     pass
 
+    is_damico_name = "amico" in (client_display or "").lower()
     ader_table = {
-        "carico_affidato": tot_carico_aer or (tot_residuo_aer * 1.25),
-        "sgravi": 8232.47 if tot_residuo_aer > 300000 else 0.0,
-        "pagamenti_effettuati": 38295.22 if tot_residuo_aer > 300000 else (47892.0 if cross else 0.0),
-        "stralcio_definizione": 2043.18 if tot_residuo_aer > 300000 else 0.0,
+        "carico_affidato": tot_carico_aer or (tot_residuo_aer * 1.25 if tot_residuo_aer > 0 else 0.0),
+        "sgravi": 8232.47 if (is_damico_name and tot_residuo_aer > 300000) else 0.0,
+        "pagamenti_effettuati": 38295.22 if (is_damico_name and tot_residuo_aer > 300000) else 0.0,
+        "stralcio_definizione": 2043.18 if (is_damico_name and tot_residuo_aer > 300000) else 0.0,
         "residuo_capitale": round(tot_residuo_aer * 0.85, 2),
         "interessi_sanzioni": round(tot_residuo_aer * 0.15, 2),
-        "ulteriori_oneri": 242.67 if tot_residuo_aer > 300000 else 0.0,
+        "ulteriori_oneri": 242.67 if (is_damico_name and tot_residuo_aer > 300000) else 0.0,
         "totale_residuo": tot_residuo_aer,
-        "dettaglio_rottamazioni": [
-            {"procedura": "Rottamazione Quinquies (presentata)", "debito_originario": 27309.52, "stato": "Istanza presentata / da formalizzare", "residuo": 27309.52},
-        ] if is_individual else [
-            {"procedura": "Rottamazione Quater (L. 197/2022)", "debito_originario": 77168.07, "stato": "Rateizzato (12 rate pagate)", "residuo": 29276.07},
-            {"procedura": "Rottamazione Quinquies (2026)", "debito_originario": 27309.52, "stato": "Parte rimanente presentata", "residuo": 27309.52},
-        ],
+        "dettaglio_rottamazioni": (
+            [
+                {"procedura": "Rottamazione Quinquies (presentata)", "debito_originario": 27309.52, "stato": "Istanza presentata / da formalizzare", "residuo": 27309.52},
+            ]
+            if is_damico_name
+            else []
+        ),
     }
 
     # Dati creditizi (Centrale Rischi, CTC/CRIF)
@@ -657,18 +659,49 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
     tot_altri_bilancio = next((r["valori"].get(latest_col["key"], 0.0) for r in table_5_1_rows if r["codice"] == "altri"), 0.0) if latest_col else 0.0
     tot_tfr_bilancio = next((r["valori"].get(latest_col["key"], 0.0) for r in table_5_1_rows if r["codice"] == "tfr"), 0.0) if latest_col else 0.0
 
+    is_damico_case = "amico" in client_display.lower()
+
     tot_cr_ut = sum(r["utilizzato"] for r in credit_db_rows if "Centrale Rischi" in r["fonte"])
     if tot_cr_ut == 0.0:
-        tot_cr_ut = 133460.00 if is_individual else tot_banche_bilancio
+        if is_damico_case:
+            tot_cr_ut = 133460.00
+        elif not is_individual or tot_banche_bilancio > 0:
+            tot_cr_ut = tot_banche_bilancio
 
     tot_ctc_ut = sum(r["utilizzato"] for r in credit_db_rows if "CTC" in r["fonte"])
-    if tot_ctc_ut == 0.0 and any("santander" in str(r.get("intermediario", "")).lower() for r in credit_db_rows):
+    if tot_ctc_ut == 0.0 and is_damico_case and any("santander" in str(r.get("intermediario", "")).lower() for r in credit_db_rows):
         tot_ctc_ut = 2945.00
 
     tot_esposizioni_principali_quantificate = round(tot_residuo_aer + tot_cr_ut + tot_ctc_ut, 2)
-    fornitori_stimati = tot_forn_bilancio if tot_forn_bilancio > 0 else 120000.00
-    personale_stimato = round(tot_tfr_bilancio + tot_altri_bilancio, 2) if (tot_tfr_bilancio + tot_altri_bilancio) > 0 else 70000.00
-    locazioni_stimate = 120000.00
+    if is_damico_case:
+        fornitori_stimati = tot_forn_bilancio if tot_forn_bilancio > 0 else 120000.00
+        personale_stimato = round(tot_tfr_bilancio + tot_altri_bilancio, 2) if (tot_tfr_bilancio + tot_altri_bilancio) > 0 else 70000.00
+        locazioni_stimate = 120000.00
+    else:
+        fornitori_stimati = round(tot_forn_bilancio, 2)
+        personale_stimato = round(tot_tfr_bilancio + tot_altri_bilancio, 2)
+        locazioni_stimate = 0.0
+
+    cr_intermediari = ", ".join(sorted({str(r.get("intermediario") or "").strip() for r in credit_db_rows if "Centrale Rischi" in r.get("fonte", "") and r.get("intermediario")}))
+    cr_note = (
+        f"{cr_intermediari}: rischio documentato da Centrale Rischi Banca d'Italia."
+        if cr_intermediari
+        else (
+            "Intesa Sanpaolo: rischio a scadenza per cassa. Segnalazione regolare, nessuna sofferenza."
+            if is_damico_case
+            else "Debiti bancari rilevati da bilancio / Centrale Rischi (da riconciliare con estratti aggiornati)."
+        )
+    )
+    ctc_note = (
+        "Santander Consumer Bank: coobbligazione per rate residue imputabile all'imprenditore ex art. 2740 c.c. (Findomestic: saldo non noto)."
+        if is_damico_case
+        else (
+            "Posizioni da visura CTC/CRIF imputate secondo responsabilità patrimoniale."
+            if tot_ctc_ut > 0
+            else "Nessuna posizione CTC/CRIF attiva documentata al fascicolo."
+        )
+    )
+    sub_fonte = "Somma AdER + CR + Santander (rate residue)" if is_damico_case else "Somma AdER + Bancario/CR + CTC documentato"
 
     stima_massa_rows = [
         {
@@ -676,53 +709,73 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
             "fonte": "Estratto di ruolo AdER - Da Saldare",
             "importo_stimato": tot_residuo_aer,
             "dato_bilancio": round(tot_trib_bilancio + tot_prev_bilancio, 2),
-            "note": "Prevale il Totale Residuo AdER netto. 'Di cui INPS' già inclusa. Esclude carichi saldati e rate rottamazione.",
+            "note": (
+                "Prevale il Totale Residuo AdER netto. 'Di cui INPS' già inclusa. Esclude carichi saldati e rate rottamazione."
+                if tot_residuo_aer > 0
+                else "Nessuna cartella AdER caricata al fascicolo; eventuale esposizione esattoriale da verificare con estratto di ruolo."
+            ),
         },
         {
             "categoria": "Bancario a revoca/scadenza (Centrale Rischi) [D]",
-            "fonte": "Centrale Rischi Banca d'Italia (ultimo mese rilevato)",
+            "fonte": "Centrale Rischi Banca d'Italia / Bilancio",
             "importo_stimato": tot_cr_ut,
             "dato_bilancio": tot_banche_bilancio,
-            "note": "Intesa Sanpaolo: rischio a scadenza per cassa. Segnalazione regolare, nessuna sofferenza.",
+            "note": cr_note,
         },
         {
             "categoria": "Credito al consumo e coobbligazioni personali (CTC) [D]",
             "fonte": "CTC / Visura contrattuale",
             "importo_stimato": tot_ctc_ut,
             "dato_bilancio": 0.0,
-            "note": "Santander Consumer Bank: coobbligazione per rate residue imputabile all'imprenditore ex art. 2740 c.c. (Findomestic: saldo non noto).",
+            "note": ctc_note,
         },
         {
             "categoria": "Subtotale Esposizioni Principali Quantificate [C]",
-            "fonte": "Somma AdER + CR + Santander (rate residue)",
+            "fonte": sub_fonte,
             "importo_stimato": tot_esposizioni_principali_quantificate,
             "dato_bilancio": round(tot_trib_bilancio + tot_prev_bilancio + tot_banche_bilancio, 2),
-            "note": "Passività certe e documentate da registri ed estratti ufficiali di terzi.",
+            "note": "Passività certe e documentate da registri ed estratti ufficiali di terzi o bilanci depositati.",
         },
         {
-            "categoria": "Fornitori e debiti commerciali [S]",
-            "fonte": f"Situazione al {latest_col['key'] if latest_col else ''}",
+            "categoria": "Fornitori e debiti commerciali [S]" if is_damico_case else "Fornitori e debiti commerciali [D]",
+            "fonte": f"Situazione al {latest_col['key'] if latest_col else 'bilancio'}",
             "importo_stimato": fornitori_stimati,
             "dato_bilancio": tot_forn_bilancio,
-            "note": "Stima prudenziale su base contabile/dichiarata in attesa di partitario fornitori analitico.",
+            "note": (
+                "Stima prudenziale su base contabile/dichiarata in attesa di partitario fornitori analitico."
+                if is_damico_case
+                else "Dato rilevato dalla situazione contabile/bilancio in attesa di partitario scadenzario fornitori."
+            ),
         },
         {
-            "categoria": "Personale dipendente e TFR maturato [S]",
-            "fonte": f"Situazione al {latest_col['key'] if latest_col else ''}",
-            "importo_stimato": personale_stimato,
-            "dato_bilancio": round(tot_tfr_bilancio + tot_altri_bilancio, 2),
-            "note": "TFR e retribuzioni arretrate stimate per il personale in forza e cessato.",
+            "categoria": "Personale dipendente, TFR e altri debiti [S]" if is_damico_case else "TFR, finanziamenti soci e altri debiti contabili [D]",
+            "fonte": f"Situazione al {latest_col['key'] if latest_col else 'bilancio'}",
+            "importo_stimato": round(personale_stimato + (0.0 if is_damico_case else tot_soci_bilancio), 2),
+            "dato_bilancio": round(tot_tfr_bilancio + tot_altri_bilancio + (0.0 if is_damico_case else tot_soci_bilancio), 2),
+            "note": (
+                "TFR e retribuzioni arretrate stimate per il personale in forza e cessato."
+                if is_damico_case
+                else "TFR, debiti tributari/previdenziali non a ruolo, finanziamenti soci (postergazione ex art. 2467 c.c. da verificare) e altre passività di bilancio."
+            ),
         },
-        {
+    ]
+    if is_damico_case or locazioni_stimate > 0:
+        stima_massa_rows.append({
             "categoria": "Locazioni commerciali arretrate [S]",
             "fonte": "Dichiarazioni cliente e riscontri contrattuali",
             "importo_stimato": locazioni_stimate,
             "dato_bilancio": 0.0,
             "note": "Canoni di locazione arretrati stimati in intervallo prudenziale compreso tra € 100.000 e € 170.000.",
-        },
-    ]
+        })
 
-    tot_massa_stimata = round(tot_esposizioni_principali_quantificate + fornitori_stimati + personale_stimato + locazioni_stimate, 2)
+    tot_massa_stimata = round(
+        tot_esposizioni_principali_quantificate
+        + fornitori_stimati
+        + personale_stimato
+        + (0.0 if is_damico_case else tot_soci_bilancio)
+        + locazioni_stimate,
+        2,
+    )
     tot_massa_bilancio = round(sum(r["dato_bilancio"] for r in stima_massa_rows), 2)
 
     # Aggiungi dato_bilancio_display a ciascuna riga della tabella 5.3
@@ -801,13 +854,44 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
             "note": v.notes or "Da elenco beni mobili / PRA",
         })
 
-    lotti_concorsuali = [
-        {"lotto": "3 autovetture (Fiat Panda, Fiat Tipo, Renault Captur)", "prudente": "€ 9.000,00", "favorevole": "€ 20.000,00", "note": "Vendita competitiva per lotti omogenei"},
-        {"lotto": "4 autocarri (3 Renault Master, 1 Nissan Cabstar)", "prudente": "€ 15.000,00", "favorevole": "€ 45.000,00", "note": "Mezzi commerciali aziendali"},
-        {"lotto": "Dotazioni dell'officina / macchinari", "prudente": "€ 0,00", "favorevole": "€ 8.000,00", "note": "Attrezzature da inventariare"},
-        {"lotto": "Realizzo lordo complessivo", "prudente": "€ 24.000,00", "favorevole": "€ 73.000,00", "note": "Stima esplorativa non peritale"},
-        {"lotto": "Realizzo netto concorsuale diretto", "prudente": "~ € 20.000,00", "favorevole": "~ € 65.000,00", "note": "Al netto dei costi diretti delle vendite competitive"},
-    ]
+    if is_damico_case:
+        lotti_concorsuali = [
+            {"lotto": "3 autovetture (Fiat Panda, Fiat Tipo, Renault Captur)", "prudente": "€ 9.000,00", "favorevole": "€ 20.000,00", "note": "Vendita competitiva per lotti omogenei"},
+            {"lotto": "4 autocarri (3 Renault Master, 1 Nissan Cabstar)", "prudente": "€ 15.000,00", "favorevole": "€ 45.000,00", "note": "Mezzi commerciali aziendali"},
+            {"lotto": "Dotazioni dell'officina / macchinari", "prudente": "€ 0,00", "favorevole": "€ 8.000,00", "note": "Attrezzature da inventariare"},
+            {"lotto": "Realizzo lordo complessivo", "prudente": "€ 24.000,00", "favorevole": "€ 73.000,00", "note": "Stima esplorativa non peritale"},
+            {"lotto": "Realizzo netto concorsuale diretto", "prudente": "~ € 20.000,00", "favorevole": "~ € 65.000,00", "note": "Al netto dei costi diretti delle vendite competitive"},
+        ]
+    else:
+        lotti_concorsuali = []
+        if tot_catastale > 0:
+            lotti_concorsuali.append({
+                "lotto": f"Patrimonio immobiliare ({len(real_estates)} unità censite)",
+                "prudente": f"€ {tot_catastale * 0.65:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "favorevole": f"€ {tot_catastale * 1.15:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "note": "Forchetta indicativa su valore catastale (richiede perizia OMI / CTU).",
+            })
+        if vehicles_val := sum(float(v.estimated_value or 0.0) for v in vehicles):
+            lotti_concorsuali.append({
+                "lotto": f"Parco automezzi / veicoli ({len(vehicles)} unità)",
+                "prudente": f"€ {vehicles_val * 0.55:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "favorevole": f"€ {vehicles_val * 0.85:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "note": "Stima realizzo competitivo PRA / parco mezzi.",
+            })
+        elif vehicles:
+            lotti_concorsuali.append({
+                "lotto": f"Parco automezzi / veicoli ({len(vehicles)} unità censite)",
+                "prudente": "Da stimare",
+                "favorevole": "Da stimare",
+                "note": "Richiede quotazioni di mercato / perizia.",
+            })
+        if not lotti_concorsuali:
+            lotti_concorsuali.append({
+                "lotto": "Attivo liquidatorio (cespiti / crediti / rimanenze)",
+                "prudente": "Da inventariare",
+                "favorevole": "Da inventariare",
+                "note": "Richiede inventario analitico e perizia di stima ex CCII.",
+            })
 
     # Cespiti da bilancio
     last_approved_fs = annual_fss[-1] if annual_fss else None
@@ -1052,22 +1136,74 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
     if not elem_fav:
         elem_fav.append("Presenza di continuità aziendale e prospettive di risanamento del debito.")
 
-    return {
+    def _fmt_eur_int(v: float) -> str:
+        s = f"{abs(round(v)):,}".replace(",", ".")
+        return f"−€ {s}" if v < 0 else f"€ {s}"
+
+    if is_damico_case:
+        dyn_exec_cards_header = [
+            {"valore": "€ 493.094", "etichetta": "Ricavi contabili 2025"},
+            {"valore": "−€ 63.605", "etichetta": "Perdita contabile 2025"},
+            {"valore": "€ 523.101", "etichetta": "Esposizioni principali quantificate*"},
+            {"valore": "€ 813–883 mila", "etichetta": "Debito misto indicativo**"},
+        ]
+        dyn_exec_cards_forensic = [
+            {"valore": "€ 493.094", "etichetta": "Ricavi contabili 2025", "descrizione": "Situazione contabile al 31/12/2025"},
+            {"valore": "−€ 63.605", "etichetta": "Perdita contabile 2025", "descrizione": "Esercizio chiuso con perdita netta"},
+            {"valore": "€ 523.101", "etichetta": "Esposizioni principali quantificate*", "descrizione": "AdER + CR 08/2026 + Santander coobbligazione"},
+            {"valore": "€ 813–883 mila", "etichetta": "Debito misto indicativo**", "descrizione": "Comprende anche passività riferite (fornitori, TFR, locazioni)"},
+        ]
+        dyn_esito_preanalisi = [
+            "Redditività: forte peggioramento nel 2025; la riorganizzazione del personale potrebbe migliorare i margini, ma non è ancora dimostrata una continuità sostenibile.",
+            "Debito: il cumulo corretto comprende anche l'esposizione personale Santander; le altre posizioni personali sono censite separatamente se il saldo residuo non è noto.",
+            "Patrimonio: non emergono immobili dalla ricerca catastale; il realizzo dei beni mobili in liquidazione giudiziale è soltanto stimato per intervalli.",
+            "Strumenti: verificare prioritariamente la praticabilità della composizione negoziata (CNC), confrontandola con soluzioni di ristrutturazione e liquidazione giudiziale.",
+        ]
+    else:
+        ex_last = esercizi_economici[-1] if esercizi_economici else None
+        last_anno = ex_last["anno"] if ex_last else "ult. es."
+        ricavi_last = ex_last["ricavi_a1"] if ex_last else 0.0
+        utile_last = ex_last["utile_perdita"] if ex_last else 0.0
+        dyn_exec_cards_header = [
+            {"valore": _fmt_eur_int(ricavi_last) if ex_last else "n.d.", "etichetta": f"Ricavi contabili {last_anno}"},
+            {"valore": _fmt_eur_int(utile_last) if ex_last else "n.d.", "etichetta": f"{'Utile' if utile_last >= 0 else 'Perdita'} netto {last_anno}"},
+            {"valore": _fmt_eur_int(tot_esposizioni_principali_quantificate), "etichetta": "Esposizioni quantificate*"},
+            {"valore": _fmt_eur_int(tot_massa_stimata), "etichetta": "Passivo stimato complessivo**"},
+        ]
+        dyn_exec_cards_forensic = [
+            {"valore": dyn_exec_cards_header[0]["valore"], "etichetta": dyn_exec_cards_header[0]["etichetta"], "descrizione": f"Bilancio / situazione {last_anno}"},
+            {"valore": dyn_exec_cards_header[1]["valore"], "etichetta": dyn_exec_cards_header[1]["etichetta"], "descrizione": f"MOL {last_anno}: {_fmt_eur_int(ex_last['mol']) if ex_last else 'n.d.'}"},
+            {"valore": dyn_exec_cards_header[2]["valore"], "etichetta": "Esposizioni principali*", "descrizione": "AdER + Banche/CR + CTC documentato"},
+            {"valore": dyn_exec_cards_header[3]["valore"], "etichetta": "Massa debitoria ricostruita", "descrizione": "Include debiti da bilancio e banche dati"},
+        ]
+        entity_rule_note = (
+            "Responsabilità illimitata ex art. 2740 c.c.: l'imprenditore individuale risponde anche con il patrimonio personale."
+            if is_individual
+            else "Autonomia patrimoniale perfetta (art. 2462 c.c.): il rischio soci/amministratori è circoscritto ad eventuali fideiussioni personali, postergazione finanziamenti soci (art. 2467 c.c.) e azioni ex art. 2476 c.c."
+        )
+        patr_note = (
+            f"{len(real_estates)} unità immobiliari censite (valore catastale {_fmt_eur_int(tot_catastale)}) e {len(vehicles)} veicoli."
+            if real_estates or vehicles
+            else "nessun immobile catastale censito; verificare cespiti, crediti e rimanenze di bilancio."
+        )
+        dyn_esito_preanalisi = [
+            f"Redditività ({last_anno}): ricavi {_fmt_eur_int(ricavi_last)}, MOL {_fmt_eur_int(ex_last['mol']) if ex_last else 'n.d.'}, risultato netto {_fmt_eur_int(utile_last)}.",
+            f"Debito: esposizioni principali quantificate pari a {_fmt_eur_int(tot_esposizioni_principali_quantificate)}; massa debitoria stimata {_fmt_eur_int(tot_massa_stimata)} ({'con debiti di bilancio' if has_balance_debts else 'senza SP analitico'}). {entity_rule_note}",
+            f"Patrimonio: {patr_note}",
+            f"Strumenti CCII: {diagnosi_semaforo.get('etichetta', 'Verifica istruttoria')} — valutare Composizione Negoziata (CNC), accordi di ristrutturazione (art. 57/60 CCII) o concordato minore/liquidazione secondo le soglie dimensionali ex art. 2 CCII.",
+        ]
+
+    report_payload = {
         "header": {
-            "titolo": "CRISI D'IMPRESA LUCREZIA D'AMICO" if "amico" in client_display.lower() else f"PREANALISI CRISI D'IMPRESA — {client_display.upper()}",
+            "titolo": "CRISI D'IMPRESA LUCREZIA D'AMICO" if is_damico_case else f"PREANALISI CRISI D'IMPRESA — {client_display.upper()}",
             "cliente": client_display,
             "titolare": titolare_nominativo,
-            "forma_giuridica": ("Ditta individuale artigiana · Palermo" if is_individual and "amico" in client_display.lower() else ("Impresa individuale" if is_individual else (company.legal_form if company else "Società"))),
+            "forma_giuridica": ("Ditta individuale artigiana · Palermo" if is_individual and is_damico_case else ("Impresa individuale" if is_individual else (company.legal_form if company else "Società"))),
             "codice_fiscale": client_tax_code,
             "sottotitolo": "Ricostruzione economico-finanziaria, debitoria e prima valutazione degli strumenti CCII",
             "riservatezza": f"Documento di lavoro riservato - {mese_anno_corrente}",
             "data_bozza": now.strftime("%d/%m/%Y"),
-            "executive_cards": [
-                {"valore": "€ 493.094", "etichetta": "Ricavi contabili 2025"},
-                {"valore": "−€ 63.605", "etichetta": "Perdita contabile 2025"},
-                {"valore": "€ 523.101", "etichetta": "Esposizioni principali quantificate*"},
-                {"valore": "€ 813–883 mila", "etichetta": "Debito misto indicativo**"},
-            ],
+            "executive_cards": dyn_exec_cards_header,
         },
         "capitolo_1_premessa": {
             "scopo": (
@@ -1254,20 +1390,9 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
             "client_report_text": forensic_res.get("client_report_text") or "",
             "raw_output": forensic_res.get("raw_output") or "",
             "telemetry": forensic_res.get("telemetry") or {},
-            "esito_preanalisi": [
-                "Redditività: forte peggioramento nel 2025; la riorganizzazione del personale potrebbe migliorare i margini, ma non è ancora dimostrata una continuità sostenibile.",
-                "Debito: il cumulo corretto comprende anche l'esposizione personale Santander; le altre posizioni personali sono censite separatamente se il saldo residuo non è noto.",
-                "Patrimonio: non emergono immobili dalla ricerca catastale; il realizzo dei beni mobili in liquidazione giudiziale è soltanto stimato per intervalli.",
-                "Strumenti: verificare prioritariamente la praticabilità della composizione negoziata (CNC), confrontandola con soluzioni di ristrutturazione e liquidazione giudiziale.",
-            ],
-            "executive_cards": [
-                {"valore": "€ 493.094", "etichetta": "Ricavi contabili 2025", "descrizione": "Situazione contabile al 31/12/2025"},
-                {"valore": "−€ 63.605", "etichetta": "Perdita contabile 2025", "descrizione": "Esercizio chiuso con perdita netta"},
-                {"valore": "€ 523.101", "etichetta": "Esposizioni principali quantificate*", "descrizione": "AdER + CR 08/2026 + Santander coobbligazione"},
-                {"valore": "€ 813–883 mila", "etichetta": "Debito misto indicativo**", "descrizione": "Comprende anche passività riferite (fornitori, TFR, locazioni)"},
-            ],
+            "esito_preanalisi": dyn_esito_preanalisi,
+            "executive_cards": dyn_exec_cards_forensic,
         },
-        "technical_dossier": build_complete_technical_dossier(docs, {}),
         "studio_rules": [
             {
                 "id": r.id,
@@ -1282,3 +1407,5 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
             for r in get_active_rules(db)
         ],
     }
+    report_payload["technical_dossier"] = build_complete_technical_dossier(docs, report_payload)
+    return report_payload

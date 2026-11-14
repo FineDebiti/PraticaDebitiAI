@@ -176,7 +176,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     pdf.cell(pdf.epw, 5.5, "Dossier Tecnico di Calcolo, Riconciliazione e Audit Forense", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font(f_fam, "B", 10.0)
     pdf.set_text_color(*COLOR_SUBTITLE)
-    pdf.cell(pdf.epw, 4.5, f"Fascicolo: {client_name} (Ditta individuale artigiana · Palermo)", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    forma_txt = header.get("forma_giuridica") or "Ditta individuale artigiana · Palermo"
+    pdf.cell(pdf.epw, 4.5, f"Fascicolo: {client_name} ({forma_txt})", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(0.8)
     pdf.set_font(f_fam, "", 6.4)
@@ -195,10 +196,13 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     card_h = 13.5
     qg = dossier.get("quality_gate", {})
     counts = qg.get("counts", {})
+    n_sources = len(dossier.get("sources_matrix", []))
+    n_quads = len(dossier.get("decimal_audit", {}).get("quadrature", []))
+    n_quads_ok = sum(1 for q in dossier.get("decimal_audit", {}).get("quadrature", []) if "VERIFICATO" in str(q.get("esito", "")))
     audit_cards = [
-        ("10 Fonti (SHA-256)", "Impronta 64 hex e copertura pagg."),
-        ("8 / 8 Quadrature", "Decimal al centesimo (scarto €0,00)"),
-        (f"{counts.get('totale_anomalie', 13)} Anomalie ({counts.get('rosso', 3)} Rosse)", "Istruttoria aperta • Human Gate"),
+        (f"{n_sources} Fonti (SHA-256)", "Impronta 64 hex e copertura pagg."),
+        (f"{n_quads_ok} / {n_quads} Quadrature", "Decimal al centesimo (verifica)"),
+        (f"{counts.get('totale_anomalie', 0)} Anomalie ({counts.get('rosso', 0)} Rosse)", "Istruttoria aperta • Human Gate"),
         ("5 / 5 Prove Collaudo", "Suite reattiva v2.1 superata"),
     ]
     for i, (val, lbl) in enumerate(audit_cards):
@@ -341,7 +345,7 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
 
     pdf.ln(2.0)
     pdf.sub_heading("3.2 Regole di Riconciliazione ed Esclusione Duplicazioni Applicate (Anti-Double Counting)")
-    dup_rules = [
+    dup_rules = dossier.get("dup_rules") or [
         ("DUP-01", "Carichi Previdenziali INPS (€ 210.604,29)", "Estratto AdER Da Saldare", "Già compresi nel totale AdER di € 386.695,79 — non sommati una seconda volta come voce autonoma."),
         ("DUP-02", "Rate Piani di Rottamazione e Preavvisi Fermo", "AdER Procedure / Moduli", "Riferiti alle medesime cartelle dell'estratto Da Saldare — esclusi dal cumulo aggiuntivo."),
         ("DUP-03", "Segnalazioni Storiche CR 2025 e Cessioni GIADA Sec.", "Centrale Rischi Banca d'Italia", "Considerato esclusivamente lo stock attivo dell'ultimo mese rilevato (agosto 2026: € 133.460,00)."),
@@ -443,15 +447,14 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     # =========================================================================
     # PAGINA 5: SEZIONE 05 (REGISTRO CODIFICATO DELLE 13 ANOMALIE)
     # =========================================================================
+    anomalies = dossier.get("anomaly_register", [])
     pdf.add_page()
-    pdf.section_banner("05", "Registro Codificato delle 13 Anomalie e Questioni Aperte (ANOM-01 .. ANOM-13)")
+    pdf.section_banner("05", f"Registro Codificato delle {len(anomalies)} Anomalie e Questioni Aperte")
     pdf.body_p(
-        "Le 13 anomalie emerse dall'incrocio tra contabilità, dichiarazioni fiscali, AdER, CR, CTC e dichiarazioni della parte sono classificate "
+        f"Le {len(anomalies)} anomalie emerse dall'incrocio tra contabilità, dichiarazioni fiscali, AdER, CR e documenti del fascicolo sono classificate "
         "per severità: ROSSO (blocca l'approvazione autonoma), ARANCIO (richiede verifica documentale prioritaria), GIALLO (avvertenza istruttoria).",
         size_pt=6.6,
     )
-
-    anomalies = dossier.get("anomaly_register", [])
     col_wa = (17, 17, 33, 59, 58)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wa,

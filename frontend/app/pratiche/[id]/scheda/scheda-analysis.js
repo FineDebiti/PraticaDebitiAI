@@ -11,6 +11,34 @@ function eurFull(v) {
   return "€ " + (Number(v) || 0).toLocaleString("it-IT", { useGrouping: true, minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+async function _downloadFromApi(url, fallbackName, onBusy, onError) {
+  try {
+    if (onError) onError("");
+    if (onBusy) onBusy(true);
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Errore HTTP ${res.status} durante il download`);
+    }
+    const disp = res.headers.get("Content-Disposition") || "";
+    const match = /filename="?([^"]+)"?/i.exec(disp);
+    const filename = (match && match[1]) ? match[1] : fallbackName;
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1500);
+  } catch (err) {
+    console.error("Download error:", err);
+    if (onError) onError(err?.message || "Impossibile scaricare il file richiesto.");
+  } finally {
+    if (onBusy) onBusy(false);
+  }
+}
+
 function fmtIndic(it) {
   const v = it?.value;
   if (v === null || v === undefined) return null;
@@ -567,6 +595,8 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
 export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState("");
   const [showAiDetails, setShowAiDetails] = useState(false);
   const [printOrientation, setPrintOrientation] = useState("portrait");
 
@@ -583,24 +613,48 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
     fetchReport();
   }, [fetchReport]);
 
+  const h = report?.header || {};
+  const rawClientName =
+    h.cliente ||
+    card?.debtor?.full_name ||
+    card?.company?.business_name ||
+    debtor?.full_name ||
+    title ||
+    "Cliente";
+  const isDamicoCase = rawClientName.toLowerCase().includes("amico");
+  const clientName = isDamicoCase ? "LUCREZIA D'AMICO" : rawClientName.toUpperCase();
+  const displayClientName = isDamicoCase ? "Lucrezia D'Amico" : rawClientName;
+  const formaGiuridica = h.forma_giuridica || (isDamicoCase ? "Ditta individuale artigiana · Palermo" : "Società / Impresa");
+  const draftDate = isDamicoCase ? "09.11.2026" : (h.data_bozza || "13/11/2026");
+  const coverDate = isDamicoCase ? "9 NOVEMBRE 2026" : draftDate;
+
+  const td = report?.technical_dossier || {};
+  const quads = td?.decimal_audit?.quadrature || [];
+  const nQuads = quads.length;
+  const nQuadsOk = quads.filter((q) => String(q?.esito || "").includes("VERIFICATO")).length;
+  const anomList = td?.anomaly_register || [];
+  const nAnom = anomList.length;
+  const nRosse = td?.quality_gate?.counts?.rosso ?? anomList.filter((a) => a.severita === "ROSSO").length;
+
   const handleExportPdf = (action = "download") => {
     if (!caseId) return;
     const url = getPreanalysisReportPdfUrl(caseId, printOrientation, action);
-    window.open(url, "_blank");
+    if (action === "inline") {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    _downloadFromApi(url, `Relazione_Preanalisi_${caseId.slice(0, 8)}.pdf`, setExportBusy, setExportError);
   };
 
   const handleExportDossierPdf = (action = "download") => {
     if (!caseId) return;
     const url = getTechnicalDossierPdfUrl(caseId, action);
-    window.open(url, "_blank");
+    if (action === "inline") {
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    _downloadFromApi(url, `Dossier_Tecnico_Audit_${caseId.slice(0, 8)}.pdf`, setExportBusy, setExportError);
   };
-
-  const h = report?.header || {};
-  const clientName = "LUCREZIA D'AMICO";
-  const displayClientName = "Lucrezia D'Amico";
-  const formaGiuridica = h.forma_giuridica || "Ditta individuale artigiana · Palermo";
-  const draftDate = "09.11.2026";
-  const coverDate = "9 NOVEMBRE 2026";
 
   return (
     <div className="pd-grid">
@@ -744,24 +798,27 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
                 PDF da consultare, condividere o consegnare al cliente.
               </p>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <a
+                href={caseId ? getPreanalysisReportPdfUrl(caseId, printOrientation, "inline") : "#"}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="pd-btn pd-btn--secondary"
-                onClick={() => handleExportPdf("inline")}
                 title="Visualizza il PDF vettoriale della Relazione Cliente (7 pagg.)"
+                style={{ textDecoration: "none" }}
               >
                 <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
                 Apri Relazione PDF
-              </button>
+              </a>
               <button
                 type="button"
                 className="pd-btn pd-btn--primary"
+                disabled={exportBusy}
                 onClick={() => handleExportPdf("download")}
                 title="Scarica il PDF ufficiale della Relazione Cliente (7 pagg.)"
               >
                 <span className="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
-                Scarica Relazione (7 pagg.)
+                {exportBusy ? "Preparazione PDF..." : "Scarica Relazione (7 pagg.)"}
               </button>
             </div>
           </div>
@@ -777,47 +834,47 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
                 <span className="pd-badge pd-badge--warn">PDF su richiesta</span>
               </div>
               <p style={{ margin: 0, fontSize: 12.5, color: "var(--pd-text-muted)" }}>
-                8/8 Quadrature Decimal · 13 Anomalie (3 Rosse) · Human Gate in attesa. Conservato nel sistema.
+                {nQuadsOk}/{nQuads} Quadrature Decimal · {nAnom} Anomalie ({nRosse} Rosse) · Human Gate in attesa. Conservato nel sistema.
               </p>
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="pd-btn pd-btn--ghost"
-                onClick={() => goTab && goTab("audit")}
-                title="Consulta il Quality Gate e il tracciato Audit nella scheda dedicata"
-              >
-                <span className="material-symbols-outlined" aria-hidden="true">fact_check</span>
-                Consulta Audit in App
-              </button>
-              <button
-                type="button"
+            <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
+              <a
+                href={caseId ? getTechnicalDossierPdfUrl(caseId, "inline") : "#"}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="pd-btn pd-btn--secondary"
-                onClick={() => handleExportDossierPdf("inline")}
                 title="Apri anteprima PDF del Dossier Tecnico Audit (7 pagg.)"
-                style={{ borderColor: "#0284c7", color: "#0284c7" }}
+                style={{ borderColor: "#0284c7", color: "#0284c7", textDecoration: "none" }}
               >
                 <span className="material-symbols-outlined" aria-hidden="true">open_in_new</span>
                 Apri PDF Audit
-              </button>
+              </a>
               <button
                 type="button"
                 className="pd-btn pd-btn--secondary"
+                disabled={exportBusy}
                 onClick={() => handleExportDossierPdf("download")}
                 title="Esporta su richiesta il PDF del Dossier Tecnico di Calcolo e Audit Riservato allo Studio"
                 style={{ borderColor: "#102a43", color: "#102a43" }}
               >
                 <span className="material-symbols-outlined" aria-hidden="true">download</span>
-                Esporta Dossier PDF (su richiesta)
+                {exportBusy ? "Preparazione PDF..." : "Esporta Dossier PDF (su richiesta)"}
               </button>
             </div>
           </div>
         </div>
+        {exportError && (
+          <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 6, background: "#fef2f2", color: "#b91c1c", fontSize: 12.5 }}>
+            {exportError}
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}
-      {/* PAGINA 1: COPERTINA ED EXECUTIVE SUMMARY                                  */}
+      {/* PAGINE 1-7: PREVIEW BENCHMARK (D'AMICO vs DINAMICA PER SRL / ALTRE PRAT.) */}
       {/* ========================================================================= */}
+      {isDamicoCase ? (
+        <>
       <article className="pd-benchmark-sheet">
         <div style={{ fontSize: 11, fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>
           RELAZIONE FINALE DI PRE-ANALISI | {coverDate}
@@ -1412,6 +1469,140 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <div>RISERVATO • {draftDate} • 7 / 7</div>
         </div>
       </article>
+        </>
+      ) : (
+        <article className="pd-benchmark-sheet">
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>
+            RELAZIONE DI PRE-ANALISI CCII | {coverDate}
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: "#102a43", lineHeight: 1.15 }}>
+            Crisi d&apos;impresa
+          </div>
+          <div style={{ fontSize: 21, fontWeight: 800, color: "#102a43", margin: "4px 0 8px" }}>
+            {displayClientName}
+          </div>
+          <div style={{ fontSize: 13.5, color: "#475569", marginBottom: 20 }}>
+            {formaGiuridica} · {h.codice_fiscale ? `CF/P.IVA ${h.codice_fiscale} · ` : ""}Ricostruzione economico-finanziaria e strumenti CCII
+          </div>
+
+          {loading ? (
+            <p className="pd-b-p">Caricamento dati di preanalisi dal fascicolo...</p>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 24 }}>
+                {(h.executive_cards || []).slice(0, 4).map((c, idx) => (
+                  <div key={idx} style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderTop: "3px solid #0284c7", borderRadius: 4, padding: 12 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: "#102a43" }}>{c.valore}</div>
+                    <div style={{ fontSize: 11.5, color: "#475569", marginTop: 4 }}>{c.etichetta}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pd-sec-title">Esito sintetico e profilo giuridico</div>
+              <ul className="pd-b-list">
+                {(report?.forensic_preanalysis?.esito_preanalisi || []).map((row, idx) => (
+                  <li key={idx}>{row}</li>
+                ))}
+              </ul>
+
+              {!!(report?.capitolo_3_analisi_economica?.esercizi || []).length && (
+                <>
+                  <div className="pd-sec-title" style={{ marginTop: 22 }}>Conto Economico comparato (dati estratti)</div>
+                  <table className="pd-b-table">
+                    <thead>
+                      <tr>
+                        <th>Voce</th>
+                        {(report.capitolo_3_analisi_economica.esercizi || []).slice(-4).map((ex) => (
+                          <th key={ex.anno} style={{ textAlign: "right" }}>{ex.anno}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ["Ricavi A.1", "ricavi_a1"],
+                        ["Valore Produzione (A)", "valore_produzione_a"],
+                        ["Costi Produzione (B)", "costi_produzione_b"],
+                        ["MOL / EBITDA", "mol"],
+                        ["Risultato Netto", "utile_perdita"],
+                      ].map(([lbl, key]) => (
+                        <tr key={key}>
+                          <td><strong>{lbl}</strong></td>
+                          {(report.capitolo_3_analisi_economica.esercizi || []).slice(-4).map((ex) => (
+                            <td key={ex.anno} style={{ textAlign: "right" }}>{eurFull(ex[key])}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {!!(report?.capitolo_5_indebitamento?.tabella_5_3_sintesi?.righe || []).length && (
+                <>
+                  <div className="pd-sec-title" style={{ marginTop: 22 }}>Massa debitoria ricostruita (Tab. 5.3)</div>
+                  <table className="pd-b-table">
+                    <thead>
+                      <tr>
+                        <th>Categoria debito</th>
+                        <th>Fonte</th>
+                        <th style={{ textAlign: "right" }}>Stimato</th>
+                        <th style={{ textAlign: "right" }}>Bilancio</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(report.capitolo_5_indebitamento.tabella_5_3_sintesi.righe || []).map((r, idx) => (
+                        <tr key={idx}>
+                          <td>{r.categoria}</td>
+                          <td>{r.fonte}</td>
+                          <td style={{ textAlign: "right" }}>{eurFull(r.importo_stimato)}</td>
+                          <td style={{ textAlign: "right" }}>{r.dato_bilancio_display || eurFull(r.dato_bilancio)}</td>
+                        </tr>
+                      ))}
+                      <tr className="highlight">
+                        <td><strong>TOTALE PASSIVO RICOSTRUITO</strong></td>
+                        <td>Sintesi senza duplicazioni</td>
+                        <td style={{ textAlign: "right" }}>{eurFull(report.capitolo_5_indebitamento.tabella_5_3_sintesi.totale_stimato)}</td>
+                        <td style={{ textAlign: "right" }}>{eurFull(report.capitolo_5_indebitamento.tabella_5_3_sintesi.totale_bilancio)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {!!(report?.capitolo_8_patrimonio?.immobili || []).length && (
+                <>
+                  <div className="pd-sec-title" style={{ marginTop: 22 }}>Patrimonio immobiliare censito ({report.capitolo_8_patrimonio.immobili.length} unità)</div>
+                  <table className="pd-b-table">
+                    <thead>
+                      <tr>
+                        <th>Comune</th>
+                        <th>Indirizzo</th>
+                        <th>Dati catastali</th>
+                        <th style={{ textAlign: "right" }}>Val. Catastale</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.capitolo_8_patrimonio.immobili.map((im, idx) => (
+                        <tr key={idx}>
+                          <td>{im.comune}</td>
+                          <td>{im.indirizzo}</td>
+                          <td>{im.catasto}</td>
+                          <td style={{ textAlign: "right" }}>{eurFull(im.valore_catastale)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </>
+          )}
+
+          <div className="pd-page-footer">
+            <div>PRE-ANALISI CRISI D&apos;IMPRESA | {clientName}</div>
+            <div>ANTEPRIMA SINTETICA • PDF COMPLETO 7 PAGINE IN ESPORTAZIONE</div>
+          </div>
+        </article>
+      )}
 
       {/* PANNELLO COLLAPSIBILE DOSSIER TECNICO DI AUDIT E LOG FORENSE QWEN */}
       <div className="no-print" style={{ maxWidth: 860, margin: "0 auto 40px" }}>
@@ -1424,8 +1615,8 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: "#102a43" }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#0284c7" }}>verified_user</span>
             {showAiDetails
-              ? "Nascondi Dossier Tecnico di Calcolo e Audit (Quadrature Decimal, 13 Anomalie, Quality Gate)"
-              : "Mostra Dossier Tecnico di Calcolo e Audit (Fonti SHA-256, 8 Quadrature Decimal, 13 Anomalie, Revisore Avversariale)"}
+              ? `Nascondi Dossier Tecnico di Calcolo e Audit (${nQuadsOk}/${nQuads} Quadrature Decimal, ${nAnom} Anomalie, Quality Gate)`
+              : `Mostra Dossier Tecnico di Calcolo e Audit (Fonti SHA-256, ${nQuads} Quadrature Decimal, ${nAnom} Anomalie, Revisore Avversariale)`}
           </span>
           <span className="material-symbols-outlined">{showAiDetails ? "expand_less" : "expand_more"}</span>
         </button>
@@ -1434,14 +1625,15 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
           <div style={{ background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "0 0 6px 6px", padding: 20, marginTop: -2 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>8/8 Quadrature Decimal 100%</span>
-                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>5/5 Controlli Inferenze (Blocco RG5→Cassa)</span>
-                <span className="pd-badge pd-badge--warn" style={{ fontSize: 11, fontWeight: 700 }}>13 Anomalie Codificate (3 Rosse — Human Gate)</span>
+                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>{nQuadsOk}/{nQuads} Quadrature Decimal</span>
+                <span className="pd-badge pd-badge--ok" style={{ fontSize: 11, fontWeight: 700 }}>Controllo Inferenze Attivo</span>
+                <span className="pd-badge pd-badge--warn" style={{ fontSize: 11, fontWeight: 700 }}>{nAnom} Anomalie Codificate ({nRosse} Rosse — Human Gate)</span>
               </div>
               <button
                 type="button"
                 className="pd-btn pd-btn--primary"
                 style={{ fontSize: 12, padding: "6px 12px", background: "#102a43" }}
+                disabled={exportBusy}
                 onClick={() => handleExportDossierPdf("download")}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
@@ -1574,7 +1766,7 @@ export function AuditTrail({ caseId, edits, docs, goTab }) {
               <button
                 type="button"
                 className="pd-btn pd-btn--secondary"
-                onClick={() => window.open(getAuditExportUrl(effectiveCaseId, "json"), "_blank", "noopener,noreferrer")}
+                onClick={() => _downloadFromApi(getAuditExportUrl(effectiveCaseId, "json"), `Audit_${effectiveCaseId.slice(0, 8)}.json`)}
                 title="Scarica il file JSON completo dell'esecuzione Decimal e dei 5 test v2.1"
               >
                 <span className="material-symbols-outlined" aria-hidden="true">data_object</span>
@@ -1583,7 +1775,7 @@ export function AuditTrail({ caseId, edits, docs, goTab }) {
               <button
                 type="button"
                 className="pd-btn pd-btn--secondary"
-                onClick={() => window.open(getAuditExportUrl(effectiveCaseId, "csv"), "_blank", "noopener,noreferrer")}
+                onClick={() => _downloadFromApi(getAuditExportUrl(effectiveCaseId, "csv"), `Audit_${effectiveCaseId.slice(0, 8)}.csv`)}
                 title="Scarica il file CSV delle quadrature Decimal compatibile con Excel e LibreOffice Calc"
               >
                 <span className="material-symbols-outlined" aria-hidden="true">table_view</span>

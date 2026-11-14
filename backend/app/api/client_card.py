@@ -670,11 +670,21 @@ class HumanGateApproveRequest(BaseModel):
     note_istruttorie: str = ""
 
 
+def _get_fresh_report(db: Session, case_id: str):
+    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    if isinstance(report_data, dict):
+        cliente = ((report_data.get("header") or {}).get("cliente") or "").lower()
+        cards_txt = str((report_data.get("header") or {}).get("executive_cards") or "")
+        if "amico" not in cliente and "493.094" in cards_txt:
+            report_record, report_data = reset_preanalysis_report(db, case_id)
+    return report_record, report_data
+
+
 @router.get("/cases/{case_id}/preanalysis-report")
 def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
     """Restituisce il Report di Preanalisi Economico-Finanziaria conforme al template dello studio legale."""
     _get_case(db, case_id)
-    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    report_record, report_data = _get_fresh_report(db, case_id)
     if isinstance(report_data, dict):
         docs = db.query(Document).filter_by(case_id=case_id).all()
         report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
@@ -743,7 +753,7 @@ def get_preanalysis_report_pdf(
 ):
     """Genera e restituisce il file PDF nativo vettoriale del Report di Preanalisi ex CCII."""
     case = _get_case(db, case_id)
-    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    report_record, report_data = _get_fresh_report(db, case_id)
     pdf_bytes = generate_preanalysis_pdf(report_data, orientation=orientation)
 
     clean_name = "".join(c if c.isalnum() else "_" for c in (case.client_name or "Cliente")).strip("_")
@@ -768,7 +778,7 @@ def get_technical_dossier_pdf_endpoint(
 ):
     """Genera e restituisce il Secondo Elaborato Standard: Dossier Tecnico di Calcolo e Audit Forense."""
     case = _get_case(db, case_id)
-    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    report_record, report_data = _get_fresh_report(db, case_id)
     if isinstance(report_data, dict):
         docs = db.query(Document).filter_by(case_id=case_id).all()
         report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
@@ -798,7 +808,7 @@ def export_audit_execution_endpoint(
 ):
     """Esporta il registro di esecuzione Decimal al centesimo, SHA-256 a 64 caratteri ed esito delle 5 prove v2.1."""
     case = _get_case(db, case_id)
-    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
+    report_record, report_data = _get_fresh_report(db, case_id)
     docs = db.query(Document).filter_by(case_id=case_id).all()
     clean_name = "".join(c if c.isalnum() else "_" for c in (case.client_name or "Cliente")).strip("_")
 

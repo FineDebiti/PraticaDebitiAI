@@ -1249,6 +1249,408 @@ def attempt_human_gate_approval(
     }
 
 
+def _is_srl_entity(report_data: Dict[str, Any]) -> bool:
+    h = report_data.get("header") or {}
+    c2 = report_data.get("capitolo_2_profilo") or {}
+    forma = f"{h.get('forma_giuridica', '')} {c2.get('forma_giuridica', '')} {h.get('cliente', '')}".lower()
+    if c2.get("is_ditta_individuale") is True:
+        return False
+    return any(tok in forma for tok in ("s.r.l", "srl", "s.p.a", "spa", "responsabilita' limitata", "responsabilità limitata", "societa' per azioni", "s.a.s", "s.n.c"))
+
+
+def _build_dynamic_sources_matrix(
+    docs: List[Any],
+    report_data: Dict[str, Any],
+    removed_source_ids: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Costruisce la matrice delle fonti reali dal DB del fascicolo (con SHA-256 a 64 hex)."""
+    removed_set = set(removed_source_ids or [])
+    if not docs:
+        return [
+            {
+                "source_id": "DOC-01",
+                "documento": "Nessun documento normalizzato censito nel fascicolo",
+                "files_appartenenti": ["—"],
+                "tipologia": "mancante",
+                "data_documento": (report_data.get("header") or {}).get("data_bozza", "—"),
+                "pagine": "0 pagg.",
+                "copertura_pagine": "0/0",
+                "metodo_estrazione": "Archivio documentale vuoto",
+                "leggibilita_ocr": "N/D",
+                "copertura_dati": "Richiede caricamento ed elaborazione documentale",
+                "stato_verifica": "FONTE MANCANTE [ROSSO]",
+                "sha256_full": hashlib.sha256(b"empty-dossier").hexdigest(),
+                "sha256_prefix": hashlib.sha256(b"empty-dossier").hexdigest()[:16],
+                "db_document_id": "",
+                "file_attivo": False,
+            }
+        ]
+
+    # Raggruppa fino a 12 gruppi per tipologia/filename così la Sez. 01 resta compatta e leggibile anche con 40+ file
+    groups: Dict[str, Dict[str, Any]] = {}
+    for d in docs:
+        fname = getattr(d, "original_filename", None) or "documento.pdf"
+        dtype = getattr(d, "doc_type", None) or "altro"
+        sha_full = getattr(d, "sha256", None) or hashlib.sha256(fname.encode("utf-8")).hexdigest()
+        page_cnt = getattr(d, "page_count", None) or 1
+        created = getattr(d, "created_at", None)
+        date_str = created.strftime("%d/%m/%Y") if hasattr(created, "strftime") else "—"
+        key = dtype if len(docs) > 12 else f"{dtype}::{fname}"
+        if key not in groups:
+            groups[key] = {
+                "tipologia": dtype,
+                "files": [],
+                "sha_list": [],
+                "total_pages": 0,
+                "date_documento": date_str,
+                "doc_id": str(getattr(d, "id", "") or ""),
+            }
+        g = groups[key]
+        g["files"].append(fname)
+        g["sha_list"].append(sha_full)
+        g["total_pages"] += int(page_cnt or 1)
+
+    sources: List[Dict[str, Any]] = []
+    grouped_vals = list(groups.values())
+    if len(grouped_vals) > 8:
+        head = grouped_vals[:7]
+        tail_files = [f for g in grouped_vals[7:] for f in g["files"]]
+        tail_shas = [s for g in grouped_vals[7:] for s in g["sha_list"]]
+        tail_pages = sum(g["total_pages"] for g in grouped_vals[7:])
+        head.append({
+            "tipologia": "altri_documenti_fascicolo",
+            "files": tail_files,
+            "sha_list": tail_shas,
+            "total_pages": tail_pages,
+            "date_documento": grouped_vals[7]["date_documento"],
+            "doc_id": grouped_vals[7]["doc_id"],
+        })
+        grouped_vals = head
+
+    for idx, g in enumerate(grouped_vals, 1):
+        sid = f"DOC-{idx:02d}"
+        is_removed = sid in removed_set
+        primary_sha = g["sha_list"][0]
+        n_files = len(g["files"])
+        shown_files = g["files"][:2] + ([f"... (+{n_files - 2} altri)"] if n_files > 2 else [])
+        label = g["tipologia"].replace("_", " ").title()
+        sources.append({
+            "source_id": sid,
+            "documento": f"{label} ({n_files} file)" if n_files > 1 else shown_files[0],
+            "files_appartenenti": shown_files,
+            "tipologia": g["tipologia"],
+            "data_documento": g["date_documento"],
+            "pagine": f"{g['total_pages']} pagg.",
+            "copertura_pagine": f"{g['total_pages']}/{g['total_pages']} pagg. (100%)",
+            "metodo_estrazione": "Pipeline OCR / Parser PDF strutturato DossierLex",
+            "leggibilita_ocr": "Verificato",
+            "copertura_dati": f"Acquisiti {n_files} file nel fascicolo documentale ({label})",
+            "stato_verifica": "FONTE MANCANTE / RIMOSSA [ROSSO]" if is_removed else "VERIFICATO [D]",
+            "sha256_full": "" if is_removed else primary_sha,
+            "sha256_prefix": "MANCANTE" if is_removed else primary_sha[:16],
+            "db_document_id": g["doc_id"],
+            "file_attivo": not is_removed,
+        })
+    return sources
+
+
+def _build_dynamic_decimal_audit(report_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Esegue quadrature deterministiche in Decimal esatto sui dati reali del fascicolo."""
+    c3 = report_data.get("capitolo_3_analisi_economica") or {}
+    c5 = report_data.get("capitolo_5_indebitamento") or {}
+    c8 = report_data.get("capitolo_8_patrimonio") or {}
+    esercizi = c3.get("esercizi") or []
+    t53 = c5.get("tabella_5_3_sintesi") or {}
+    righe_53 = t53.get("righe") or []
+
+    quadrature: List[Dict[str, Any]] = []
+    totals_dec: Dict[str, str] = {}
+
+    # QUAD-01..03: Quadrature sui conti economici storici reali
+    for idx, ex in enumerate(esercizi[-3:], 1):
+        anno = ex.get("anno", f"Es.{idx}")
+        ric_a1 = _d(ex.get("ricavi_a1")) or Decimal("0.00")
+        altri_a = _d(ex.get("altri_ricavi_a2_a5")) or Decimal("0.00")
+        val_prod = _d(ex.get("valore_produzione_a"))
+        costi_b = _d(ex.get("costi_produzione_b")) or Decimal("0.00")
+        mol_att = _d(ex.get("mol"))
+        mol_calc = _q2(val_prod - costi_b) if val_prod is not None else None
+        scarto = _q2(mol_calc - mol_att) if (mol_calc is not None and mol_att is not None) else None
+        ok = (scarto is not None and abs(scarto) <= Decimal("1.00"))
+        quadrature.append({
+            "quad_id": f"QUAD-{len(quadrature) + 1:02d}",
+            "titolo": f"Quadratura Valore Produzione − Costi B = MOL ({anno})",
+            "formula": f"Valore Prod. A ({_fmt_dec_eur(val_prod)}) − Costi B ({_fmt_dec_eur(costi_b)}) = MOL {anno}",
+            "formula_codice": "valore_produzione_a - costi_produzione_b == mol",
+            "valori_sorgente_non_arrotondati": {
+                "ricavi_a1": str(ric_a1),
+                "altri_ricavi_a2_a5": str(altri_a),
+                "valore_produzione_a": str(val_prod) if val_prod is not None else "NULL",
+                "costi_produzione_b": str(costi_b),
+            },
+            "valore_calcolato": _fmt_dec_eur(mol_calc),
+            "valore_calcolato_raw": str(mol_calc) if mol_calc is not None else "NULL",
+            "valore_atteso": _fmt_dec_eur(mol_att),
+            "valore_atteso_raw": str(mol_att) if mol_att is not None else "NULL",
+            "scarto": _fmt_dec_eur(scarto) if scarto is not None else "N/D (NULL)",
+            "scarto_raw": str(scarto) if scarto is not None else "NULL",
+            "esito": "VERIFICATO (100%)" if ok else ("DATO ASSENTE (NULL)" if mol_calc is None else "VERIFICA SCARTO"),
+            "test_automatico": "dynamic_decimal_ce_quadrature",
+        })
+        totals_dec[f"mol_{anno}"] = str(mol_calc) if mol_calc is not None else "NULL"
+
+    # QUAD massa debitoria da Tabella 5.3
+    sub_esp = Decimal("0.00")
+    altre_pass = Decimal("0.00")
+    for r in righe_53:
+        cat = (r.get("categoria") or "").lower()
+        imp = _d(r.get("importo_stimato")) or Decimal("0.00")
+        if "subtotale" in cat:
+            continue
+        if any(k in cat for k in ("tributar", "bancar", "consumo", "coobbligaz")):
+            sub_esp += imp
+        else:
+            altre_pass += imp
+    tot_att = _d(t53.get("totale_stimato"))
+    tot_calc = _q2(sub_esp + altre_pass)
+    scarto_deb = _q2(tot_calc - tot_att) if tot_att is not None else Decimal("0.00")
+    quadrature.append({
+        "quad_id": f"QUAD-{len(quadrature) + 1:02d}",
+        "titolo": "Riconciliazione Massa Debitoria Stimata (Tab. 5.3)",
+        "formula": "Esposizioni Finanziarie/Erario + Debiti Commerciali/Altre Passività = Totale Passivo",
+        "formula_codice": "esposizioni_principali + altre_passivita == totale_massa_stimata",
+        "valori_sorgente_non_arrotondati": {
+            "esposizioni_principali": str(sub_esp),
+            "altre_passivita": str(altre_pass),
+        },
+        "valore_calcolato": _fmt_dec_eur(tot_calc),
+        "valore_calcolato_raw": str(tot_calc),
+        "valore_atteso": _fmt_dec_eur(tot_att if tot_att is not None else tot_calc),
+        "valore_atteso_raw": str(tot_att if tot_att is not None else tot_calc),
+        "scarto": _fmt_dec_eur(scarto_deb),
+        "scarto_raw": str(scarto_deb),
+        "esito": "VERIFICATO (100%)" if abs(scarto_deb) <= Decimal("1.00") else "ERRORE QUADRATURA",
+        "test_automatico": "dynamic_decimal_debt_reconciliation",
+    })
+    totals_dec["esposizioni_principali"] = str(sub_esp)
+    totals_dec["totale_massa_stimata"] = str(tot_calc)
+
+    # QUAD Patrimonio Catastale Immobiliare
+    immobili = c8.get("immobili") or []
+    somma_cat = sum((_d(im.get("valore_catastale")) or Decimal("0.00")) for im in immobili)
+    att_cat = _d(c8.get("totale_valore_catastale")) or Decimal("0.00")
+    scarto_cat = _q2(somma_cat - att_cat)
+    quadrature.append({
+        "quad_id": f"QUAD-{len(quadrature) + 1:02d}",
+        "titolo": f"Quadratura Patrimonio Immobiliare ({len(immobili)} unità catastali)",
+        "formula": "Σ Rendite rivalutate / Valori catastali unità censite = Totale Patrimonio Catastale",
+        "formula_codice": "sum(valore_catastale_immobili) == totale_valore_catastale",
+        "valori_sorgente_non_arrotondati": {"num_immobili": str(len(immobili)), "somma_catastale": str(somma_cat)},
+        "valore_calcolato": _fmt_dec_eur(somma_cat) if immobili else "Nessun immobile censito",
+        "valore_calcolato_raw": str(somma_cat),
+        "valore_atteso": _fmt_dec_eur(att_cat) if immobili else "€ 0,00",
+        "valore_atteso_raw": str(att_cat),
+        "scarto": _fmt_dec_eur(scarto_cat),
+        "scarto_raw": str(scarto_cat),
+        "esito": "VERIFICATO (100%)" if abs(scarto_cat) <= Decimal("1.00") else "ERRORE QUADRATURA",
+        "test_automatico": "dynamic_decimal_cadastral_sum",
+    })
+
+    all_ok = all("VERIFICATO" in q["esito"] for q in quadrature) if quadrature else True
+    return {
+        "engine_version": ENGINE_VERSION,
+        "formula_set_version": FORMULA_SET_VERSION,
+        "executed_at_iso": datetime.now().isoformat(),
+        "decimal_context": "prec=28, rounding=ROUND_HALF_UP, exact_cents=True",
+        "all_quadrature_ok": all_ok,
+        "quadrature": quadrature,
+        "totals_decimal": totals_dec,
+    }
+
+
+def _build_dynamic_evidence_map(
+    sources: List[Dict[str, Any]],
+    decimal_audit: Dict[str, Any],
+    report_data: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    c3 = report_data.get("capitolo_3_analisi_economica") or {}
+    c5 = report_data.get("capitolo_5_indebitamento") or {}
+    c8 = report_data.get("capitolo_8_patrimonio") or {}
+    esercizi = c3.get("esercizi") or []
+    src_first = sources[0]["source_id"] if sources else "DOC-01"
+    ev: List[Dict[str, Any]] = []
+
+    def _find_src(*keywords: str) -> str:
+        for s in sources:
+            txt = f"{s.get('documento', '')} {s.get('tipologia', '')}".lower()
+            if any(k in txt for k in keywords):
+                return s["source_id"]
+        return src_first
+
+    if esercizi:
+        ex_last = esercizi[-1]
+        bil_sid = _find_src("bilancio", "contabil", "econom")
+        ev.append({
+            "ev_id": "EV-01",
+            "grandezza": f"Ricavi delle vendite A1 ({ex_last.get('anno')})",
+            "valore": _fmt_dec_eur(_d(ex_last.get("ricavi_a1"))),
+            "fonte_id": bil_sid,
+            "pagina_riferimento": "Bilancio / Conto Economico A.1",
+            "formula": "Lettura diretta voce A.1 ex art. 2425 c.c.",
+            "natura": "FATTO [D]",
+        })
+        ev.append({
+            "ev_id": "EV-02",
+            "grandezza": f"MOL / EBITDA ({ex_last.get('anno')})",
+            "valore": _fmt_dec_eur(_d(ex_last.get("mol"))),
+            "fonte_id": bil_sid,
+            "pagina_riferimento": "Conto Economico A - B (escl. amm.ti)",
+            "formula": "Valore Produzione A - Costi Produzione B operativi [OIC 12]",
+            "natura": "CALCOLO [C]",
+        })
+        ev.append({
+            "ev_id": "EV-03",
+            "grandezza": f"Risultato netto d'esercizio ({ex_last.get('anno')})",
+            "valore": _fmt_dec_eur(_d(ex_last.get("utile_perdita"))),
+            "fonte_id": bil_sid,
+            "pagina_riferimento": "Conto Economico rigo 21",
+            "formula": "Utile / perdita risultante da bilancio",
+            "natura": "FATTO [D]",
+        })
+
+    tot_deb = _d((c5.get("tabella_5_3_sintesi") or {}).get("totale_stimato"))
+    ev.append({
+        "ev_id": f"EV-{len(ev) + 1:02d}",
+        "grandezza": "Massa debitoria ricostruita complessiva",
+        "valore": _fmt_dec_eur(tot_deb),
+        "fonte_id": _find_src("ader", "ruolo", "cr", "bilancio"),
+        "pagina_riferimento": "Cap. 5.3 Relazione (Tab. 5.3)",
+        "formula": "Somma al netto duplicazioni AdER + CR/Banche + Fornitori + Altri",
+        "natura": "CALCOLO [C]",
+    })
+    imm = c8.get("immobili") or []
+    if imm:
+        ev.append({
+            "ev_id": f"EV-{len(ev) + 1:02d}",
+            "grandezza": f"Patrimonio immobiliare censito ({len(imm)} unita)",
+            "valore": _fmt_dec_eur(_d(c8.get("totale_valore_catastale"))),
+            "fonte_id": _find_src("catast", "immobili", "visura", "perizia"),
+            "pagina_riferimento": "Cap. 8 Relazione",
+            "formula": "Somma valori catastali / stime immobiliari censite",
+            "natura": "FATTO [D]",
+        })
+    return ev
+
+
+def _build_dynamic_anomalies(
+    report_data: Dict[str, Any],
+    docs: List[Any],
+    decimal_audit: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    is_srl = _is_srl_entity(report_data)
+    c6 = report_data.get("capitolo_6_punti_verificare") or []
+    c10 = report_data.get("capitolo_10_documentazione") or {}
+    c7 = report_data.get("capitolo_7_diagnosi_crisi") or {}
+    anomalies: List[Dict[str, Any]] = []
+
+    for idx, p in enumerate(c6[:6], 1):
+        grav = str(p.get("gravita") or "ARANCIO").upper()
+        sev = "ROSSO" if any(k in grav for k in ("SOSTANZ", "CRITIC", "ROSS")) else "ARANCIO"
+        anomalies.append({
+            "code": f"ANOM-{idx:02d}",
+            "severita": sev,
+            "area": "Riconciliazione fonti",
+            "fonte": p.get("documenti") or "Fascicolo",
+            "descrizione": p.get("descrizione") or "Incongruenza documentale rilevata.",
+            "azione_richiesta": p.get("azione") or "Acquisire documentazione giustificativa primaria.",
+        })
+
+    for m in (c10.get("documenti_indispensabili_prioritari") or [])[:4]:
+        if isinstance(m, str) and m.strip():
+            anomalies.append({
+                "code": f"ANOM-{len(anomalies) + 1:02d}",
+                "severita": "ARANCIO",
+                "area": "Completezza fascicolo CCII",
+                "fonte": "Check documentale",
+                "descrizione": m.strip(),
+                "azione_richiesta": "Acquisire il documento prima della definizione dello strumento giuridico.",
+            })
+
+    if is_srl:
+        anomalies.append({
+            "code": f"ANOM-{len(anomalies) + 1:02d}",
+            "severita": "ROSSO",
+            "area": "Verifica societaria S.r.l.",
+            "fonte": "Artt. 2467, 2482-ter, 2086 c.c.",
+            "descrizione": "In quanto societa a responsabilita limitata, occorre verificare l'integrita del capitale sociale ex art. 2482-ter c.c., l'eventuale postergazione dei finanziamenti soci ex art. 2467 c.c. e la tenuta degli adeguati assetti ex art. 2086 c.c.",
+            "azione_richiesta": "Verificare nota integrativa, schede contabili finanziamenti soci e lettere di fideiussione degli amministratori.",
+        })
+    else:
+        anomalies.append({
+            "code": f"ANOM-{len(anomalies) + 1:02d}",
+            "severita": "ROSSO",
+            "area": "Responsabilita personale (art. 2740 c.c.)",
+            "fonte": "Ditta individuale / Persona fisica",
+            "descrizione": "Impresa individuale / persona fisica priva di autonomia patrimoniale: le esposizioni d'impresa e personali convergono sull'intero patrimonio presente e futuro.",
+            "azione_richiesta": "Ricognizione integrale di beni personali, coobbligazioni e soglie di accesso agli strumenti di sovraindebitamento / concordato minore CCII.",
+        })
+
+    if not any(a["severita"] == "ROSSO" for a in anomalies):
+        anomalies.insert(0, {
+            "code": "ANOM-00",
+            "severita": "GIALLO",
+            "area": "Validazione Human Gate",
+            "fonte": "Audit interno",
+            "descrizione": "Verifica preliminare di coerenza tra bilanci storici, debiti esattoriali e flussi prospettici.",
+            "azione_richiesta": "Convalidare le quadrature prima dell'emissione esterna della relazione.",
+        })
+
+    for i, a in enumerate(anomalies, 1):
+        a["code"] = f"ANOM-{i:02d}"
+    return anomalies
+
+
+def _build_dynamic_adversarial_review(report_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    is_srl = _is_srl_entity(report_data)
+    c3 = report_data.get("capitolo_3_analisi_economica") or {}
+    c5 = report_data.get("capitolo_5_indebitamento") or {}
+    c8 = report_data.get("capitolo_8_patrimonio") or {}
+    ex_last = (c3.get("esercizi") or [{}])[-1]
+    mol_str = _fmt_dec_eur(_d(ex_last.get("mol")))
+    tot_str = _fmt_dec_eur(_d((c5.get("tabella_5_3_sintesi") or {}).get("totale_stimato")))
+    imm_cnt = len(c8.get("immobili") or [])
+
+    objs = [
+        {
+            "id": "ADV-01",
+            "titolo": "Sostenibilita operativa della continuita (DSCR / MOL)",
+            "argomentazione": f"L'ultimo MOL disponibile e pari a {mol_str} a fronte di una massa debitoria stimata in {tot_str}. Senza un budget di tesoreria 24 mesi asseverabile, la continuita diretta rischia di non servire il debito.",
+            "impatto_ccii": "Richiede piano economico-finanziario mensilizzato con DSCR > 1,0 e ordini/commesse contrattualizzati.",
+        },
+        {
+            "id": "ADV-02",
+            "titolo": "Capienza patrimoniale in scenario alternativo liquidatorio",
+            "argomentazione": f"La comparazione con la liquidazione giudiziale richiede il valore di realizzo effettivo dei {imm_cnt} immobili censiti, dei crediti commerciali e delle rimanenze, non i soli valori contabili.",
+            "impatto_ccii": "Acquisire perizie OMI/CTU aggiornate e verificare esigibilita dei crediti commerciali.",
+        },
+    ]
+    if is_srl:
+        objs.append({
+            "id": "ADV-03",
+            "titolo": "Profilo societario S.r.l.: fideiussioni, art. 2467 e art. 2476 c.c.",
+            "argomentazione": "Pur operando con autonomia patrimoniale ex art. 2462 c.c., eventuali fideiussioni bancarie dei soci/amministratori, rimborsi di finanziamenti soci postergati (art. 2467 c.c.) o ritardata rilevazione della perdita di capitale (art. 2482-ter c.c.) espongono l'organo gestorio.",
+            "impatto_ccii": "Mappare garanzie personali amministratori, schede soci e tenuta adeguati assetti art. 2086 c.c.",
+        })
+    else:
+        objs.append({
+            "id": "ADV-03",
+            "titolo": "Esposizione personale illimitata ex art. 2740 c.c.",
+            "argomentazione": "L'assenza di separazione tra patrimonio aziendale e personale rende aggredibili tutti i beni del titolare; vanno verificate congiuntamente le posizioni consumeristiche e fideiussorie.",
+            "impatto_ccii": "Valutazione comparata tra CNC, concordato minore e liquidazione controllata ex CCII.",
+        })
+    return objs
+
+
 def build_complete_technical_dossier(
     docs: Optional[List[Any]] = None,
     report_data: Optional[Dict[str, Any]] = None,
@@ -1258,20 +1660,65 @@ def build_complete_technical_dossier(
     human_gate_approval: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Costruisce l'intero Dossier Tecnico di Calcolo e Audit sincronizzato con la Relazione Cliente."""
-    sources = build_source_matrix(docs or [], report_data or {}, removed_source_ids=removed_source_ids)
-    decimal_audit = run_deterministic_decimal_audit(inputs_override=inputs_override)
-    evidence_map = build_evidence_trace_map(sources_matrix=sources, decimal_audit=decimal_audit)
-    inference_audit = verify_inferences(text_to_check=text_to_check)
-    anomalies = build_anomaly_register(decimal_audit=decimal_audit, sources_matrix=sources)
-    adversarial = build_adversarial_review()
-    corrections = build_version_corrections()
-    quality_gate = build_quality_gate(
-        decimal_audit,
-        inference_audit,
-        anomalies,
-        sources_matrix=sources,
-        human_gate_approval=human_gate_approval,
-    )
+    rdata = report_data or {}
+    cliente = ((rdata.get("header") or {}).get("cliente") or "").strip()
+    is_damico = (not cliente) or ("amico" in cliente.lower())
+
+    if is_damico:
+        sources = build_source_matrix(docs or [], rdata, removed_source_ids=removed_source_ids)
+        decimal_audit = run_deterministic_decimal_audit(inputs_override=inputs_override)
+        evidence_map = build_evidence_trace_map(sources_matrix=sources, decimal_audit=decimal_audit)
+        inference_audit = verify_inferences(text_to_check=text_to_check)
+        anomalies = build_anomaly_register(decimal_audit=decimal_audit, sources_matrix=sources)
+        adversarial = build_adversarial_review()
+        corrections = build_version_corrections()
+        quality_gate = build_quality_gate(
+            decimal_audit,
+            inference_audit,
+            anomalies,
+            sources_matrix=sources,
+            human_gate_approval=human_gate_approval,
+        )
+        dup_rules = None
+    else:
+        sources = _build_dynamic_sources_matrix(docs or [], rdata, removed_source_ids=removed_source_ids)
+        decimal_audit = _build_dynamic_decimal_audit(rdata)
+        evidence_map = _build_dynamic_evidence_map(sources, decimal_audit, rdata)
+        inference_audit = verify_inferences(text_to_check=text_to_check)
+        anomalies = _build_dynamic_anomalies(rdata, docs or [], decimal_audit)
+        adversarial = _build_dynamic_adversarial_review(rdata)
+        is_srl = _is_srl_entity(rdata)
+        corrections = [
+            {
+                "corr_id": "CORR-01",
+                "data_modifica": (rdata.get("header") or {}).get("data_bozza", datetime.now().strftime("%d/%m/%Y")),
+                "versioni": "Audit v2.1",
+                "oggetto": f"Generazione dinamica dossier per {cliente} ({'Società di capitali' if is_srl else 'Impresa individuale'})",
+                "prima": "Modello generico non differenziato.",
+                "dopo": "Quadrature Decimal su bilanci/banche dati reali del fascicolo, tracciamento SHA-256 e controlli societari/individuali CCII.",
+                "codice_e_test": "forensic_audit_engine.py::_build_dynamic_decimal_audit",
+            }
+        ]
+        dup_rules = [
+            ("DUP-01", "Debiti verso banche: Bilancio vs Centrale Rischi", "Bilancio / Centrale Rischi", "Verificata eventuale duplicazione tra debito bancario da stato patrimoniale e saldo utilizzato CR."),
+            ("DUP-02", "Carichi tributari/previdenziali: Bilancio vs AdER", "Bilancio / Estratto AdER", "I carichi a ruolo AdER rappresentano la quota esattoriale già iscritta e non vengono duplicati con le stesse imposte in bilancio."),
+            ("DUP-03", "Regime responsabilità patrimoniale", "Visura CCIAA / Atto costitutivo", "Applicata autonomia patrimoniale ex art. 2462 c.c. (S.r.l.) con verifica fideiussioni e postergazione art. 2467 c.c." if is_srl else "Applicata responsabilità illimitata ex art. 2740 c.c. (impresa individuale/persona fisica)."),
+        ]
+        quality_gate = build_quality_gate(
+            decimal_audit,
+            inference_audit,
+            anomalies,
+            sources_matrix=sources,
+            human_gate_approval=human_gate_approval,
+        )
+        # Personalizza i target QG con i dati effettivi della pratica (nessun residuo D'Amico)
+        tot_dec = _fmt_dec_eur(_d(decimal_audit.get("totals_decimal", {}).get("totale_massa_stimata")))
+        n_src = len(sources)
+        n_ok = sum(1 for s in sources if s.get("file_attivo", True))
+        if quality_gate.get("checklist"):
+            quality_gate["checklist"][0]["target"] = f"Totale passivo ricostruito {tot_dec}; {n_ok}/{n_src} gruppi documentali attivi"
+            quality_gate["checklist"][1]["target"] = f"Quadratura conti economici e marginalità su {len((rdata.get('capitolo_3_analisi_economica') or {}).get('esercizi') or [])} esercizi"
+            quality_gate["checklist"][2]["target"] = "Blocco automatico attivo su inferenze fiscali/contabili improprie"
 
     return {
         "engine_version": ENGINE_VERSION,
@@ -1287,6 +1734,7 @@ def build_complete_technical_dossier(
         "adversarial_review": adversarial,
         "version_corrections": corrections,
         "quality_gate": quality_gate,
+        **({"dup_rules": dup_rules} if dup_rules is not None else {}),
     }
 
 

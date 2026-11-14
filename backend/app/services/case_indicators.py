@@ -89,7 +89,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
     priv = round(sum(i.totale_residuo for i in items if i.ente_categoria in ("erariale", "previdenziale")), 2)
     out.append(_ind("aer_pct_privilegiati", "% debiti privilegiati", "indebitamento",
                     round(priv / aer_total * 100, 1) if aer_total else None, "pct",
-                    "(erariale + previdenziale) ÷ totale AER", section="indebitamento"))
+                    "(erariale + previdenziale) / totale AER", section="indebitamento"))
     n_proc = sum(1 for i in items if i.proc_attive)
     out.append(_ind("aer_proc_attive", "Cartelle con procedure attive", "indebitamento",
                     n_proc if has_aer else None, "count",
@@ -103,7 +103,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
     int_oneri = sum(i.interessi_mora + i.oneri_diritti for i in items)
     out.append(_ind("aer_peso_interessi", "Peso interessi e oneri", "indebitamento",
                     round(int_oneri / carico * 100, 1) if carico else None, "pct",
-                    "(interessi di mora + oneri) ÷ carico affidato", section="indebitamento"))
+                    "(interessi di mora + oneri) / carico affidato", section="indebitamento"))
     notif = sorted([i.data_notifica for i in items if i.data_notifica])
     out.append(_ind("aer_anzianita", "Anzianità cartelle", "indebitamento",
                     (f"{notif[0]} → {notif[-1]}" if notif else None), "text",
@@ -267,7 +267,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
     ratio_eb = pfn_eb_eval["ratio"] if pfn_eb_eval else None
     out.append(_ind("imp_pfn_ebitda", "PFN / EBITDA (Anni rimborso)", "impresa",
                     ratio_eb, "ratio",
-                    "PFN ÷ EBITDA (soglie bancarie: <2 solido, 2-3 fisiologico, 3-6 attenzione, >6 allarme, >12 critico)",
+                    "PFN / EBITDA (soglie bancarie: <2 solido, 2-3 fisiologico, 3-6 attenzione, >6 allarme, >12 critico)",
                     kind="signal",
                     section="impresa",
                     criterion=pfn_eb_eval["valutazione_bancaria"] if pfn_eb_eval else None,
@@ -368,7 +368,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
              aggredibile if (has_re or vehicles) else None, "eur",
              "valore immobili (escl. prima casa) + veicoli"),
         _ind("debito_su_patrimonio", "Debito / patrimonio", "macro",
-             rapporto, "ratio", "indebitamento ÷ patrimonio aggredibile",
+             rapporto, "ratio", "indebitamento / patrimonio aggredibile",
              status=("danger" if (rapporto and rapporto > 1) else "ok") if rapporto is not None else "na"),
         _ind("esposizione_netta", "Esposizione netta", "macro",
              round(indeb - aggredibile, 2) if (has_indeb and (has_re or vehicles)) else None, "eur",

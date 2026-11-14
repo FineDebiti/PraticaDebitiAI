@@ -12,7 +12,11 @@ import app.models  # noqa: F401 (registra le tabelle)
 
 app = FastAPI(title="DossierLex")
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(router, prefix="/api")
