@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { getCard, getCase, saveDebtor, createCompany, updateCompany, deleteCompany, uploadDoc, addRealEstate, delRealEstate, addVehicle, delVehicle,
   setPrimaryResidence, openapiSearch, openapiRequests, openapiRequest, companyFill, companyImport, promoteCompany,
   uploadAer, deleteAer, relatedCases, openRelated, docFileUrl, patchRecord, getEdits, getIndicators,
-  getIncomeDocuments, getIncomeSummary, runCrossAnalysis, getCrossAnalysis } from "../../../api";
+  getIncomeDocuments, getIncomeSummary, runCrossAnalysis, getCrossAnalysis, getPreanalysisReport, reanalyzeCase } from "../../../api";
 import DocumentsPanel from "../../../components/DocumentsPanel";
 import CaseChatDrawer from "../../../components/CaseChatDrawer";
 import { CrBadge, Section, Stat, ToolsBar } from "./scheda-ui";
@@ -54,6 +54,8 @@ export default function Scheda({ params, initialSection = "documenti" }) {
   const [correction, setCorrection] = useState(null);  // modale correzione aperta {entityType,...}
   const [crossAnalysis, setCrossAnalysis] = useState(null);
   const [crossLoading, setCrossLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const docStatusRef = useRef({});
   const draftSeq = useRef(0);
@@ -109,12 +111,32 @@ export default function Scheda({ params, initialSection = "documenti" }) {
     setCard(c);
     const deb = c.debtor || null;
     if (deb) { setD({ ...EMPTY, ...deb }); setDirty(false); }
+    getPreanalysisReport(id).then((r) => { if (r) setReportData(r); }).catch(() => {});
+    getIndicators(id).then((ind) => { if (ind) setIndic(ind); }).catch(() => {});
   }
   useEffect(() => { load(); }, [id]);
   useEffect(() => { relatedCases(id).then(setRelated).catch(() => {}); }, [id]);
   useEffect(() => { getCrossAnalysis(id).then(setCrossAnalysis).catch(() => {}); }, [id]);
   // indicatori: ricaricati ogni volta che si apre la tab (riflettono i dati più recenti)
-  useEffect(() => { if (["indicatori", "econometria", "report"].includes(activeTab)) getIndicators(id).then(setIndic).catch(() => {}); }, [id, activeTab]);
+  useEffect(() => { if (["indicatori", "econometria", "report", "riepilogo"].includes(activeTab)) getIndicators(id).then(setIndic).catch(() => {}); }, [id, activeTab]);
+
+  async function handleReanalyzeCase() {
+    if (!id || reanalyzing) return;
+    setReanalyzing(true);
+    try {
+      const res = await reanalyzeCase(id);
+      if (res?.cross_analysis) setCrossAnalysis(res.cross_analysis);
+      if (res?.report) setReportData(res.report);
+      if (res?.indicators) setIndic(res.indicators);
+      await load();
+      setIncomeToast(`Pre-analisi rieseguita e aggiornata (v${res?.version || "aggiornata"})`);
+      setTimeout(() => setIncomeToast(""), 5000);
+    } catch (e) {
+      alert("Errore durante la riesecuzione della pre-analisi: " + (e?.message || "Errore sconosciuto"));
+    } finally {
+      setReanalyzing(false);
+    }
+  }
 
   async function handleRunCrossAnalysis() {
     setCrossLoading(true);
@@ -296,6 +318,16 @@ export default function Scheda({ params, initialSection = "documenti" }) {
               <span className="material-symbols-outlined" aria-hidden="true">folder_open</span>
               Documenti ({nDoc})
             </button>
+            <button
+              type="button"
+              className="pd-btn pd-btn--secondary"
+              onClick={handleReanalyzeCase}
+              disabled={reanalyzing}
+              title="Ricalcola analisi trasversale, indicatori, econometria, relazione cliente e dossier audit sui dati aggiornati"
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">refresh</span>
+              {reanalyzing ? "Riesecuzione..." : "Riesegui Pre-Analisi"}
+            </button>
             <button type="button" className="pd-btn pd-btn--primary" onClick={() => goTab("report")}>
               <span className="material-symbols-outlined" aria-hidden="true">description</span>
               Relazione & Dossier Audit
@@ -410,26 +442,39 @@ export default function Scheda({ params, initialSection = "documenti" }) {
               </div>
             </div>
             <div className="pd-grid pd-grid--4">
-              <div className="pd-source-box">
-                <label>Quadrature Decimal</label>
-                <strong style={{ color: "var(--pd-ok)" }}>8 / 8 Verificate</strong>
-                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Scarto aritmetico € 0,00 al centesimo</span>
-              </div>
-              <div className="pd-source-box">
-                <label>Anti-Duplicazione Passivo</label>
-                <strong style={{ color: "var(--pd-primary)" }}>4 Filtri Attivi</strong>
-                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>INPS in AdER, rottamazioni e CR storica non duplicati</span>
-              </div>
-              <div className="pd-source-box">
-                <label>Controllo Inferenze (INF-01..05)</label>
-                <strong style={{ color: "var(--pd-ok)" }}>5 / 5 Regole OK</strong>
-                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Blocco attivo su Rigo RG5 ≠ incassi/cassa</span>
-              </div>
-              <div className="pd-source-box">
-                <label>Anomalie & Human Gate</label>
-                <strong style={{ color: "var(--pd-warn)" }}>13 Censite (3 Rosse)</strong>
-                <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Divieto di auto-approvazione senza revisione umana</span>
-              </div>
+              {(() => {
+                const td = reportData?.technical_dossier || {};
+                const quads = td?.decimal_audit?.quadrature || [];
+                const qOk = quads.filter((q) => String(q?.esito || "").includes("VERIFICATO")).length;
+                const anom = td?.anomaly_register || [];
+                const nRosse = td?.quality_gate?.counts?.rosso ?? anom.filter((a) => a.severita === "ROSSO").length;
+                const infChecks = td?.inference_audit?.checks || [];
+                const infOk = infChecks.filter((c) => c.esito === "SUPERATO" || String(c.esito || "").includes("OK")).length || infChecks.length;
+                return (
+                  <>
+                    <div className="pd-source-box">
+                      <label>Quadrature Decimal</label>
+                      <strong style={{ color: "var(--pd-ok)" }}>{qOk} / {quads.length} Verificate</strong>
+                      <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Verifica aritmetica al centesimo</span>
+                    </div>
+                    <div className="pd-source-box">
+                      <label>Anti-Duplicazione Passivo</label>
+                      <strong style={{ color: "var(--pd-primary)" }}>Filtri Attivi</strong>
+                      <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Riconciliazione banche dati e bilancio</span>
+                    </div>
+                    <div className="pd-source-box">
+                      <label>Controllo Inferenze</label>
+                      <strong style={{ color: "var(--pd-ok)" }}>{infOk} / {infChecks.length || 5} Regole OK</strong>
+                      <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Blocco attivo su inferenze non documentate</span>
+                    </div>
+                    <div className="pd-source-box">
+                      <label>Anomalie &amp; Human Gate</label>
+                      <strong style={{ color: "var(--pd-warn)" }}>{anom.length} Censite ({nRosse} Rosse)</strong>
+                      <span style={{ fontSize: 11, color: "var(--pd-text-muted)", display: "block", marginTop: 2 }}>Divieto di auto-approvazione senza revisione umana</span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -722,7 +767,21 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       {activeTab === "audit" && <AuditTrailView caseId={id} edits={edits} docs={docs} goTab={goTab} />}
 
       {/* ===== VALUTAZIONE ECONOMETRICA ===== */}
-      {activeTab === "econometria" && <EconometricEvaluationView indicators={indic} debtor={d} card={card} docs={docs} patrimonio={patrimonio} totalAer={totAer} goTab={goTab} />}
+      {activeTab === "econometria" && (
+        <EconometricEvaluationView
+          caseId={id}
+          indicators={indic}
+          debtor={d}
+          card={card}
+          docs={docs}
+          patrimonio={patrimonio}
+          totalAer={totAer}
+          report={reportData}
+          onReanalyze={handleReanalyzeCase}
+          reanalyzing={reanalyzing}
+          goTab={goTab}
+        />
+      )}
 
       {/* ===== REPORT FINALE ===== */}
       {activeTab === "report" && (
@@ -737,6 +796,9 @@ export default function Scheda({ params, initialSection = "documenti" }) {
           totalAer={totAer}
           patrimonio={patrimonio}
           crossAnalysis={crossAnalysis}
+          report={reportData}
+          onReanalyze={handleReanalyzeCase}
+          reanalyzing={reanalyzing}
           goTab={goTab}
         />
       )}

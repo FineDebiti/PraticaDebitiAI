@@ -85,7 +85,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
     has_aer = len(statements) > 0
     out.append(_ind("aer_totale", "Debito erariale/esattoriale totale", "indebitamento",
                     aer_total if has_aer else None, "eur",
-                    "Σ totale residuo delle cartelle AER", section="indebitamento"))
+                    "Somma totale residuo delle cartelle AER", section="indebitamento"))
     priv = round(sum(i.totale_residuo for i in items if i.ente_categoria in ("erariale", "previdenziale")), 2)
     out.append(_ind("aer_pct_privilegiati", "% debiti privilegiati", "indebitamento",
                     round(priv / aer_total * 100, 1) if aer_total else None, "pct",
@@ -106,7 +106,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     "(interessi di mora + oneri) / carico affidato", section="indebitamento"))
     notif = sorted([i.data_notifica for i in items if i.data_notifica])
     out.append(_ind("aer_anzianita", "Anzianità cartelle", "indebitamento",
-                    (f"{notif[0]} → {notif[-1]}" if notif else None), "text",
+                    (f"dal {notif[0]} al {notif[-1]}" if notif else None), "text",
                     "dalla notifica più vecchia alla più recente", section="indebitamento"))
     soglia = settings.aer_signal_anni
     datate = [i for i in items if (_years_since(i.data_notifica) or 0) >= soglia]
@@ -130,15 +130,15 @@ def compute_case_indicators(db, case_id: str) -> dict:
     veic_tot = round(sum(v.estimated_value for v in vehicles), 2)
     aggredibile = round(sum(_re_value(r) for r in res if not r.is_primary_residence) + veic_tot, 2)
     out.append(_ind("patr_catastale", "Valore catastale totale", "patrimonio",
-                    patr_cat if has_re else None, "eur", "Σ valore catastale immobili"))
+                    patr_cat if has_re else None, "eur", "Somma valore catastale immobili"))
     out.append(_ind("patr_commerciale", "Valore commerciale (mercato)", "patrimonio",
                     patr_comm if patr_comm else None, "eur",
-                    "Σ valore commerciale immobili (se stimato)"))
+                    "Somma valore commerciale immobili (se stimato)"))
     out.append(_ind("patr_netto_prima_casa", "Patrimonio netto prima casa", "patrimonio",
                     round(best_tot - prima_casa, 2) if has_re else None, "eur",
-                    "valore immobili − immobili prima casa"))
+                    "valore immobili - immobili prima casa"))
     out.append(_ind("patr_count", "Immobili e veicoli intestati", "patrimonio",
-                    (f"{len(res)} immobili · {len(vehicles)} veicoli" if (has_re or vehicles) else None),
+                    (f"{len(res)} immobili, {len(vehicles)} veicoli" if (has_re or vehicles) else None),
                     "text", "conteggio beni intestati"))
     n_ipo = sum(1 for r in res if r.has_mortgage)
     out.append(_ind("patr_ipotecati", "Immobili gravati da ipoteca", "patrimonio",
@@ -150,9 +150,9 @@ def compute_case_indicators(db, case_id: str) -> dict:
     cr_esp = round(cr.total_exposure, 2) if cr else None
     cr_gar = round(cr.total_guarantees, 2) if cr else None
     out.append(_ind("cr_esposizione", "Esposizione bancaria", "banca",
-                    cr_esp, "eur", "Σ utilizzato per intermediario"))
+                    cr_esp, "eur", "Somma utilizzato per intermediario"))
     out.append(_ind("cr_garanzie", "Garanzie prestate", "banca",
-                    cr_gar, "eur", "Σ garanzie prestate dal cliente"))
+                    cr_gar, "eur", "Somma garanzie prestate dal cliente"))
     out.append(_ind("cr_intermediari", "Numero intermediari", "banca",
                     (cr.num_intermediaries if cr else None), "count", "conteggio intermediari segnalanti"))
     out.append(_ind("cr_sofferenze", "Sofferenze", "banca",
@@ -190,7 +190,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     (reddito_mensile if has_red else None), "eur", red_formula))
     out.append(_ind("red_capacita_rimborso", "Capacità di rimborso mensile", "reddito",
                     (capacita if has_red else None), "eur",
-                    "reddito mensile considerato − spese − affitto/mutuo"))
+                    "reddito mensile considerato - spese - affitto/mutuo"))
     out.append(_ind("red_familiari", "Familiari a carico", "reddito",
                     (debtor.dependents if debtor else None), "count", "da nucleo familiare"))
     sit = []
@@ -260,7 +260,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
     pfn_val = pfn_calc["pfn_totale"] if pfn_calc else None
     out.append(_ind("imp_pfn", "Posizione finanziaria netta (ESMA 2021)", "impresa",
                     pfn_val, "eur",
-                    "Debiti finanziari + debt-like (TFR, erario, soci) − liquidità", section="impresa",
+                    "Debiti finanziari + debt-like (TFR, erario, soci) - liquidità", section="impresa",
                     status=("ok" if (pfn_val or 0) <= 0 else ("warn" if (pfn_val or 0) < 500000 else "danger")) if pfn_val is not None else "na"))
 
     pfn_eb_eval = evaluate_pfn_ebitda(pfn_val or 0.0, eb_val or 0.0) if (pfn_val is not None and eb_val is not None) else None
@@ -341,7 +341,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
     quota_def = round(sum(i.totale_residuo for i in items if (i.def_agevolata or i.rateizzato)), 2)
     out.append(_ind("x_quota_definibile", "Quota debito AER definibile", "trasversale",
                     quota_def if has_aer else None, "eur",
-                    "Σ cartelle in definizione agevolata o rateizzate", section="trasversale"))
+                    "Somma cartelle in definizione agevolata o rateizzate", section="trasversale"))
     comp = []
     if aer_total: comp.append(f"erariale/esattoriale {_fmt(aer_total)}")
     if cr_esp: comp.append(f"bancario {_fmt(cr_esp)}")
@@ -372,7 +372,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
              status=("danger" if (rapporto and rapporto > 1) else "ok") if rapporto is not None else "na"),
         _ind("esposizione_netta", "Esposizione netta", "macro",
              round(indeb - aggredibile, 2) if (has_indeb and (has_re or vehicles)) else None, "eur",
-             "indebitamento − patrimonio aggredibile"),
+             "indebitamento - patrimonio aggredibile"),
     ]
 
     red_m = (debtor.monthly_net_income if debtor else 0.0) or 0.0

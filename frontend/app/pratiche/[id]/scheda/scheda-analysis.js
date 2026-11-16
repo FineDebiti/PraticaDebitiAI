@@ -135,93 +135,142 @@ function CrossCheckDiscrepancies({ payload }) {
   );
 }
 
-function TrendChart({ indicators }) {
-  const rows = [
-    {
-      label: "EBITDA 2024 (Storico)",
-      sub: "Include € 50.452 di crediti d'imposta non ricorrenti",
-      value: 156588,
-      display: "+€ 156.588",
-      color: "#15803d",
-      bg: "#dcfce7",
-    },
-    {
-      label: "EBITDA 2025 (Contabile)",
-      sub: "Crollo ricavi (−37,1%) e rigidità costo del lavoro",
-      value: -43440,
-      display: "−€ 43.440",
-      color: "#b91c1c",
-      bg: "#fee2e2",
-    },
-    {
-      label: "EBITDA 2026 (Canone rettificato)",
-      sub: "Annualizzato ×3 con canone storico di € 18.000/anno",
-      value: -12298,
-      display: "−€ 12.298",
-      color: "#d97706",
-      bg: "#fef3c7",
-    },
-    {
-      label: "EBITDA 2026 (Ipotesi 2 addetti)",
-      sub: "Scenario favorevole con personale ridotto a € 60–70k/anno",
-      value: 67747,
-      display: "+€ 57,7 – 67,7 mila",
-      color: "#0284c7",
-      bg: "#e0f2fe",
-    },
-    {
-      label: "Soglia Rata Bancaria Riferita",
-      sub: "Fabbisogno annuo riferito (€ 6.000/mese × 12) — Deficit −€ 4.253",
-      value: 72000,
-      display: "€ 72.000 / anno",
-      color: "#102a43",
-      bg: "#e2e8f0",
-      isThreshold: true,
-    },
-  ];
-  const maxAbs = 160000;
+function eurShort(v) {
+  const n = Number(v) || 0;
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  if (abs >= 1000) {
+    return `${sign}€ ${(abs / 1000).toLocaleString("it-IT", { maximumFractionDigits: 1 })}k`;
+  }
+  return `${sign}${eurFull(abs)}`;
+}
+
+function TrendChart({ isDamico, report }) {
+  const esercizi = report?.capitolo_3_analisi_economica?.esercizi || [];
+  const pfnEval = report?.capitolo_5_indebitamento?.valutazione_pfn_ebitda || {};
+
+  const rows = isDamico
+    ? [
+        {
+          label: "EBITDA 2024 (Storico)",
+          sub: "Include € 50.452 di crediti d'imposta non ricorrenti",
+          value: 156588,
+          display: "+€ 156.588",
+          color: "#15803d",
+        },
+        {
+          label: "EBITDA 2025 (Contabile)",
+          sub: "Crollo ricavi (-37,1%) e rigidita costo del lavoro",
+          value: -43440,
+          display: "-€ 43.440",
+          color: "#b91c1c",
+        },
+        {
+          label: "EBITDA 2026 (Canone rettificato)",
+          sub: "Annualizzato x3 con canone storico di € 18.000/anno",
+          value: -12298,
+          display: "-€ 12.298",
+          color: "#d97706",
+        },
+        {
+          label: "EBITDA 2026 (Ipotesi 2 addetti)",
+          sub: "Scenario favorevole con personale ridotto a € 60-70k/anno",
+          value: 67747,
+          display: "+€ 57,7 - 67,7 mila",
+          color: "#0284c7",
+        },
+        {
+          label: "Soglia Rata Bancaria Riferita",
+          sub: "Fabbisogno annuo riferito (€ 6.000/mese x 12) - Deficit -€ 4.253",
+          value: 72000,
+          display: "€ 72.000 / anno",
+          color: "#102a43",
+          isThreshold: true,
+        },
+      ]
+    : esercizi.slice(-4).flatMap((ex) => {
+        const mol = Number(ex.mol || 0);
+        const ric = Number(ex.ricavi_a1 || 0);
+        const res = Number(ex.utile_perdita || 0);
+        return [
+          {
+            label: `MOL / EBITDA ${ex.anno}`,
+            sub: `Ricavi: ${eurFull(ric)} · Risultato netto: ${res < 0 ? "-" : ""}${eurFull(Math.abs(res))}`,
+            value: mol,
+            display: `${mol >= 0 ? "+" : "-"}${eurFull(Math.abs(mol))}`,
+            color: mol > 0 ? "#15803d" : "#b91c1c",
+          },
+        ];
+      });
+
+  const maxAbs = Math.max(
+    1,
+    ...rows.map((r) => Math.abs(Number(r.value) || 0))
+  );
 
   return (
     <div className="pd-card pd-chart-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
       <div className="pd-card__head" style={{ marginBottom: 12 }}>
         <div>
-          <h3 className="pd-card__title" style={{ marginBottom: 2 }}>Dinamica EBITDA e Test Copertura Rata</h3>
-          <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>Confronto storico 2024–2025 e sensitività 2026 vs servizio del debito</span>
+          <h3 className="pd-card__title" style={{ marginBottom: 2 }}>
+            {isDamico ? "Dinamica EBITDA e Test Copertura Rata" : "Dinamica Margini Operativi (MOL / EBITDA)"}
+          </h3>
+          <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>
+            {isDamico
+              ? "Confronto storico 2024-2025 e sensitivita 2026 vs servizio del debito"
+              : "Evoluzione storica di ricavi, marginalita operativa e risultato dai bilanci del fascicolo"}
+          </span>
         </div>
-        <span className="pd-badge pd-badge--warn">Deficit −€ 4.253</span>
+        {isDamico ? (
+          <span className="pd-badge pd-badge--warn">Deficit -€ 4.253</span>
+        ) : pfnEval?.ratio ? (
+          <span className="pd-badge pd-badge--neutral">PFN/EBITDA: {Number(pfnEval.ratio).toFixed(2)}x</span>
+        ) : null}
       </div>
 
-      <div style={{ display: "grid", gap: 12, margin: "4px 0 8px" }}>
-        {rows.map((r) => {
-          const pct = Math.max(8, Math.min(100, Math.round((Math.abs(r.value) / maxAbs) * 100)));
-          return (
-            <div key={r.label} style={{ background: r.isThreshold ? "#f8fafc" : "transparent", padding: r.isThreshold ? "8px 10px" : "2px 0", borderRadius: 8, border: r.isThreshold ? "1px dashed #94a3b8" : "none" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
-                <div>
-                  <strong style={{ fontSize: 13, color: "#102a43" }}>{r.label}</strong>
-                  <div style={{ fontSize: 11, color: "#64748b" }}>{r.sub}</div>
+      {rows.length > 0 ? (
+        <div style={{ display: "grid", gap: 12, margin: "4px 0 8px" }}>
+          {rows.map((r) => {
+            const pct = Math.max(8, Math.min(100, Math.round((Math.abs(r.value) / maxAbs) * 100)));
+            return (
+              <div key={r.label} style={{ background: r.isThreshold ? "#f8fafc" : "transparent", padding: r.isThreshold ? "8px 10px" : "2px 0", borderRadius: 8, border: r.isThreshold ? "1px dashed #94a3b8" : "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
+                  <div>
+                    <strong style={{ fontSize: 13, color: "#102a43" }}>{r.label}</strong>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{r.sub}</div>
+                  </div>
+                  <strong style={{ fontSize: 13.5, color: r.color, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                    {r.display}
+                  </strong>
                 </div>
-                <strong style={{ fontSize: 13.5, color: r.color, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                  {r.display}
-                </strong>
+                <div style={{ height: 10, width: "100%", background: "#f1f5f9", borderRadius: 999, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${pct}%`,
+                      height: "100%",
+                      background: r.color,
+                      borderRadius: 999,
+                    }}
+                  />
+                </div>
               </div>
-              <div style={{ height: 10, width: "100%", background: "#f1f5f9", borderRadius: 999, overflow: "hidden" }}>
-                <div
-                  style={{
-                    width: `${pct}%`,
-                    height: "100%",
-                    background: r.color,
-                    borderRadius: 999,
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--pd-text-muted)", fontSize: 13 }}>
+          Nessun bilancio o conto economico normalizzato presente nel fascicolo.
+        </div>
+      )}
 
       <div style={{ fontSize: 11.5, color: "#475569", background: "#f8fafc", padding: "8px 12px", borderRadius: 6, borderLeft: "3px solid #0284c7" }}>
-        Anche nello scenario riorganizzato più favorevole (<strong>+€ 67.747</strong>), il margine operativo resta inferiore alla sola rata bancaria annua riferita (<strong>€ 72.000</strong>) prima di imposte e debito AdER.
+        {isDamico ? (
+          <>
+            Anche nello scenario riorganizzato piu favorevole (<strong>+€ 67.747</strong>), il margine operativo resta inferiore alla sola rata bancaria annua riferita (<strong>€ 72.000</strong>) prima di imposte e debito AdER.
+          </>
+        ) : (
+          pfnEval?.valutazione_bancaria || "Marginalita calcolata secondo schema OIC 12 / CNDCEC sui dati contabili acquisiti."
+        )}
       </div>
     </div>
   );
@@ -237,41 +286,172 @@ function SourceBox({ title, value, sub }) {
   );
 }
 
-function CompositionChart({ totalAer }) {
-  const ader = Number(totalAer) > 0 ? Number(totalAer) : 386695.79;
-  const crIntesa = 133460.0;
-  const santander = 2945.0;
-  const docTotal = ader + crIntesa + santander; // 523.100,79
-  const riferitiMid = 325000.0; // media 290k - 360k
-  const grandTotalMid = docTotal + riferitiMid; // 848.100,79
+function CompositionChart({ isDamico, totalAer, card, report }) {
+  if (isDamico) {
+    const ader = Number(totalAer) > 0 ? Number(totalAer) : 386695.79;
+    const crIntesa = 133460.0;
+    const santander = 2945.0;
+    const docTotal = ader + crIntesa + santander;
+    const riferitiMid = 325000.0;
+    const grandTotalMid = docTotal + riferitiMid;
 
-  const pAder = Math.round((ader / grandTotalMid) * 100);       // ~46%
-  const pBanche = Math.round(((crIntesa + santander) / grandTotalMid) * 100); // ~16%
-  const pRif = 100 - pAder - pBanche;                          // ~38%
+    const pAder = Math.round((ader / grandTotalMid) * 100);
+    const pBanche = Math.round(((crIntesa + santander) / grandTotalMid) * 100);
+    const pRif = 100 - pAder - pBanche;
+    const stop1 = pAder;
+    const stop2 = pAder + pBanche;
 
+    const items = [
+      {
+        label: "AdER «Da Saldare» [D]",
+        value: eurFull(ader),
+        sub: "di cui INPS € 210.604,29 + Tributi € 176.091,50",
+        pct: `${pAder}%`,
+        color: "#102a43",
+      },
+      {
+        label: "Banche e Finanziarie [D]",
+        value: "€ 136.405,00",
+        sub: "CR Intesa € 133.460,00 + Santander € 2.945,00",
+        pct: `${pBanche}%`,
+        color: "#0284c7",
+      },
+      {
+        label: "Passivita Riferite da Verificare [R]",
+        value: "€ 290.000 - 360.000",
+        sub: "Fornitori ~€120k · Dip./TFR ~€70k · Affitti €100-170k",
+        pct: `${pRif}%`,
+        color: "#d97706",
+      },
+    ];
+
+    return (
+      <div className="pd-card pd-chart-card" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div className="pd-card__head" style={{ marginBottom: 12 }}>
+          <div>
+            <h3 className="pd-card__title" style={{ marginBottom: 2 }}>Stratificazione della Massa Debitoria</h3>
+            <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>Ripartizione tra debito certificato [D] e passivita riferite [R]</span>
+          </div>
+          <span className="pd-badge pd-badge--neutral">Misto € 813-883k</span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "168px 1fr", alignItems: "center", gap: 20, margin: "6px 0 12px" }}>
+          <div
+            style={{
+              width: 164,
+              height: 164,
+              borderRadius: "50%",
+              background: `conic-gradient(#102a43 0% ${stop1}%, #0284c7 ${stop1}% ${stop2}%, #d97706 ${stop2}% 100%)`,
+              display: "grid",
+              placeItems: "center",
+              margin: "0 auto",
+              boxShadow: "inset 0 0 0 1px rgba(16,42,67,0.08)",
+            }}
+          >
+            <div
+              style={{
+                width: 122,
+                height: 122,
+                borderRadius: "50%",
+                background: "#ffffff",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+                padding: "0 8px",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Documentato [D]
+              </span>
+              <strong style={{ fontSize: 15, fontWeight: 800, color: "#102a43", lineHeight: 1.2, marginTop: 2 }}>
+                € 523.101
+              </strong>
+              <span style={{ fontSize: 10, color: "#0284c7", fontWeight: 600, marginTop: 2 }}>
+                {pAder + pBanche}% del misto
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {items.map((it) => (
+              <div
+                key={it.label}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderLeft: `4px solid ${it.color}`,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#102a43" }}>{it.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: it.color, background: "#ffffff", padding: "1px 6px", borderRadius: 999, border: "1px solid #cbd5e1" }}>
+                    {it.pct}
+                  </span>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginTop: 2 }}>{it.value}</div>
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>{it.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11.5, color: "#475569", background: "#f8fafc", padding: "8px 12px", borderRadius: 6, borderLeft: "3px solid #d97706" }}>
+          Escluse duplicazioni INPS (€ 210,6k gia nel ruolo AdER), segnalazioni storiche CR 2025 e contratti estinti.
+        </div>
+      </div>
+    );
+  }
+
+  // Dinamico per qualsiasi S.r.l. / altra pratica
+  const t53 = report?.capitolo_5_indebitamento?.tabella_5_3_sintesi || {};
+  const righe53 = (t53.righe || []).filter((r) => !String(r.categoria || "").toLowerCase().includes("subtotale"));
+  let aderAmt = Number(totalAer || 0);
+  let bankAmt = Number(card?.credit_report?.total_exposure || 0);
+  let otherAmt = 0;
+  if (righe53.length > 0) {
+    aderAmt = 0;
+    bankAmt = 0;
+    otherAmt = 0;
+    for (const r of righe53) {
+      const cat = String(r.categoria || "").toLowerCase();
+      const val = Number(r.importo_stimato || 0);
+      if (cat.includes("tributar") || cat.includes("ader")) aderAmt += val;
+      else if (cat.includes("bancar") || cat.includes("consumo") || cat.includes("ctc")) bankAmt += val;
+      else otherAmt += val;
+    }
+  }
+  const grandTotal = aderAmt + bankAmt + otherAmt;
+  const pAder = grandTotal > 0 ? Math.round((aderAmt / grandTotal) * 100) : 0;
+  const pBanche = grandTotal > 0 ? Math.round((bankAmt / grandTotal) * 100) : 0;
+  const pOther = grandTotal > 0 ? Math.max(0, 100 - pAder - pBanche) : 0;
   const stop1 = pAder;
   const stop2 = pAder + pBanche;
 
-  const items = [
+  const dynItems = [
     {
-      label: "AdER «Da Saldare» [D]",
-      value: eurFull(ader),
-      sub: "di cui INPS € 210.604,29 + Tributi € 176.091,50",
+      label: "Erario e Contributi (AdER)",
+      value: aderAmt > 0 ? eurFull(aderAmt) : "Non rilevato (NULL)",
+      sub: aderAmt > 0 ? "Carichi iscritti a ruolo" : "Nessun ruolo AdER acquisito al fascicolo",
       pct: `${pAder}%`,
       color: "#102a43",
     },
     {
-      label: "Banche e Finanziarie [D]",
-      value: "€ 136.405,00",
-      sub: "CR Intesa € 133.460,00 + Santander € 2.945,00",
+      label: "Banche e Finanziarie (CR / Bilancio)",
+      value: bankAmt > 0 ? eurFull(bankAmt) : "Non rilevato (NULL)",
+      sub: bankAmt > 0 ? "Esposizione creditizia documentata" : "Nessun debito bancario rilevato",
       pct: `${pBanche}%`,
       color: "#0284c7",
     },
     {
-      label: "Passività Riferite da Verificare [R]",
-      value: "€ 290.000 – 360.000",
-      sub: "Fornitori ~€120k • Dip./TFR ~€70k • Affitti €100–170k",
-      pct: `${pRif}%`,
+      label: "Fornitori, TFR, Soci e Altri Debiti",
+      value: otherAmt > 0 ? eurFull(otherAmt) : "€ 0,00 / NULL",
+      sub: otherAmt > 0 ? "Passivita contabili da bilancio / altre fonti" : "Richiede stato patrimoniale o partitari",
+      pct: `${pOther}%`,
       color: "#d97706",
     },
   ];
@@ -281,9 +461,11 @@ function CompositionChart({ totalAer }) {
       <div className="pd-card__head" style={{ marginBottom: 12 }}>
         <div>
           <h3 className="pd-card__title" style={{ marginBottom: 2 }}>Stratificazione della Massa Debitoria</h3>
-          <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>Ripartizione tra debito certificato [D] e passività riferite [R]</span>
+          <span style={{ fontSize: 12, color: "var(--pd-text-muted)" }}>Ripartizione calcolata dai documenti del fascicolo</span>
         </div>
-        <span className="pd-badge pd-badge--neutral">Misto € 813–883k</span>
+        <span className="pd-badge pd-badge--neutral">
+          {grandTotal > 0 ? `Totale ${eurShort(grandTotal)}` : "Nessun debito rilevato"}
+        </span>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "168px 1fr", alignItems: "center", gap: 20, margin: "6px 0 12px" }}>
@@ -292,7 +474,9 @@ function CompositionChart({ totalAer }) {
             width: 164,
             height: 164,
             borderRadius: "50%",
-            background: `conic-gradient(#102a43 0% ${stop1}%, #0284c7 ${stop1}% ${stop2}%, #d97706 ${stop2}% 100%)`,
+            background: grandTotal > 0
+              ? `conic-gradient(#102a43 0% ${stop1}%, #0284c7 ${stop1}% ${stop2}%, #d97706 ${stop2}% 100%)`
+              : "#e2e8f0",
             display: "grid",
             placeItems: "center",
             margin: "0 auto",
@@ -315,19 +499,19 @@ function CompositionChart({ totalAer }) {
             }}
           >
             <span style={{ fontSize: 9.5, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Documentato [D]
+              Passivo Totale
             </span>
-            <strong style={{ fontSize: 15, fontWeight: 800, color: "#102a43", lineHeight: 1.2, marginTop: 2 }}>
-              € 523.101
+            <strong style={{ fontSize: 14.5, fontWeight: 800, color: "#102a43", lineHeight: 1.2, marginTop: 2 }}>
+              {grandTotal > 0 ? eurFull(grandTotal) : "N/D (NULL)"}
             </strong>
             <span style={{ fontSize: 10, color: "#0284c7", fontWeight: 600, marginTop: 2 }}>
-              {pAder + pBanche}% del misto
+              {grandTotal > 0 ? "Riconciliato" : "In attesa dati"}
             </span>
           </div>
         </div>
 
         <div style={{ display: "grid", gap: 10 }}>
-          {items.map((it) => (
+          {dynItems.map((it) => (
             <div
               key={it.label}
               style={{
@@ -352,7 +536,7 @@ function CompositionChart({ totalAer }) {
       </div>
 
       <div style={{ fontSize: 11.5, color: "#475569", background: "#f8fafc", padding: "8px 12px", borderRadius: 6, borderLeft: "3px solid #d97706" }}>
-        Escluse duplicazioni INPS (€ 210,6k già nel ruolo AdER), segnalazioni storiche CR 2025 e contratti estinti.
+        I valori privi di fonte documentale caricata restano esplicitamente NULL (mai sostituiti con stime arbitrarie).
       </div>
     </div>
   );
@@ -398,22 +582,60 @@ function stringValue(value) {
   return String(value);
 }
 
-export function EconometricEvaluation({ indicators, debtor, card, docs, patrimonio, totalAer, goTab }) {
+export function EconometricEvaluation({ caseId, indicators, debtor, card, docs, patrimonio, totalAer, report: externalReport, onReanalyze, reanalyzing, goTab }) {
+  const [localReport, setLocalReport] = useState(externalReport || null);
+  useEffect(() => {
+    if (externalReport) {
+      setLocalReport(externalReport);
+    } else if (caseId) {
+      getPreanalysisReport(caseId).then((r) => { if (r) setLocalReport(r); }).catch(() => {});
+    }
+  }, [caseId, externalReport]);
+
+  const report = externalReport || localReport;
+  const rawName = report?.header?.cliente || card?.debtor?.full_name || card?.companies?.[0]?.name || debtor?.full_name || debtor?.last_name || "";
+  const isDamico = rawName.toLowerCase().includes("amico");
+
   const macro = indicators?.macro || [];
   const allIndicators = indicators?.indicators || [];
   const risk = riskFromIndicators([...macro, ...allIndicators]);
-  const aderCert = Number(totalAer) > 0 ? Number(totalAer) : 386695.79;
-  const docExposure = 523100.79;
-  const docSharePct = 62; // €523,1k su punto medio €848,1k
+
+  const td = report?.technical_dossier || {};
+  const nRosse = isDamico ? 3 : (td?.quality_gate?.counts?.rosso ?? (td?.anomaly_register || []).filter((a) => a.severita === "ROSSO").length);
+  const esercizi = report?.capitolo_3_analisi_economica?.esercizi || [];
+  const exLast = esercizi.length > 0 ? esercizi[esercizi.length - 1] : null;
+  const exPrev = esercizi.length > 1 ? esercizi[esercizi.length - 2] : null;
+
+  const t53 = report?.capitolo_5_indebitamento?.tabella_5_3_sintesi || {};
+  const subRow = (t53.righe || []).find((r) => String(r.categoria || "").toLowerCase().includes("subtotale"));
+  const docExposure = isDamico ? 523100.79 : Number(subRow?.importo_stimato ?? (Number(totalAer || 0) + Number(card?.credit_report?.total_exposure || 0)));
+  const totMassa = isDamico ? 848100.79 : Number(t53.totale_stimato ?? docExposure);
+  const docSharePct = isDamico ? 62 : (totMassa > 0 ? Math.min(100, Math.round((docExposure / totMassa) * 100)) : 0);
+
+  const aderCert = isDamico ? (Number(totalAer) > 0 ? Number(totalAer) : 386695.79) : Number(totalAer || 0);
+  const nImmobili = (card?.real_estates || []).length;
+  const nVeicoli = (card?.vehicles || []).length;
+  const docsCount = (docs || []).length;
+  const docsNorm = (docs || []).filter((d) => ["elaborato", "normalizzato"].includes(d.status)).length;
+  const ricLast = exLast ? Number(exLast.ricavi_a1 || 0) : null;
+  const ricPrev = exPrev ? Number(exPrev.ricavi_a1 || 0) : null;
+  const ricYoY = (ricLast !== null && ricPrev && ricPrev > 0) ? Math.round(((ricLast - ricPrev) / ricPrev) * 1000) / 10 : null;
+  const pfnEval = report?.capitolo_5_indebitamento?.valutazione_pfn_ebitda || {};
 
   return (
     <div className="pd-grid">
       <div className="pd-page-head" style={{ marginBottom: 4 }}>
         <div>
           <h2 className="pd-h2">Valutazione econometrica e stratificazione del rischio</h2>
-          <p>Sintesi visuale degli indicatori OIC 12 / CCII, quadratura Decimal dell'esposizione e sensitività dei margini.</p>
+          <p>Sintesi visuale degli indicatori OIC 12 / CCII, quadratura Decimal dell&apos;esposizione e sensitivita dei margini.</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {onReanalyze && (
+            <button type="button" className="pd-btn pd-btn--secondary" onClick={onReanalyze} disabled={reanalyzing}>
+              <span className="material-symbols-outlined" aria-hidden="true">refresh</span>
+              {reanalyzing ? "Riesecuzione..." : "Riesegui Pre-Analisi"}
+            </button>
+          )}
           <button type="button" className="pd-btn pd-btn--secondary" onClick={() => goTab("report")}>
             <span className="material-symbols-outlined" aria-hidden="true">description</span>
             Vai al Report Finale
@@ -440,7 +662,9 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
               {risk.score}<span style={{ fontSize: 22, color: "#94a3b8", fontWeight: 600 }}>/100</span>
             </div>
             <div style={{ marginTop: 8 }}>
-              <span className={`pd-badge pd-badge--${risk.tone}`}>{risk.label} · 3 Anomalie Rosse</span>
+              <span className={`pd-badge pd-badge--${risk.tone}`}>
+                {risk.label}{nRosse > 0 ? ` · ${nRosse} Anomalie Rosse` : ""}
+              </span>
             </div>
           </div>
           <div>
@@ -448,8 +672,22 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
               <span style={{ width: `${risk.score}%`, background: risk.color }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "#64748b" }}>
-              <span>EBITDA '25: <strong style={{ color: "#b91c1c" }}>−€ 43,4k</strong></span>
-              <span>Perdita '25: <strong style={{ color: "#b91c1c" }}>−€ 63,6k</strong></span>
+              {isDamico ? (
+                <>
+                  <span>EBITDA &apos;25: <strong style={{ color: "#b91c1c" }}>-€ 43,4k</strong></span>
+                  <span>Perdita &apos;25: <strong style={{ color: "#b91c1c" }}>-€ 63,6k</strong></span>
+                </>
+              ) : exLast ? (
+                <>
+                  <span>EBITDA {exLast.anno}: <strong style={{ color: Number(exLast.mol) < 0 ? "#b91c1c" : "#15803d" }}>{eurShort(exLast.mol)}</strong></span>
+                  <span>Risultato {exLast.anno}: <strong style={{ color: Number(exLast.utile_perdita) < 0 ? "#b91c1c" : "#15803d" }}>{eurShort(exLast.utile_perdita)}</strong></span>
+                </>
+              ) : (
+                <>
+                  <span>EBITDA: <strong>n.d.</strong></span>
+                  <span>Risultato: <strong>n.d.</strong></span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -466,7 +704,7 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
                 width: 152,
                 height: 152,
                 borderRadius: "50%",
-                background: `conic-gradient(#102a43 0 ${docSharePct}%, #e2e8f0 ${docSharePct}% 100%)`,
+                background: docSharePct > 0 ? `conic-gradient(#102a43 0 ${docSharePct}%, #e2e8f0 ${docSharePct}% 100%)` : "#e2e8f0",
                 display: "grid",
                 placeItems: "center",
               }}
@@ -489,17 +727,21 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
                 <span style={{ fontSize: 9, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.4 }}>
                   Esposizione [D]
                 </span>
-                <strong style={{ fontSize: 14.5, fontWeight: 800, color: "#102a43", lineHeight: 1.2, marginTop: 2 }}>
-                  {eurFull(docExposure)}
+                <strong style={{ fontSize: 14, fontWeight: 800, color: "#102a43", lineHeight: 1.2, marginTop: 2 }}>
+                  {isDamico || docExposure > 0 ? eurFull(docExposure) : "N/D (NULL)"}
                 </strong>
-                <span style={{ fontSize: 9.5, color: "#b91c1c", fontWeight: 700, marginTop: 2 }}>
-                  DSCR &lt; 1,0x
+                <span style={{ fontSize: 9.5, color: isDamico || (pfnEval?.status === "danger") ? "#b91c1c" : "#64748b", fontWeight: 700, marginTop: 2 }}>
+                  {isDamico ? "DSCR < 1,0x" : (pfnEval?.ratio ? `PFN/EBITDA ${Number(pfnEval.ratio).toFixed(1)}x` : "DSCR da stimare")}
                 </span>
               </div>
             </div>
           </div>
           <p className="pd-muted" style={{ margin: 0, fontSize: 12, textAlign: "center" }}>
-            AdER (€ 386,7k) + CR Intesa (€ 133,5k) + Santander (€ 2,9k)
+            {isDamico
+              ? "AdER (€ 386,7k) + CR Intesa (€ 133,5k) + Santander (€ 2,9k)"
+              : totMassa > 0
+                ? `Passivo totale stimato: ${eurFull(totMassa)}`
+                : "Nessuna passivita esattoriale o bancaria estratta"}
           </p>
         </div>
 
@@ -510,18 +752,34 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
             <span className="material-symbols-outlined" aria-hidden="true" style={{ color: "#0284c7" }}>source</span>
           </div>
           <div className="pd-source-grid" style={{ marginTop: 6, gap: 10 }}>
-            <SourceBox title="Documenti Fascicolo" value={`${(docs || []).length || 21} file`} sub="10 gruppi fonte [DOC-01..10]" />
-            <SourceBox title="Ricavi Contabili 2025" value="€ 493.094,18" sub="−37,1% vs € 783.808 (2024)" />
-            <SourceBox title="Stato Passivo AdER" value={eurFull(aderCert)} sub="57 cartelle • INPS € 210,6k" />
-            <SourceBox title="Realizzo Mobiliare" value="€ 20k – 65k" sub="Stima netta • Immobili: Nessuno" />
+            <SourceBox
+              title="Documenti Fascicolo"
+              value={`${docsCount} file`}
+              sub={isDamico ? "10 gruppi fonte [DOC-01..10]" : `${docsNorm}/${docsCount} normalizzati`}
+            />
+            <SourceBox
+              title={isDamico ? "Ricavi Contabili 2025" : `Ricavi ${exLast?.anno || "Bilancio"}`}
+              value={isDamico ? "€ 493.094,18" : (ricLast !== null ? eurFull(ricLast) : "Non disp. (NULL)")}
+              sub={isDamico ? "-37,1% vs € 783.808 (2024)" : (ricYoY !== null ? `${ricYoY > 0 ? "+" : ""}${ricYoY}% vs ${exPrev?.anno}` : "Dati da bilancio")}
+            />
+            <SourceBox
+              title="Stato Passivo AdER"
+              value={aderCert > 0 ? eurFull(aderCert) : "Non disp. (NULL)"}
+              sub={isDamico ? "57 cartelle · INPS € 210,6k" : `${(card?.tax_debts || []).length} estratti AdER caricati`}
+            />
+            <SourceBox
+              title={isDamico ? "Realizzo Mobiliare" : "Patrimonio Censito"}
+              value={isDamico ? "€ 20k - 65k" : `${nImmobili} immobili, ${nVeicoli} veicoli`}
+              sub={isDamico ? "Stima netta · Immobili: Nessuno" : (Number(patrimonio) > 0 ? `Valore ${eurFull(patrimonio)}` : "Nessun valore stimato")}
+            />
           </div>
         </div>
       </div>
 
       {/* RIGA 2: 2 GRAFICI COMPARATIVI CHIARI E LEGGIBILI */}
       <div className="pd-grid pd-grid--2">
-        <TrendChart indicators={indicators} />
-        <CompositionChart totalAer={aderCert} />
+        <TrendChart isDamico={isDamico} report={report} />
+        <CompositionChart isDamico={isDamico} totalAer={aderCert} card={card} report={report} />
       </div>
 
       {/* RIGA 3: TABELLA INDICATORI CON SEMANTICA NULL ESPLICITA */}
@@ -536,7 +794,8 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
             </p>
           </div>
           <button type="button" className="pd-btn pd-btn--ghost" onClick={() => goTab("indicatori")}>
-            Vedi tutti gli indicatori →
+            Vedi tutti gli indicatori
+            <span className="material-symbols-outlined" aria-hidden="true" style={{ fontSize: 16 }}>arrow_forward</span>
           </button>
         </div>
         <div className="pd-table-wrap" style={{ border: 0, borderRadius: 0 }}>
@@ -592,8 +851,8 @@ export function EconometricEvaluation({ indicators, debtor, card, docs, patrimon
   );
 }
 
-export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, goTab }) {
-  const [report, setReport] = useState(null);
+export function FinalReport({ caseId, indicators, debtor, card, docs, edits, title, totalAer, patrimonio, crossAnalysis, report: externalReport, onReanalyze, reanalyzing, goTab }) {
+  const [report, setReport] = useState(externalReport || null);
   const [loading, setLoading] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -610,8 +869,12 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
   }, [caseId]);
 
   useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+    if (externalReport) setReport(externalReport);
+  }, [externalReport]);
+
+  useEffect(() => {
+    if (!externalReport) fetchReport();
+  }, [fetchReport, externalReport]);
 
   const h = report?.header || {};
   const rawClientName =
@@ -781,6 +1044,18 @@ export function FinalReport({ caseId, indicators, debtor, card, docs, edits, tit
               La <strong>Relazione Cliente (7 pagg.)</strong> è l&apos;output principale pronto per consultazione e consegna; l&apos;<strong>Audit Interno</strong> resta sempre conservato nel sistema ed esportabile in PDF su richiesta.
             </p>
           </div>
+          {onReanalyze && (
+            <button
+              type="button"
+              className="pd-btn pd-btn--secondary"
+              disabled={reanalyzing}
+              onClick={onReanalyze}
+              title="Riesegui la pre-analisi completa sui documenti e dati più recenti della pratica"
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">refresh</span>
+              {reanalyzing ? "Riesecuzione..." : "Riesegui Pre-Analisi"}
+            </button>
+          )}
         </div>
 
         <div className="pd-grid pd-grid--2" style={{ gap: 14 }}>

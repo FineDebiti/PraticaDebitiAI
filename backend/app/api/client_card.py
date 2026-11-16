@@ -852,4 +852,43 @@ def approve_human_gate_endpoint(
     return result
 
 
+@router.post("/cases/{case_id}/reanalyze")
+def reanalyze_case_endpoint(case_id: str, db: Session = Depends(get_db)):
+    """Riesegue l'intera pre-analisi deterministica e trasversale della pratica
+    (super-analisi documenti, report di pre-analisi, Dossier Tecnico Audit e indicatori)."""
+    from app.services.case_indicators import compute_case_indicators
+
+    _get_case(db, case_id)
+
+    cross_out = None
+    cross_warning = None
+    try:
+        cross_res = execute_cross_analysis(db, case_id)
+        if cross_res:
+            cross_out = CaseCrossAnalysisOut.model_validate(cross_res).model_dump()
+    except Exception as exc:
+        cross_warning = str(exc)
+
+    report_record, report_data = reset_preanalysis_report(db, case_id)
+    docs = db.query(Document).filter_by(case_id=case_id).all()
+    if isinstance(report_data, dict):
+        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        report_data["_meta"] = {
+            "version": report_record.version,
+            "status": report_record.status,
+            "applied_rules_count": report_record.applied_rules_count,
+            "updated_at": report_record.updated_at.isoformat() if report_record.updated_at else None,
+        }
+
+    indicators_out = compute_case_indicators(db, case_id)
+    return {
+        "ok": True,
+        "version": report_record.version,
+        "cross_analysis": cross_out,
+        "cross_warning": cross_warning,
+        "report": report_data,
+        "indicators": indicators_out,
+    }
+
+
 

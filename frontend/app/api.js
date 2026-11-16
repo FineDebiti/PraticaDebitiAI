@@ -286,6 +286,19 @@ export async function resetPreanalysisReport(caseId) {
   return r.json();
 }
 
+export async function reanalyzeCase(caseId) {
+  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/reanalyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.detail || "Errore durante la riesecuzione della pre-analisi");
+  }
+  return r.json();
+}
+
 export function getPreanalysisReportPdfUrl(caseId, orientation = "portrait", action = "download") {
   return `${getApiBase()}/api/cases/${caseId}/preanalysis-report/pdf?orientation=${orientation}&action=${action}`;
 }
