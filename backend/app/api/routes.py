@@ -2,6 +2,7 @@ import hmac
 import os
 import uuid
 from fastapi import APIRouter, Cookie, Depends, Header, Query, Response, UploadFile, File, Form, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.config import settings
@@ -9,6 +10,7 @@ from app.models import Case, Document, Organization
 from app.schemas.dto import CaseCreate, CaseOut, CaseDetail, DocumentOut
 from app.workers.tasks import process_document
 from app.services import fiscal_code as fc
+from app.services import ticket_auth
 
 router = APIRouter()
 
@@ -68,6 +70,57 @@ def list_cases(db: Session = Depends(get_db)):
     return db.query(Case).order_by(Case.created_at.desc()).all()
 
 
+class TicketRequest(BaseModel):
+    scope: str
+
+
+class TicketRedeemRequest(BaseModel):
+    ticket: str
+    scope: str
+
+
+def _verify_server_bearer(authorization: str | None) -> None:
+    expected = (settings.dossierlex_server_secret or "").strip()
+    if not expected:
+        raise HTTPException(status_code=403, detail="DOSSIERLEX_SERVER_SECRET non configurato.")
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Header Authorization Bearer mancante.")
+    supplied = authorization[7:].strip()
+    if not hmac.compare_digest(supplied, expected):
+        raise HTTPException(status_code=401, detail="DOSSIERLEX_SERVER_SECRET non valido.")
+
+
+@router.post("/auth/ticket")
+def issue_auth_ticket(
+    payload: TicketRequest,
+    response: Response,
+    authorization: str | None = Header(default=None),
+):
+    """Endpoint server-to-server per generare un ticket monouso (TTL 60s) verso /embed o /."""
+    _verify_server_bearer(authorization)
+    if payload.scope not in ("embed", "full"):
+        raise HTTPException(status_code=422, detail="Campo 'scope' non valido: ammessi 'embed' o 'full'.")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return ticket_auth.create_one_time_ticket(payload.scope)
+
+
+@router.post("/auth/redeem")
+def redeem_auth_ticket(
+    payload: TicketRedeemRequest,
+    response: Response,
+    authorization: str | None = Header(default=None),
+):
+    """Riscatta e brucia immediatamente un ticket monouso, restituendo il cookie di sessione firmato."""
+    _verify_server_bearer(authorization)
+    if payload.scope not in ("embed", "full"):
+        raise HTTPException(status_code=422, detail="Scope non valido.")
+    ok, msg, session_token = ticket_auth.redeem_one_time_ticket(payload.ticket, payload.scope)
+    if not ok:
+        raise HTTPException(status_code=401, detail=msg)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return {"ok": True, "scope": payload.scope, "session_token": session_token}
+
+
 @router.get("/embed/cases", response_model=list[CaseOut])
 def list_embed_cases(
     request: Request,
@@ -75,25 +128,32 @@ def list_embed_cases(
     token: str | None = Query(default=None),
     x_embed_token: str | None = Header(default=None),
     dossierlex_embed_token: str | None = Cookie(default=None),
+    dossierlex_embed_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     """Endpoint dedicato alla vista /embed in sola lettura per incorporamento CRM."""
-    expected = (settings.embed_readonly_token or "").strip()
-    supplied = (x_embed_token or token or dossierlex_embed_token or "").strip()
-    if expected and not (supplied and hmac.compare_digest(supplied, expected)):
-        raise HTTPException(status_code=401, detail="Token embed di sola lettura mancante o non valido.")
+    has_valid_session = ticket_auth.verify_session_token(dossierlex_embed_session, "embed")
+    expected_legacy = (settings.embed_readonly_token or "").strip()
+    supplied_legacy = (x_embed_token or token or dossierlex_embed_token or "").strip()
+    has_valid_legacy = bool(expected_legacy and supplied_legacy and hmac.compare_digest(supplied_legacy, expected_legacy))
+
+    if not has_valid_session:
+        # Se è configurata l'autenticazione (ticket secret o token legacy), richiede credenziali valide
+        if (settings.dossierlex_server_secret or expected_legacy) and not has_valid_legacy:
+            raise HTTPException(status_code=401, detail="Sessione o ticket /embed mancante o non valido.")
+        if expected_legacy and supplied_legacy:
+            is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+            if is_https:
+                response.set_cookie(
+                    key="dossierlex_embed_token",
+                    value=supplied_legacy,
+                    httponly=True,
+                    secure=True,
+                    samesite="none",
+                    path="/",
+                )
+
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    if expected and supplied:
-        is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-        if is_https:
-            response.set_cookie(
-                key="dossierlex_embed_token",
-                value=supplied,
-                httponly=True,
-                secure=True,
-                samesite="none",
-                path="/",
-            )
     return db.query(Case).order_by(Case.created_at.desc()).all()
 
 

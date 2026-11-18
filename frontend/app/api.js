@@ -17,17 +17,13 @@ export async function listCases() {
   return r.json();
 }
 
-export async function listEmbedCases(embedToken = "") {
-  const headers = {};
-  if (embedToken) headers["X-Embed-Token"] = embedToken;
-  const qs = embedToken ? `?token=${encodeURIComponent(embedToken)}` : "";
-  const r = await fetch(`${getApiBase()}/api/embed/cases${qs}`, {
+export async function listEmbedCases() {
+  const r = await fetch("/api/embed/cases", {
     cache: "no-store",
-    headers,
     credentials: "same-origin",
   });
   if (!r.ok) {
-    let detail = "Accesso embed non autorizzato o servizio non disponibile.";
+    let detail = "Accesso embed non autorizzato o sessione scaduta.";
     try {
       const body = await r.json();
       detail = body.detail || detail;

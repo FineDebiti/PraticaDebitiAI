@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     allow_cloud_llm_fallback: bool = False
     # Token opzionale di sola lettura per l'incorporamento iframe /embed su Bentivegna OS
     embed_readonly_token: str = ""
+    # Chiave segreta server-to-server per emissione e riscatto ticket monouso CRM
+    dossierlex_server_secret: str = ""
 
     # Document AI
     docai_project_id: str = ""

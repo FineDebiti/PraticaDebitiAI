@@ -77,29 +77,13 @@ if errorlevel 1 (
 echo.
 echo Stato attuale Funnel:
 "%TS_EXE%" funnel status
-set "EMBED_READONLY_TOKEN="
-set "ADMIN_TOKEN="
-if exist ".env.local" (
-    for /f "usebackq tokens=1,* delims==" %%A in (".env.local") do (
-        if "%%A"=="EMBED_READONLY_TOKEN" set "EMBED_READONLY_TOKEN=%%B"
-        if "%%A"=="ADMIN_TOKEN" set "ADMIN_TOKEN=%%B"
-    )
-)
 echo.
 echo ==============================================================================
-if defined EMBED_READONLY_TOKEN (
-    echo   URL HTTPS Iframe CRM:
-    echo   https://evo-x2.tail723056.ts.net:10000/embed?token=!EMBED_READONLY_TOKEN!
-) else (
-    echo   URL HTTPS Iframe CRM: https://evo-x2.tail723056.ts.net:10000/embed
-)
-echo.
-if defined ADMIN_TOKEN (
-    echo   URL HTTPS Schermo Intero:
-    echo   https://evo-x2.tail723056.ts.net:10000/?access_token=!ADMIN_TOKEN!
-) else (
-    echo   URL HTTPS Schermo Intero: https://evo-x2.tail723056.ts.net:10000/
-)
+echo   DossierLex online (Ticket Monouso CRM attivo):
+echo   - Endpoint ticket: POST https://evo-x2.tail723056.ts.net:10000/api/auth/ticket
+echo   - Iframe CRM:      https://evo-x2.tail723056.ts.net:10000/embed?ticket=^<TICKET^>
+echo   - Schermo Intero:  https://evo-x2.tail723056.ts.net:10000/?ticket=^<TICKET^>
+echo   - Rete locale:     http://localhost:3001/
 echo ==============================================================================
 popd >nul 2>&1
 pause

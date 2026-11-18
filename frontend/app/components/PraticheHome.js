@@ -495,7 +495,7 @@ function normalizeCf(v) { return (v || "").toUpperCase().replace(/\s+/g, ""); }
 function isValidPersonaCf(v) { return /^[A-Z0-9]{16}$/.test(normalizeCf(v)); }
 function isValidPiva(v) { return /^[0-9]{11}$/.test(normalizeCf(v)); }
 
-export function PraticheDashboard({ readOnly = false, embedToken = "", onLoaded = null }) {
+export function PraticheDashboard({ readOnly = false, onLoaded = null, onError = null }) {
   const [cases, setCases] = useState([]);
   const [kind, setKind] = useState("persona");
   const [firstName, setFirstName] = useState("");
@@ -512,20 +512,22 @@ export function PraticheDashboard({ readOnly = false, embedToken = "", onLoaded 
     setLoading(true);
     setLoadErr("");
     try {
-      const list = readOnly ? await listEmbedCases(embedToken) : await listCases();
+      const list = readOnly ? await listEmbedCases() : await listCases();
       if (Array.isArray(list)) {
         setCases(list);
         if (onLoaded) onLoaded(list);
       }
     } catch (e) {
+      const msg = e?.message || "Impossibile caricare le pratiche.";
       setCases([]);
-      setLoadErr(e?.message || "Impossibile caricare le pratiche.");
+      setLoadErr(msg);
+      if (onError) onError(msg);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { refresh(); }, [readOnly, embedToken]);
+  useEffect(() => { refresh(); }, [readOnly]);
 
   function changeKind(k) {
     if (readOnly || k === kind) return;
