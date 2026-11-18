@@ -20,17 +20,29 @@ from app.config import settings
 logger = logging.getLogger("dossierlex.rule_engine")
 
 
-def get_active_rules(db: Session, target_scope: Optional[str] = None) -> List[StudioRule]:
-    """Recupera le regole attive, filtrando per scope specifico o globale se indicato."""
+def get_active_rules(
+    db: Session,
+    target_scope: Optional[str] = None,
+    case_id: Optional[str] = None,
+) -> List[StudioRule]:
+    """Recupera le regole attive, filtrando per scope e isolando quelle legate ad altri fascicoli."""
     query = db.query(StudioRule).filter(StudioRule.is_active == True)
+    if case_id:
+        query = query.filter((StudioRule.case_id == None) | (StudioRule.case_id == case_id))
+    else:
+        query = query.filter(StudioRule.case_id == None)
     if target_scope and target_scope != "global":
         query = query.filter((StudioRule.scope == target_scope) | (StudioRule.scope == "global"))
     return query.order_by(StudioRule.created_at.asc()).all()
 
 
-def build_active_rules_prompt_block(db: Session, target_scope: Optional[str] = None) -> str:
+def build_active_rules_prompt_block(
+    db: Session,
+    target_scope: Optional[str] = None,
+    case_id: Optional[str] = None,
+) -> str:
     """Genera la sezione di prompt con le regole e la memoria operativa dello studio da iniettare a Qwen."""
-    rules = get_active_rules(db, target_scope)
+    rules = get_active_rules(db, target_scope, case_id=case_id)
     if not rules:
         return ""
 

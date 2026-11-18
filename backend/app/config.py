@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     lmstudio_base_url: str = "http://host.docker.internal:1234/v1"
     lmstudio_model: str = "qwen/qwen3.8-27b"
     lmstudio_timeout: int = 240
+    # Guardia privacy locale: impedisce fallback silenziosi su cloud quando llm_provider == "lmstudio"
+    allow_cloud_llm_fallback: bool = False
 
     # Document AI
     docai_project_id: str = ""

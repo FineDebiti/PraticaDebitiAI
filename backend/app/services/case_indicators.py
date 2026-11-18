@@ -242,20 +242,31 @@ def compute_case_indicators(db, case_id: str) -> dict:
         except (ValueError, TypeError):
             return 0.0
 
-    liq_num = _val_num(sp_dict.get("disponibilita_liquide"), "corrente")
-    deb_banc = _val_num(deb_dict.get("banche"), "importo")
-    deb_ml = _val_num(sp_dict.get("debiti_oltre"), "corrente")
+    def _val_opt(d, key="corrente"):
+        if not isinstance(d, dict):
+            return None
+        v = d.get(key)
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+
+    liq_num = _val_opt(sp_dict.get("disponibilita_liquide"), "corrente")
+    deb_banc = _val_opt(deb_dict.get("banche"), "importo")
+    deb_ml = _val_opt(sp_dict.get("debiti_oltre"), "corrente")
     tfr_val = _val_num(sp_dict.get("tfr"), "corrente")
     soc_fin = _val_num(deb_dict.get("soci_finanziamenti"), "importo")
 
     pfn_calc = calculate_pfn_esma(
-        debiti_bancari_breve=deb_banc,
-        debiti_bancari_medio_lungo=deb_ml,
+        debiti_bancari_breve=deb_banc if deb_banc is not None else (0.0 if (deb_ml is not None or aer_total is not None) else None),
+        debiti_bancari_medio_lungo=deb_ml if deb_ml is not None else (0.0 if (deb_banc is not None or aer_total is not None) else None),
         disponibilita_liquide=liq_num,
         tfr_fondo=tfr_val,
         finanziamenti_soci=soc_fin,
         debiti_tributari_scaduti=aer_total or 0.0,
-    ) if fs else None
+    ) if (fs and liq_num is not None) else None
 
     pfn_val = pfn_calc["pfn_totale"] if pfn_calc else None
     out.append(_ind("imp_pfn", "Posizione finanziaria netta (ESMA 2021)", "impresa",
@@ -263,7 +274,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     "Debiti finanziari + debt-like (TFR, erario, soci) - liquidità", section="impresa",
                     status=("ok" if (pfn_val or 0) <= 0 else ("warn" if (pfn_val or 0) < 500000 else "danger")) if pfn_val is not None else "na"))
 
-    pfn_eb_eval = evaluate_pfn_ebitda(pfn_val or 0.0, eb_val or 0.0) if (pfn_val is not None and eb_val is not None) else None
+    pfn_eb_eval = evaluate_pfn_ebitda(pfn_val, eb_val) if (pfn_val is not None and eb_val is not None) else None
     ratio_eb = pfn_eb_eval["ratio"] if pfn_eb_eval else None
     out.append(_ind("imp_pfn_ebitda", "PFN / EBITDA (Anni rimborso)", "impresa",
                     ratio_eb, "ratio",
@@ -297,26 +308,34 @@ def compute_case_indicators(db, case_id: str) -> dict:
                       (c.legal_form or "").lower().startswith(("s.n.c", "snc", "s.a.s", "sas", "società semplice", "ss"))
                       for c in cliente)
 
-    # Segnali allarme tempestivi CCII (art. 3 co. 4)
-    ccii_alert = check_ccii_segnali_allarme_art3(
-        retribuzioni_scadute_30gg=0.0,
-        monte_salari_mensile=0.0,
-        debiti_fornitori_scaduti_90gg=0.0,
-        debiti_fornitori_non_scaduti=0.0,
-        esposizioni_banche_scadute_60gg=cr_esp or 0.0 if (cr and cr.has_sofferenze) else 0.0,
-        sconfinamento_banche_fidi=0.0,
-        totale_fidi_accordati=0.0,
-        debiti_ader_scaduti_90gg=aer_total or 0.0,
-        tipo_soggetto="societa_capitali" if not soc_indiv and not soc_persone else "persone",
-    )
+    has_art3_inputs = bool(has_aer or cr is not None or fs is not None)
+    if has_art3_inputs:
+        ccii_alert = check_ccii_segnali_allarme_art3(
+            retribuzioni_scadute_30gg=0.0,
+            monte_salari_mensile=0.0,
+            debiti_fornitori_scaduti_90gg=0.0,
+            debiti_fornitori_non_scaduti=0.0,
+            esposizioni_banche_scadute_60gg=cr_esp or 0.0 if (cr and cr.has_sofferenze) else 0.0,
+            sconfinamento_banche_fidi=0.0,
+            totale_fidi_accordati=0.0,
+            debiti_ader_scaduti_90gg=aer_total or 0.0,
+            tipo_soggetto="societa_capitali" if not soc_indiv and not soc_persone else "persone",
+        )
+        art3_val = "Presenti (" + str(ccii_alert["totale_segnali"]) + ")" if ccii_alert["ha_segnali_allarme_art3"] else "Parziale (AdER/CR verificati; retribuzioni e fornitori non censiti)"
+        art3_crit = ccii_alert["obbligo_adeguati_assetti"]
+        art3_status = "danger" if ccii_alert["ha_segnali_allarme_art3"] else "warn"
+    else:
+        art3_val = None
+        art3_crit = "Dati contabili, retribuzioni, fornitori e AdER non disponibili per la verifica art. 3 CCII (NULL)."
+        art3_status = "na"
     out.append(_ind("ccii_segnali_art3", "Segnali di allarme precoce (art. 3 CCII)", "impresa",
-                    "Presenti (" + str(ccii_alert["totale_segnali"]) + ")" if ccii_alert["ha_segnali_allarme_art3"] else "Assenti",
+                    art3_val,
                     "text",
                     "Verifica art. 3 co. 4 CCII (retribuzioni, fornitori, banche, AdER)",
                     kind="signal",
                     section="impresa",
-                    criterion=ccii_alert["obbligo_adeguati_assetti"],
-                    status="danger" if ccii_alert["ha_segnali_allarme_art3"] else "ok"))
+                    criterion=art3_crit,
+                    status=art3_status))
 
     if soc_indiv:
         resp_val = "impresa individuale"
@@ -375,10 +394,10 @@ def compute_case_indicators(db, case_id: str) -> dict:
              "indebitamento - patrimonio aggredibile"),
     ]
 
-    red_m = (debtor.monthly_net_income if debtor else 0.0) or 0.0
-    red_sp = (debtor.monthly_expenses if debtor else 0.0) or 0.0
-    dti_val = round((red_sp / red_m * 100.0), 1) if (red_m > 0) else (32.5 if indeb > 0 else 0.0)
-    risk = min(95.0, round(32.0 + (rapporto * 18.0 if rapporto else 10.0), 1)) if indeb > 0 else 0.0
+    red_m = (debtor.monthly_net_income if debtor else None)
+    red_sp = (debtor.monthly_expenses if debtor else None)
+    dti_val = round((red_sp / red_m * 100.0), 1) if (red_m and red_m > 0 and red_sp is not None) else None
+    risk = min(95.0, round(32.0 + (rapporto * 18.0 if rapporto else 10.0), 1)) if (has_indeb and indeb > 0) else (0.0 if has_indeb else None)
 
     return {
         "macro": macro,

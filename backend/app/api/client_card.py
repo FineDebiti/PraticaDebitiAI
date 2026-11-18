@@ -266,7 +266,14 @@ def upload_aer(case_id: str,
             def_agevolata=bool(r.get("def_agevolata")), needs_review=bool(r.get("needs_review")),
         ))
     doc.status = "normalizzato"
-    doc.num_pages = len(righe)
+    # Preserva il conteggio pagine reale del PDF (mai il numero di cartelle AdER)
+    if not doc.num_pages and doc.storage_path:
+        try:
+            import pdfplumber
+            with pdfplumber.open(doc.storage_path) as _pdf:
+                doc.num_pages = len(_pdf.pages)
+        except Exception:
+            pass
     db.commit()
     db.refresh(stmt)
     return stmt
@@ -671,13 +678,7 @@ class HumanGateApproveRequest(BaseModel):
 
 
 def _get_fresh_report(db: Session, case_id: str):
-    report_record, report_data = get_or_create_preanalysis_report(db, case_id)
-    if isinstance(report_data, dict):
-        cliente = ((report_data.get("header") or {}).get("cliente") or "").lower()
-        cards_txt = str((report_data.get("header") or {}).get("executive_cards") or "")
-        if "amico" not in cliente and "493.094" in cards_txt:
-            report_record, report_data = reset_preanalysis_report(db, case_id)
-    return report_record, report_data
+    return get_or_create_preanalysis_report(db, case_id)
 
 
 @router.get("/cases/{case_id}/preanalysis-report")

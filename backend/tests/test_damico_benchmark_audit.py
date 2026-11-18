@@ -14,16 +14,16 @@ import io
 import json
 import pdfplumber
 
-from app.services.forensic_audit_engine import (
-    attempt_human_gate_approval,
-    build_complete_technical_dossier,
-    export_audit_execution_csv,
-    export_audit_execution_json,
-    run_controlled_verification_suite,
-    run_deterministic_decimal_audit,
-    verify_inferences,
+from app.benchmarks.damico_fixture import (
+    build_damico_benchmark_technical_dossier as build_complete_technical_dossier,
+    export_damico_benchmark_csv as export_audit_execution_csv,
+    export_damico_benchmark_json as export_audit_execution_json,
+    run_damico_controlled_verification_suite as run_controlled_verification_suite,
+    run_damico_decimal_audit as run_deterministic_decimal_audit,
+    verify_damico_inferences as verify_inferences,
 )
-from app.services.benchmark_pdf_generator import generate_benchmark_7page_pdf
+from app.services.forensic_audit_engine import attempt_human_gate_approval
+from app.benchmarks.damico_pdf_fixture import generate_damico_benchmark_7page_pdf as generate_benchmark_7page_pdf
 from app.services.technical_dossier_pdf_generator import generate_technical_dossier_pdf
 from app.services.indicators import compute_indicators
 
@@ -97,6 +97,7 @@ def test_5_sha256_completi_64_caratteri_e_coerenza_7_pagine_pdf():
     report_data = {"header": {"cliente": "PIU' D'AMICO LUCREZIA", "data_bozza": "12.11.2026"}, "_meta": {"version": 2}}
     dossier = build_complete_technical_dossier([], report_data)
     report_data["technical_dossier"] = dossier
+    report_data["technical_dossier"]["collaudo_v21_suite"] = run_controlled_verification_suite()
 
     # Criticità B: Tutti i 10 gruppi documentali devono avere l'hash SHA-256 completo a 64 caratteri e l'elenco file
     for s in dossier["sources_matrix"]:

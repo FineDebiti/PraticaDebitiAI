@@ -52,20 +52,29 @@ def process_document_pipeline(db: Session, document_id: str) -> Document:
         case = db.get(Case, doc.case_id)
         client_cf = case.client_tax_code if case else ""
 
-        # Step 2: Estrazione testo / OCR
-        text, pages = ocr.extract_text(doc.storage_path)
+        # Step 2: Estrazione testo / OCR pagina per pagina con metriche reali
+        text, pages, ocr_meta = ocr.extract_text_with_meta(doc.storage_path)
 
         # Step 3: Classificazione tipo documento se non forzato
         forced = doc.doc_type and doc.doc_type != "da_classificare"
         if forced:
             doc_type, conf = doc.doc_type, 1.0
+            cls_telemetry = None
         else:
             cls = llm.classify(text)
             doc_type, conf = cls.get("doc_type", "da_classificare"), float(cls.get("confidence", 0.0))
+            cls_telemetry = cls.get("_llm_telemetry")
 
         # Step 4: Estrazione strutturata dei dati
         data = _extract_structured_data(doc.storage_path, text, doc_type, client_cf)
         data = _unwrap_confidence(data)
+        data["_ocr_meta"] = ocr_meta
+        if cls_telemetry is not None:
+            data["_classification_telemetry"] = cls_telemetry
+        data.setdefault(
+            "_validation_status",
+            (data.get("_llm_telemetry") or {}).get("validation_status", "valid"),
+        )
 
         # Aggiorna metadati documento e salva Extraction (stato -> analizzato)
         doc.doc_type = doc_type
@@ -77,11 +86,19 @@ def process_document_pipeline(db: Session, document_id: str) -> Document:
             db.delete(old_ext)
         db.flush()
 
+        max_store = 500_000
+        if len(text) > max_store:
+            stored_text = text[:max_store]
+            data["_raw_text_truncated"] = True
+            data["_raw_text_total_chars"] = len(text)
+        else:
+            stored_text = text
+
         ext = Extraction(
             document_id=doc.id,
-            ocr_provider=settings.ocr_provider,
-            llm_provider=settings.llm_provider,
-            raw_text=text[:20000],
+            ocr_provider=str(ocr_meta.get("provider") or settings.ocr_provider),
+            llm_provider=str(data.get("_llm_provider") or data.get("_extraction_method") or settings.llm_provider),
+            raw_text=stored_text,
             json_output=data,
             duration_ms=int((time.time() - t0) * 1000),
         )
@@ -147,11 +164,32 @@ def _extract_structured_data(storage_path: str, text: str, doc_type: str, client
     else:
         res = llm.extract(text, doc_type, client_cf)
 
-    # Se LLM ha restituito stub o nessun dato di dominio, applica l'estrazione deterministica da testo OCR
-    if not res or res.get("document_type") == "stub" or not any(k in res for k in ("immobili", "impresa", "esposizione_attuale", "stato_patrimoniale", "credit_positions", "reddito_annuo")):
+    # Applica il parser deterministico solo quando l'LLM è in stub/fallito o mancano le chiavi attese per il doc_type
+    is_stub_or_empty = (
+        not res
+        or res.get("document_type") == "stub"
+        or any(isinstance(w, dict) and w.get("type") == "empty" for w in (res.get("warnings") or []))
+    )
+    expected_domain_keys = {
+        "visura_catastale": ("immobili", "cadastral_data"),
+        "visura_camerale": ("impresa", "soci"),
+        "centrale_rischi": ("esposizione_attuale", "totali"),
+        "bilancio": ("stato_patrimoniale", "conto_economico"),
+        "dichiarazione_redditi": ("reddito_annuo", "reddito_complessivo"),
+        "busta_paga": ("reddito_annuo", "retribuzione_netta"),
+        "cu": ("reddito_annuo", "reddito_complessivo"),
+        "isee": ("isee_ordinario",),
+        "cartella_aer": ("righe", "totali"),
+        "estratto_conto": ("movimenti", "aggregazioni"),
+    }
+    type_keys = expected_domain_keys.get(doc_type, ("immobili", "impresa", "esposizione_attuale", "stato_patrimoniale", "credit_positions", "reddito_annuo", "veicoli"))
+    missing_expected = not any(res.get(k) for k in type_keys)
+    if (is_stub_or_empty or missing_expected) and doc_type not in ("cartella_aer", "estratto_conto"):
         det = _parse_ocr_text_deterministic(text, doc_type, client_cf)
         if det:
-            res.update(det)
+            for k, v in det.items():
+                if k not in res or res.get(k) in (None, "", [], {}):
+                    res[k] = v
 
     return res
 
@@ -427,41 +465,16 @@ def _parse_vehicles_from_text(text: str) -> List[Dict[str, Any]]:
                 'plate': targa,
                 'make_model': tipo,
                 'year': anno,
-                'estimated_value': 2500.0,
+                'estimated_value': None,
                 'notes': 'Visura PRA: proprietario ' + (m_prop.group(1).strip() if m_prop else '') + '; nessun gravame iscritto.',
                 'source': 'Visura PRA'
             })
 
-    # 2. Elenco beni mobili o dichiarazione veicoli
+    # 2. Elenco beni mobili o dichiarazione veicoli (estrazione generica da testo OCR)
     if 'ELENCO BENI MOBILI' in norm_text or 'AUTOVETTURE' in norm_text or 'AUTOCARRI' in norm_text:
-        if 'GB302XXP' in norm_text:
-            norm_text = norm_text.replace('GB302XXP', 'GB302XP')
-
-        known_catalogs = [
-            ('auto', 'EN591CE', 'Fiat Panda 1.2', '2012', 3000.0, 'Km 79.515, nessun gravame PRA'),
-            ('auto', 'DW687MD', 'Fiat Tipo 188AXA1A 1.2', '2009', 2000.0, 'Dichiarato in elenco beni mobili'),
-            ('auto', 'GT530GZ', 'Renault Captur 999 TCe', '2024', 12000.0, 'Preavviso di fermo amministrativo'),
-            ('autocarro', 'GB302XP', 'Autocarro Renault Master', '2020', 10000.0, 'Autocarro aziendale'),
-            ('autocarro', 'FE889XT', 'Autocarro Renault Master', '2016', 7000.0, 'Autocarro aziendale'),
-            ('autocarro', 'GF705GS', 'Autocarro Renault Master', '2021', 11000.0, 'Autocarro aziendale'),
-            ('autocarro', 'GM791HE', 'Autocarro Nissan Cabstar', '2023', 14000.0, 'Autocarro aziendale'),
-        ]
         found_plates = set(v['plate'] for v in vehs)
-        for k, p, m, y, v, n in known_catalogs:
-            if p in norm_text and p not in found_plates:
-                vehs.append({
-                    'kind': k,
-                    'plate': p,
-                    'make_model': m,
-                    'year': y,
-                    'estimated_value': v,
-                    'notes': n,
-                    'source': 'Elenco beni mobili'
-                })
-                found_plates.add(p)
-
-        # Pattern generico per altre targhe/veicoli
-        for m in re.finditer(r'(Autovettura|Autocarro|Motoveicolo)\s+([A-Za-z0-9\s]+?)\s*(\d{4})?\s*([A-Z]{2}\d{3}[A-Z]{2})', norm_text, re.I):
+        # Pattern generico per targhe/veicoli senza cataloghi preimpostati
+        for m in re.finditer(r'(Autovettura|Autocarro|Motoveicolo)\s+([A-Za-z0-9\s\.\-/]+?)\s*(\d{4})?\s*([A-Z]{2}\d{3}[A-Z]{2})', norm_text, re.I):
             p = m.group(4).upper()
             if p not in found_plates:
                 k = 'auto' if 'autovettura' in m.group(1).lower() else ('autocarro' if 'autocarro' in m.group(1).lower() else 'moto')
@@ -470,8 +483,8 @@ def _parse_vehicles_from_text(text: str) -> List[Dict[str, Any]]:
                     'plate': p,
                     'make_model': f"{m.group(1).capitalize()} {m.group(2).strip()}",
                     'year': m.group(3) or '',
-                    'estimated_value': 0.0,
-                    'notes': 'Estratto da documentazione veicoli',
+                    'estimated_value': None,
+                    'notes': 'Estratto da documentazione veicoli (valore da perizia)',
                     'source': 'Documento'
                 })
                 found_plates.add(p)
@@ -501,11 +514,20 @@ def _num(v: Any) -> float:
 
 
 def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any], client_cf: str) -> None:
-    """Mappa i dati strutturati estratto nelle relative tabelle di dominio."""
+    """Mappa i dati strutturati estratto nelle relative tabelle di dominio in modo idempotente."""
     if not isinstance(data, dict):
         return
 
-    # 1. Immobili (da Visura Catastale)
+    # Pulizia preventiva per idempotenza su re-processing dello stesso documento
+    db.query(DebtPosition).filter_by(source_document_id=doc.id).delete()
+    db.query(CreditExposure).filter_by(source_document_id=doc.id).delete()
+    db.query(GuaranteeGiven).filter_by(source_document_id=doc.id).delete()
+    db.query(CreditReportSummary).filter_by(source_document_id=doc.id).delete()
+    for old_st in db.query(TaxDebtStatement).filter_by(source_document_id=doc.id).all():
+        db.delete(old_st)
+    db.flush()
+
+    # 1. Immobili (da Visura Catastale — deduplicato per dati catastali / indirizzo nel fascicolo)
     imm_raw = data.get("immobili")
     imm_list = imm_raw if isinstance(imm_raw, list) else []
     for imm in imm_list:
@@ -514,11 +536,20 @@ def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any
         rendita = _num(imm.get("rendita_catastale"))
         quota = imm.get("quota_soggetto") or ""
         cat = imm.get("categoria") or ""
+        cad_str = _cadastral(imm)
+        addr_str = imm.get("indirizzo") or ""
+        existing_re = None
+        if cad_str:
+            existing_re = db.query(RealEstate).filter_by(case_id=doc.case_id, cadastral_data=cad_str).first()
+        elif addr_str:
+            existing_re = db.query(RealEstate).filter_by(case_id=doc.case_id, address=addr_str).first()
+        if existing_re:
+            continue
         db.add(RealEstate(
             case_id=doc.case_id,
             kind=_imm_kind(imm),
-            address=imm.get("indirizzo") or "",
-            cadastral_data=_cadastral(imm),
+            address=addr_str,
+            cadastral_data=cad_str,
             ownership_share=quota,
             ownership_right=imm.get("diritto_soggetto") or "",
             surface_mq=_num(imm.get("superficie_mq")),
@@ -572,7 +603,7 @@ def _normalize_and_save_entities(db: Session, doc: Document, data: Dict[str, Any
         ))
 
     # 7. Cartella AER / Estratto di Ruolo
-    if doc.doc_type == "cartella_aer" or "righe" in data or "totale_residuo" in str(data):
+    if doc.doc_type == "cartella_aer" or isinstance(data.get("righe"), list) or isinstance(data.get("totali"), dict):
         _save_tax_debt_statement(db, doc, data, client_cf)
 
     # 8. Veicoli (da visura PRA o elenco beni mobili)
@@ -686,26 +717,36 @@ def _save_company(db: Session, doc: Document, data: Dict[str, Any], client_cf: s
         s["e_cliente"] = bool(s.get("e_cliente")) or fc.same(s.get("codice_fiscale", ""), client_cf)
 
     has_client = any(s.get("e_cliente") for s in soci) or fc.same(imp.get("codice_fiscale", ""), client_cf)
-    company = Company(
-        case_id=doc.case_id,
-        role="cliente" if has_client else "controparte",
-        name=imp.get("denominazione") or "",
-        legal_form=imp.get("forma_giuridica") or "",
-        company_type=imp.get("tipo_societa") or "",
-        tax_code=imp.get("codice_fiscale") or "",
-        vat=imp.get("partita_iva") or "",
-        rea=imp.get("numero_rea") or "",
-        cciaa=imp.get("cciaa") or "",
-        pec=imp.get("pec") or "",
-        legal_address=imp.get("sede_legale") or "",
-        status=imp.get("stato_attivita") or "",
-        constitution_date=imp.get("data_costituzione") or "",
-        capital=_num(imp.get("capitale_conferimenti")),
-        business_summary=imp.get("oggetto_sociale_sintesi") or "",
-        extra=data.get("dati_secondari") if isinstance(data.get("dati_secondari"), dict) else {},
-        source_document_id=doc.id,
-    )
-    db.add(company)
+    tax_c = imp.get("codice_fiscale") or ""
+    vat_c = imp.get("partita_iva") or ""
+    company = db.query(Company).filter_by(case_id=doc.case_id, source_document_id=doc.id).first()
+    if not company and (tax_c or vat_c):
+        for c in db.query(Company).filter_by(case_id=doc.case_id).all():
+            if (tax_c and fc.same(c.tax_code, tax_c)) or (vat_c and fc.same(c.vat, vat_c)):
+                company = c
+                break
+    if company:
+        db.query(CompanyMember).filter_by(company_id=company.id).delete()
+    else:
+        company = Company(case_id=doc.case_id, source_document_id=doc.id)
+        db.add(company)
+
+    company.role = "cliente" if has_client else "controparte"
+    company.name = imp.get("denominazione") or ""
+    company.legal_form = imp.get("forma_giuridica") or ""
+    company.company_type = imp.get("tipo_societa") or ""
+    company.tax_code = tax_c
+    company.vat = vat_c
+    company.rea = imp.get("numero_rea") or ""
+    company.cciaa = imp.get("cciaa") or ""
+    company.pec = imp.get("pec") or ""
+    company.legal_address = imp.get("sede_legale") or ""
+    company.status = imp.get("stato_attivita") or ""
+    company.constitution_date = imp.get("data_costituzione") or ""
+    company.capital = _num(imp.get("capitale_conferimenti"))
+    company.business_summary = imp.get("oggetto_sociale_sintesi") or ""
+    company.extra = data.get("dati_secondari") if isinstance(data.get("dati_secondari"), dict) else {}
+    company.source_document_id = doc.id
     db.flush()
     for s in soci:
         db.add(CompanyMember(

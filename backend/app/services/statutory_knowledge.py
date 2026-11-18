@@ -54,18 +54,30 @@ OIC12_CONTO_ECONOMICO_SCHEMA = {
 }
 
 
-def _flt(v: Any) -> float:
-    if v is None:
-        return 0.0
+def _flt_opt(v: Any) -> Optional[float]:
+    """Converte in float preservando None (NULL epistemico, mai zero automatico)."""
+    if v is None or v == "" or v == "n.r." or v == "N/D" or v == "NULL":
+        return None
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, dict):
-        return _flt(v.get("corrente") if "corrente" in v else v.get("valore", 0.0))
+        if "corrente" in v:
+            return _flt_opt(v.get("corrente"))
+        if "valore" in v:
+            return _flt_opt(v.get("valore"))
+        if "value" in v:
+            return _flt_opt(v.get("value"))
+        return None
     try:
         s = str(v).strip().replace("€", "").replace(" ", "").replace(".", "").replace(",", ".")
         return float(s)
     except (ValueError, TypeError):
-        return 0.0
+        return None
+
+
+def _flt(v: Any) -> float:
+    res = _flt_opt(v)
+    return res if res is not None else 0.0
 
 
 def calculate_ebitda_oic12(
@@ -75,28 +87,40 @@ def calculate_ebitda_oic12(
 ) -> Dict[str, Any]:
     """Calcola il MOL / EBITDA standard civilistico e rettificato secondo OIC 12 e CNDCEC marzo 2024.
 
-    Formula Standard CNDCEC:
-      EBITDA = (A - B) + B10a + B10b + B10c
-      Le voci B10d (svalutazione crediti circolante) e B12/B13 (accantonamenti rischi e altri)
-      restano all'interno dei costi operativi ordinari.
-
-    Formula Rettificata / Gestionale:
-      EBITDA Rettificato = EBITDA Standard + canoni leasing B8 +/- rettifiche non ricorrenti.
+    Se i dati di Conto Economico (Valore della produzione A e Costi della produzione B / EBIT) sono assenti,
+    restituisce esplicitamente None (NULL) e stato_dato='NON_VERIFICABILE_NULL' invece di 0.0.
     """
     ce = conto_economico or {}
 
-    # Valore della produzione A
-    a1 = _flt(ce.get("ricavi_vendite") or ce.get("A1"))
-    val_prod = _flt(ce.get("valore_produzione") or ce.get("A") or a1)
+    a1_opt = _flt_opt(ce.get("ricavi_vendite") if "ricavi_vendite" in ce else ce.get("A1"))
+    val_prod_opt = _flt_opt(ce.get("valore_produzione") if "valore_produzione" in ce else ce.get("A"))
+    if val_prod_opt is None:
+        val_prod_opt = a1_opt
+    costi_prod_opt = _flt_opt(ce.get("costi_produzione") if "costi_produzione" in ce else ce.get("B"))
+    ebit_direct_opt = _flt_opt(ce.get("differenza_valore_costi"))
 
-    # Costi della produzione B
-    costi_prod = _flt(ce.get("costi_produzione") or ce.get("B"))
+    if ebit_direct_opt is None and (val_prod_opt is None or costi_prod_opt is None):
+        return {
+            "valore_produzione_a": val_prod_opt,
+            "ricavi_vendite_a1": a1_opt,
+            "costi_produzione_b": costi_prod_opt,
+            "ebit_differenza_a_b": None,
+            "ammortamenti_b10a_b10b_b10c": None,
+            "svalutazione_crediti_b10d": _flt_opt(ce.get("svalutazione_crediti") or ce.get("B10d")),
+            "canoni_leasing_b8": leasing_b8 or _flt_opt(ce.get("canoni_leasing") or ce.get("B8_leasing")),
+            "ebitda_standard": None,
+            "ebitda_rettificato": None,
+            "ebitda_margin_pct": None,
+            "stato_dato": "NON_VERIFICABILE_NULL",
+            "formula_applicata": "EBITDA non calcolabile: assenza di Conto Economico normalizzato (NULL) [OIC 12]",
+        }
+
+    a1 = a1_opt if a1_opt is not None else 0.0
+    val_prod = val_prod_opt if val_prod_opt is not None else 0.0
+    costi_prod = costi_prod_opt if costi_prod_opt is not None else 0.0
 
     # EBIT (A - B)
-    if "differenza_valore_costi" in ce and ce.get("differenza_valore_costi") is not None:
-        ebit = _flt(ce.get("differenza_valore_costi"))
-    else:
-        ebit = round(val_prod - costi_prod, 2)
+    ebit = ebit_direct_opt if ebit_direct_opt is not None else round(val_prod - costi_prod, 2)
 
     # Ammortamenti e svalutazioni immobilizzazioni (B10a + B10b + B10c)
     b10a = _flt(ce.get("ammortamento_immateriali") or ce.get("B10a"))
@@ -104,24 +128,17 @@ def calculate_ebitda_oic12(
     b10c = _flt(ce.get("svalutazioni_immobilizzazioni") or ce.get("B10c"))
     b10_subtotal = round(b10a + b10b + b10c, 2)
 
-    # Se non sono dettagliati singolarmente, usa il totale ammortamenti B10 se disponibile
     if b10_subtotal == 0.0:
         b10_generic = _flt(ce.get("ammortamenti") or ce.get("B10"))
         ammortamenti_reintegrati = b10_generic
     else:
         ammortamenti_reintegrati = b10_subtotal
 
-    # B10d: svalutazione crediti (non va reintegrata nell'EBITDA secondo CNDCEC)
     b10d = _flt(ce.get("svalutazione_crediti") or ce.get("B10d"))
-
-    # EBITDA Standard CNDCEC
     ebitda_standard = round(ebit + ammortamenti_reintegrati, 2)
-
-    # EBITDA Rettificato (normalizzato con canoni leasing B8 per evitare doppio conteggio con PFN)
     b8_val = leasing_b8 or _flt(ce.get("canoni_leasing") or ce.get("B8_leasing"))
     ebitda_rettificato = round(ebitda_standard + b8_val + poste_straordinarie, 2)
-
-    ebitda_margin_pct = round((ebitda_standard / val_prod * 100), 2) if val_prod > 0 else 0.0
+    ebitda_margin_pct = round((ebitda_standard / val_prod * 100), 2) if val_prod > 0 else None
 
     return {
         "valore_produzione_a": val_prod,
@@ -134,6 +151,7 @@ def calculate_ebitda_oic12(
         "ebitda_standard": ebitda_standard,
         "ebitda_rettificato": ebitda_rettificato,
         "ebitda_margin_pct": ebitda_margin_pct,
+        "stato_dato": "VERIFICATO",
         "formula_applicata": "EBITDA = (A - B) + B10a (Amm. Immat.) + B10b (Amm. Mat.) + B10c (Sval. Immob.) [CNDCEC marzo 2024 / OIC 12]",
     }
 
@@ -143,9 +161,9 @@ def calculate_ebitda_oic12(
 # =============================================================================
 
 def calculate_pfn_esma(
-    debiti_bancari_breve: float,
-    debiti_bancari_medio_lungo: float,
-    disponibilita_liquide: float,
+    debiti_bancari_breve: Optional[float],
+    debiti_bancari_medio_lungo: Optional[float],
+    disponibilita_liquide: Optional[float],
     tfr_fondo: float = 0.0,
     finanziamenti_soci: float = 0.0,
     altri_debiti_finanziari: float = 0.0,
@@ -153,29 +171,35 @@ def calculate_pfn_esma(
     debiti_fornitori_scaduti_90gg: float = 0.0,
     titoli_e_crediti_finanziari_correnti: float = 0.0,
 ) -> Dict[str, Any]:
-    """Calcola la Posizione Finanziaria Netta (PFN) secondo l'Orientamento ESMA 32-382-1138 (2021) n. 39
-    e il documento CNDCEC marzo 2024 / Il Commercialista Veneto 2025.
-
-    Schema ESMA:
-      A. Cassa e disponibilità liquide
-      B. Mezzi equivalenti al contante
-      C. Altre attività finanziarie correnti
-      D. Liquidità (A + B + C)
-      E. Debito finanziario corrente (banche a breve, prestiti)
-      F. Parte corrente del debito non corrente
-      G. Indebitamento finanziario corrente (E + F)
-      H. Indebitamento finanziario netto corrente (G - D)
-      I. Debito finanziario non corrente (mutui, finanziamenti M/L)
-      J. Debt-like items (TFR, debiti tributari/previdenziali scaduti o rateizzati, debiti fornitori oltre 90gg, soci)
-      K. PFN Complessiva = H + I + J
-
-    Convenzione di segno:
-      PFN > 0: Indebitamento finanziario netto (debito supera la liquidità)
-      PFN < 0: Cassa netta (liquidità supera l'indebitamento)
+    """Calcola la Posizione Finanziaria Netta (PFN) secondo ESMA 32-382-1138 (2021) e CNDCEC marzo 2024.
+    Se disponibilita_liquide o entrambi i debiti finanziari primari sono None (NULL), impedisce lo zero silenzioso.
     """
-    liquidi_totali = round(_flt(disponibilita_liquide) + _flt(titoli_e_crediti_finanziari_correnti), 2)
-    debito_fin_breve = round(_flt(debiti_bancari_breve), 2)
-    debito_fin_ml = round(_flt(debiti_bancari_medio_lungo) + _flt(altri_debiti_finanziari), 2)
+    liq_opt = _flt_opt(disponibilita_liquide)
+    deb_breve_opt = _flt_opt(debiti_bancari_breve)
+    deb_ml_opt = _flt_opt(debiti_bancari_medio_lungo)
+
+    if liq_opt is None or (deb_breve_opt is None and deb_ml_opt is None):
+        return {
+            "disponibilita_liquide": liq_opt,
+            "debiti_finanziari_breve": deb_breve_opt,
+            "debiti_finanziari_medio_lungo": deb_ml_opt,
+            "debt_like_items": {
+                "fondo_tfr": _flt_opt(tfr_fondo),
+                "finanziamenti_soci": _flt_opt(finanziamenti_soci),
+                "debiti_tributari_scaduti_o_rateizzati": _flt_opt(debiti_tributari_scaduti),
+                "debiti_fornitori_oltre_90gg": _flt_opt(debiti_fornitori_scaduti_90gg),
+                "totale_debt_like": None,
+            },
+            "totale_passivita_finanziarie_e_assimilate": None,
+            "pfn_totale": None,
+            "stato_dato": "NON_VERIFICABILE_NULL",
+            "segno_convenzionale": "PFN non calcolabile per assenza di disponibilità liquide o stato patrimoniale (NULL)",
+            "norma_riferimento": "Orientamento ESMA 32-382-1138 (2021) n. 39 & CNDCEC marzo 2024",
+        }
+
+    liquidi_totali = round(liq_opt + _flt(titoli_e_crediti_finanziari_correnti), 2)
+    debito_fin_breve = round(deb_breve_opt or 0.0, 2)
+    debito_fin_ml = round((deb_ml_opt or 0.0) + _flt(altri_debiti_finanziari), 2)
 
     debt_like_items = round(
         _flt(tfr_fondo)
@@ -201,25 +225,27 @@ def calculate_pfn_esma(
         },
         "totale_passivita_finanziarie_e_assimilate": totale_debiti_finanziari,
         "pfn_totale": pfn_totale,
+        "stato_dato": "VERIFICATO",
         "segno_convenzionale": "PFN > 0 = Indebitamento Netto; PFN < 0 = Cassa Netta",
         "norma_riferimento": "Orientamento ESMA 32-382-1138 (2021) n. 39 & CNDCEC marzo 2024",
     }
 
 
-def evaluate_pfn_ebitda(pfn: float, ebitda: float) -> Dict[str, Any]:
-    """Valuta il rapporto PFN / EBITDA (anni di rimborso del debito) e le relative soglie di allarme bancario
-    secondo le Linee Guida EBA e il documento congiunto CNDCEC marzo 2024 / Il Commercialista Veneto 2025.
-
-    Soglie Bancarie Ufficiali:
-      - EBITDA <= 0 e PFN > 0: Squilibrio economico grave (non sostenibile, cassa operativa negativa)
-      - PFN / EBITDA <= 2.0: Struttura solida / ottima capacità di rimborso (basso rischio)
-      - 2.0 < PFN / EBITDA <= 3.0: Fisiologico (ordinaria sostenibilità per imprese produttive)
-      - 3.0 < PFN / EBITDA <= 6.0: Indebitamento significativo (tensione finanziaria, richiede monitoraggio)
-      - 6.0 < PFN / EBITDA <= 12.0: Campanello d'allarme bancario (crediti sotto osservazione / UTP, limite tolleranza)
-      - PFN / EBITDA > 12.0: Allerta grave / Sofferenza imminente (incapacità di rimborso con margini caratteristici)
-    """
-    pfn_val = round(_flt(pfn), 2)
-    ebitda_val = round(_flt(ebitda), 2)
+def evaluate_pfn_ebitda(pfn: Optional[float], ebitda: Optional[float]) -> Dict[str, Any]:
+    """Valuta il rapporto PFN / EBITDA con semantica rigorosa NULL vs Zero documentato."""
+    pfn_val_opt = _flt_opt(pfn)
+    ebitda_val_opt = _flt_opt(ebitda)
+    if pfn_val_opt is None or ebitda_val_opt is None:
+        return {
+            "ratio": None,
+            "anni_rimborso": None,
+            "classe_merito": "non_verificabile",
+            "livello_allerta": "non_verificabile",
+            "valutazione_bancaria": "Non verificabile (NULL): PFN o EBITDA non disponibili dai documenti acquisiti.",
+            "status": "na",
+        }
+    pfn_val = round(pfn_val_opt, 2)
+    ebitda_val = round(ebitda_val_opt, 2)
 
     if pfn_val <= 0:
         return {
@@ -297,30 +323,18 @@ def evaluate_pfn_ebitda(pfn: float, ebitda: float) -> Dict[str, Any]:
 def check_ccii_soglie_impresa_minore(
     attivo_patrimoniale_triennio: List[float],
     ricavi_lordi_triennio: List[float],
-    debiti_totali_attuali: float,
+    debiti_totali_attuali: Optional[float],
 ) -> Dict[str, Any]:
-    """Verifica se il debitore rientra nei parametri dimensionali di 'Impresa Minore' ex art. 2 co. 1 lett. d) CCII.
-
-    Soglie cumulative di non fallibilità:
-      1. Attivo patrimoniale annuo non superiore a € 300.000 nei tre esercizi antecedenti;
-      2. Ricavi lordi annui non superiori a € 200.000 nei tre esercizi antecedenti;
-      3. Ammontare di debiti anche non scaduti non superiore a € 500.000.
-
-    Effetto giuridico:
-      - Se TUTTI i parametri sono rispettati: Debitore Minore (assoggettabile a Concordato Minore,
-        Liquidazione Controllata, o Ristrutturazione debiti del consumatore).
-      - Se ANCHE UNO SOLO dei parametri è superato: Impresa Sopra Soglia (assoggettabile a Liquidazione
-        Giudiziale, Concordato Preventivo ordinario, PRO, Accordi di ristrutturazione ex art. 57 CCII).
+    """Verifica i parametri dimensionali di 'Impresa Minore' ex art. 2 co. 1 lett. d) CCII.
+    Evita di qualificare 'Impresa Minore' in assenza di dati contabili completi.
     """
-    max_attivo = max(attivo_patrimoniale_triennio) if attivo_patrimoniale_triennio else 0.0
-    max_ricavi = max(ricavi_lordi_triennio) if ricavi_lordi_triennio else 0.0
-    debiti = _flt(debiti_totali_attuali)
+    max_attivo: Optional[float] = max(attivo_patrimoniale_triennio) if attivo_patrimoniale_triennio else None
+    max_ricavi: Optional[float] = max(ricavi_lordi_triennio) if ricavi_lordi_triennio else None
+    debiti_opt = _flt_opt(debiti_totali_attuali)
 
-    supera_attivo = max_attivo > 300000.0
-    supera_ricavi = max_ricavi > 200000.0
-    supera_debiti = debiti > 500000.0
-
-    is_minore = not (supera_attivo or supera_ricavi or supera_debiti)
+    supera_attivo = (max_attivo is not None) and (max_attivo > 300000.0)
+    supera_ricavi = (max_ricavi is not None) and (max_ricavi > 200000.0)
+    supera_debiti = (debiti_opt is not None) and (debiti_opt > 500000.0)
 
     violazioni = []
     if supera_attivo:
@@ -328,81 +342,102 @@ def check_ccii_soglie_impresa_minore(
     if supera_ricavi:
         violazioni.append(f"Ricavi massimi triennio (€ {max_ricavi:,.2f}) > soglia di € 200.000")
     if supera_debiti:
-        violazioni.append(f"Debiti complessivi attuali (€ {debiti:,.2f}) > soglia di € 500.000")
+        violazioni.append(f"Debiti complessivi attuali (€ {debiti_opt:,.2f}) > soglia di € 500.000")
+
+    dati_incompleti = (max_attivo is None) or (max_ricavi is None) or (debiti_opt is None)
+    if violazioni:
+        is_minore: Optional[bool] = False
+        qualifica = "Impresa Sopra Soglia (art. 2 co. 1 lett. d CCII superato)"
+        motivo = "; ".join(violazioni)
+    elif dati_incompleti:
+        is_minore = None
+        qualifica = "Non verificabile (dati dimensionali assenti o parziali - NULL)"
+        motivo = "Impossibile attestare il rispetto cumulativo di tutte e 3 le soglie art. 2 CCII per mancanza di bilanci/attivo triennale."
+    else:
+        is_minore = True
+        qualifica = "Impresa Minore (ex art. 2 co. 1 lett. d CCII)"
+        motivo = "Tutti i parametri dimensionali sono rispettati"
 
     return {
         "e_impresa_minore": is_minore,
-        "qualifica_giuridica": "Impresa Minore (ex art. 2 co. 1 lett. d CCII)" if is_minore else "Impresa Sopra Soglia (art. 2 co. 1 lett. d CCII superato)",
+        "qualifica_giuridica": qualifica,
         "soglia_attivo_300k": {"valore": max_attivo, "superata": supera_attivo},
         "soglia_ricavi_200k": {"valore": max_ricavi, "superata": supera_ricavi},
-        "soglia_debiti_500k": {"valore": debiti, "superata": supera_debiti},
-        "motivo_superamento": "; ".join(violazioni) if violazioni else "Tutti i parametri dimensionali sono rispettati",
-        "procedure_esperibili": [
-            "Concordato Minore (art. 74 CCII)",
-            "Liquidazione Controllata del Sovraindebitato (art. 268 CCII)",
-            "Esdebitazione del debitore incapiente (art. 283 CCII se privo di utilità)",
-        ] if is_minore else [
-            "Composizione Negoziata della Crisi (artt. 12-25 CCII)",
-            "Accordi di Ristrutturazione dei Debiti (art. 57, 60, 61 CCII)",
-            "Transazione Fiscale e Previdenziale (art. 63 CCII con cram-down)",
-            "Piano di Ristrutturazione Omologato (PRO, art. 64-bis CCII)",
-            "Concordato Preventivo in continuità o liquidatorio (art. 84 CCII)",
-        ],
+        "soglia_debiti_500k": {"valore": debiti_opt, "superata": supera_debiti},
+        "motivo_superamento": motivo,
+        "procedure_esperibili": (
+            [
+                "Concordato Minore (art. 74 CCII)",
+                "Liquidazione Controllata del Sovraindebitato (art. 268 CCII)",
+                "Esdebitazione del debitore incapiente (art. 283 CCII se privo di utilità)",
+            ]
+            if is_minore is True
+            else [
+                "Composizione Negoziata della Crisi (artt. 12-25 CCII)",
+                "Accordi di Ristrutturazione dei Debiti (art. 57, 60, 61 CCII)",
+                "Transazione Fiscale e Previdenziale (art. 63 CCII con cram-down)",
+                "Piano di Ristrutturazione Omologato (PRO, art. 64-bis CCII)",
+                "Concordato Preventivo in continuità o liquidatorio (art. 84 CCII)",
+            ]
+        ),
     }
 
 
 def check_ccii_segnali_allarme_art3(
-    retribuzioni_scadute_30gg: float,
-    monte_salari_mensile: float,
-    debiti_fornitori_scaduti_90gg: float,
-    debiti_fornitori_non_scaduti: float,
-    esposizioni_banche_scadute_60gg: float,
-    sconfinamento_banche_fidi: float,
-    totale_fidi_accordati: float,
-    debiti_ader_scaduti_90gg: float,
+    retribuzioni_scadute_30gg: Optional[float],
+    monte_salari_mensile: Optional[float],
+    debiti_fornitori_scaduti_90gg: Optional[float],
+    debiti_fornitori_non_scaduti: Optional[float],
+    esposizioni_banche_scadute_60gg: Optional[float],
+    sconfinamento_banche_fidi: Optional[float],
+    totale_fidi_accordati: Optional[float],
+    debiti_ader_scaduti_90gg: Optional[float],
     tipo_soggetto: str = "societa_capitali",
 ) -> Dict[str, Any]:
-    """Rileva i segnali di allarme precoce della crisi previsti dall'art. 3 comma 4 CCII:
-
-    a) Debiti per retribuzioni scaduti da almeno 30 giorni pari a oltre il 50% dell'ammontare mensile;
-    b) Debiti verso fornitori scaduti da almeno 90 giorni di ammontare superiore a quelli non scaduti;
-    c) Esposizioni bancarie scadute da oltre 60 giorni o sconfinamenti superiori al 5% degli affidamenti;
-    d) Creditori pubblici qualificati: superamento soglie art. 25-novies CCII (AdER, AdE, INPS, INAIL).
-    """
+    """Rileva i segnali di allarme precoce della crisi previsti dall'art. 3 comma 4 CCII con supporto NULL."""
     signals = []
+    ret_scad = _flt_opt(retribuzioni_scadute_30gg) or 0.0
+    monte_sal = _flt_opt(monte_salari_mensile) or 0.0
+    forn_scad = _flt_opt(debiti_fornitori_scaduti_90gg) or 0.0
+    forn_non_scad = _flt_opt(debiti_fornitori_non_scaduti) or 0.0
+    banche_scad = _flt_opt(esposizioni_banche_scadute_60gg) or 0.0
+    sconf_fidi = _flt_opt(sconfinamento_banche_fidi) or 0.0
+    tot_fidi = _flt_opt(totale_fidi_accordati) or 0.0
+    ader_scad_opt = _flt_opt(debiti_ader_scaduti_90gg)
+    ader_scad = ader_scad_opt or 0.0
 
     # a) Dipendenti
-    if monte_salari_mensile > 0 and retribuzioni_scadute_30gg > (monte_salari_mensile * 0.5):
+    if monte_sal > 0 and ret_scad > (monte_sal * 0.5):
         signals.append({
             "codice": "art3_co4_lett_a_retribuzioni",
             "gravita": "alta",
-            "descrizione": f"Debiti per stipendi scaduti > 30gg (€ {retribuzioni_scadute_30gg:,.2f}) pari a oltre la metà del monte salari mensile (€ {monte_salari_mensile:,.2f})",
+            "descrizione": f"Debiti per stipendi scaduti > 30gg (€ {ret_scad:,.2f}) pari a oltre la metà del monte salari mensile (€ {monte_sal:,.2f})",
         })
 
     # b) Fornitori
-    if debiti_fornitori_scaduti_90gg > 0 and debiti_fornitori_scaduti_90gg > debiti_fornitori_non_scaduti:
+    if forn_scad > 0 and forn_scad > forn_non_scad:
         signals.append({
             "codice": "art3_co4_lett_b_fornitori",
             "gravita": "alta",
-            "descrizione": f"Debiti verso fornitori scaduti > 90gg (€ {debiti_fornitori_scaduti_90gg:,.2f}) superiori all'ammontare dei debiti a fornitore non scaduti (€ {debiti_fornitori_non_scaduti:,.2f})",
+            "descrizione": f"Debiti verso fornitori scaduti > 90gg (€ {forn_scad:,.2f}) superiori all'ammontare dei debiti a fornitore non scaduti (€ {forn_non_scad:,.2f})",
         })
 
     # c) Banche
-    sconfinamento_pct = (sconfinamento_banche_fidi / totale_fidi_accordati * 100) if totale_fidi_accordati > 0 else 0.0
-    if esposizioni_banche_scadute_60gg > 0 or sconfinamento_pct > 5.0:
+    sconfinamento_pct = (sconf_fidi / tot_fidi * 100) if tot_fidi > 0 else 0.0
+    if banche_scad > 0 or sconfinamento_pct > 5.0:
         signals.append({
             "codice": "art3_co4_lett_c_banche",
             "gravita": "alta",
-            "descrizione": f"Esposizioni bancarie scadute da oltre 60gg (€ {esposizioni_banche_scadute_60gg:,.2f}) o sconfinamento persistente pari al {sconfinamento_pct:.1f}% (> 5% degli affidamenti)",
+            "descrizione": f"Esposizioni bancarie scadute da oltre 60gg (€ {banche_scad:,.2f}) o sconfinamento persistente pari al {sconfinamento_pct:.1f}% (> 5% degli affidamenti)",
         })
 
     # d) AdER (art. 25-novies)
     soglia_ader = 500000.0 if "capitali" in tipo_soggetto.lower() else (200000.0 if "persone" in tipo_soggetto.lower() else 100000.0)
-    if debiti_ader_scaduti_90gg > soglia_ader:
+    if ader_scad_opt is not None and ader_scad > soglia_ader:
         signals.append({
             "codice": "art25_novies_ader",
             "gravita": "critica",
-            "descrizione": f"Crediti AdER affidati e scaduti > 90gg pari a € {debiti_ader_scaduti_90gg:,.2f}, oltre la soglia di segnalazione art. 25-novies (€ {soglia_ader:,.2f})",
+            "descrizione": f"Crediti AdER affidati e scaduti > 90gg pari a € {ader_scad:,.2f}, oltre la soglia di segnalazione art. 25-novies (€ {soglia_ader:,.2f})",
         })
 
     has_alert = len(signals) > 0
@@ -410,7 +445,7 @@ def check_ccii_segnali_allarme_art3(
         "ha_segnali_allarme_art3": has_alert,
         "totale_segnali": len(signals),
         "segnali": signals,
-        "obbligo_adeguati_assetti": "L'imprenditore e gli organi societari hanno l'obbligo (art. 2086 c.c. e art. 3 CCII) di attivarsi senza indugio per l'adozione tempestiva di uno strumento di composizione della crisi." if has_alert else "Nessun segnale di allarme ex art. 3 co. 4 CCII attualmente conclamato.",
+        "obbligo_adeguati_assetti": "L'imprenditore e gli organi societari hanno l'obbligo (art. 2086 c.c. e art. 3 CCII) di attivarsi senza indugio per l'adozione tempestiva di uno strumento di composizione della crisi." if has_alert else "Nessun segnale di allarme ex art. 3 co. 4 CCII attualmente rilevato sulle fonti disponibili.",
     }
 
 
@@ -419,28 +454,29 @@ def check_ccii_segnali_allarme_art3(
 # =============================================================================
 
 def calculate_test_pratico_ministeriale(
-    debito_totale_da_risanare: float,
+    debito_totale_da_risanare: Optional[float],
     flusso_annuo_servizio_debito: Optional[float] = None,
     ebitda_medio_annuo: Optional[float] = None,
     attivo_disponibile_non_strumentale: float = 0.0,
 ) -> Dict[str, Any]:
-    """Calcola il Test Pratico per la ragionevole perseguibilita del risanamento
-    previsto dalla Sezione I del Decreto Dirigenziale Ministero della Giustizia (art. 13 CCII).
-
-    Formula ministeriale:
-      Rapporto = (Debito netto da ristrutturare) / (Flusso annuo a regime al servizio del debito)
-
-    Fasce di Esito Ministeriale:
-      - R <= 1.0: Risanamento agevole / assenza di squilibrio strutturale.
-      - 1.0 < R <= 2.0: Difficolta contenuta / risanamento perseguibile con interventi ordinari di dilazione.
-      - 2.0 < R <= 3.0: Tensione significativa / risanamento con moratorie e accordi ordinari.
-      - 3.0 < R <= 5.0: Crisi conclamata / risanamento complesso: richiede misure protettive, transazione fiscale
-        ex art. 63 CCII o dilazione pluriennale (5-8 anni).
-      - R > 5.0: Squilibrio grave / risanamento altamente critico: presuppone falcidie sostanziali del debito
-        (concordato semplificato, accordo con stralcio elevato) o finanza straordinaria/esterna.
-      - Flusso <= 0: Non perseguibile in continuita diretta ordinaria senza apporto di finanza esterna o turnaround.
+    """Calcola il Test Pratico per la ragionevole perseguibilita del risanamento (D.D. 28/09/2021, art. 13 CCII).
+    Se il debito totale da risanare è None (NULL), impedisce la classificazione ingannevole come 'Agevole'.
     """
-    debito_lordo = round(_flt(debito_totale_da_risanare), 2)
+    deb_opt = _flt_opt(debito_totale_da_risanare)
+    if deb_opt is None:
+        return {
+            "rapporto": None,
+            "debito_netto_da_risanare": None,
+            "flusso_annuo_considerato": flusso_annuo_servizio_debito if flusso_annuo_servizio_debito is not None else ebitda_medio_annuo,
+            "flusso_tipo": "non_verificabile",
+            "esito_codice": "non_verificabile_null",
+            "fascia_risanabilita": "Non verificabile (NULL)",
+            "descrizione_esito": "Test pratico non calcolabile: esposizione debitoria da risanare non rilevata (NULL).",
+            "status": "na",
+            "normativa": "D.D. Ministero della Giustizia per la Composizione Negoziata (art. 13 CCII)",
+        }
+
+    debito_lordo = round(deb_opt, 2)
     attivo_deducibile = round(_flt(attivo_disponibile_non_strumentale), 2)
     debito_netto = max(0.0, round(debito_lordo - attivo_deducibile, 2))
 
@@ -524,17 +560,28 @@ def calculate_test_pratico_ministeriale(
 # =============================================================================
 
 def evaluate_risanabilita_diagnosi(
-    ebitda_ultimo: float,
+    ebitda_ultimo: Optional[float],
     ebitda_penultimo: Optional[float],
     pfn_ebitda_ratio: Optional[float],
     test_pratico_ratio: Optional[float],
     ha_sofferenze_cr: bool,
-    debito_tributario_scaduto: float,
+    debito_tributario_scaduto: Optional[float],
     flusso_annuo_formalizzato: bool,
     ha_patrimonio_immobiliare: bool = False,
 ) -> Dict[str, Any]:
     """Determina il Semaforo di Risanabilita (Favorevole, Incerta, Critica, Non valutabile)
     e il relativo Grado di Affidabilita (Basso, Medio, Alto)."""
+
+    if ebitda_ultimo is None:
+        return {
+            "semaforo": "Non valutabile",
+            "grado_affidabilita": "Basso",
+            "motivazione": (
+                "Dati economici e di bilancio non ancora acquisiti (NULL): impossibile esprimere una diagnosi "
+                "affidabile sulla continuità e sulla risanabilità senza situazioni contabili normalizzate."
+            ),
+            "motivo_affidabilita": "Fascicolo privo di conti economici e/o stato patrimoniale normalizzati.",
+        }
 
     # Valutazione Semaforo
     if ebitda_ultimo <= 0.0 or (pfn_ebitda_ratio is not None and pfn_ebitda_ratio > 10.0):

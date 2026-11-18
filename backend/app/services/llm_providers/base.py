@@ -1,11 +1,21 @@
 """Interfaccia comune ai provider LLM multimodali (Gemini, Claude, OpenAI)."""
 import json
 import re
+import threading
 import time
 from dataclasses import dataclass
 
 # Stati HTTP transienti: vale la pena riprovare (sovraccarico/limiti temporanei).
 RETRY_STATUS = {429, 500, 502, 503, 504}
+_RETRY_STATE = threading.local()
+
+
+def reset_last_retry_count() -> None:
+    _RETRY_STATE.count = 0
+
+
+def get_last_retry_count() -> int:
+    return int(getattr(_RETRY_STATE, "count", 0) or 0)
 
 
 def post_with_retry(url, body, headers=None, params=None, timeout=120, attempts=6):
@@ -13,7 +23,9 @@ def post_with_retry(url, body, headers=None, params=None, timeout=120, attempts=
     import httpx
     delay = 3.0
     last_exc = None
+    reset_last_retry_count()
     for i in range(attempts):
+        _RETRY_STATE.count = i
         try:
             r = httpx.post(url, json=body, headers=headers, params=params, timeout=timeout)
             if r.status_code in RETRY_STATUS and i < attempts - 1:
@@ -34,55 +46,59 @@ def post_with_retry(url, body, headers=None, params=None, timeout=120, attempts=
 @dataclass
 class ExtractionResult:
     data: dict                      # JSON estratto (gia parsato)
-    provider: str                   # "gemini" | "claude" | "openai"
+    provider: str                   # "lmstudio" | "gemini" | "claude" | "openai"
     model: str
     ok: bool
     error: str | None = None
     raw_text: str | None = None     # risposta grezza, per diagnostica
     usage: dict | None = None       # token in/out per costi
+    retries: int = 0
+    duration_s: float = 0.0
+    fallback_used: bool = False
+    fallback_errors: list | None = None
+    validation_status: str = "valid"
+
+
+def parse_json_with_status(raw: str) -> tuple[dict | None, str | None]:
+    """Estrae il primo oggetto JSON valido senza chiudere silenziosamente JSON troncati."""
+    if not raw:
+        return None, "empty_output"
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
+    raw = re.sub(r"```(?:json)?", "", raw)
+    raw = re.sub(r"(?<!:)\s*//[^\n\r]*", "", raw)
+
+    start_idx = raw.find("{")
+    if start_idx == -1:
+        return None, "no_json_object"
+
+    m = re.search(r"\{.*\}", raw[start_idx:], re.DOTALL)
+    if not m:
+        return None, "truncated_json"
+
+    candidate = m.group(0).strip()
+
+    try:
+        return json.loads(candidate), None
+    except Exception:
+        pass
+
+    try:
+        no_trailing = re.sub(r',\s*([\]}])', r'\1', candidate)
+        return json.loads(no_trailing), None
+    except Exception:
+        pass
+
+    # Segnala esplicitamente troncamento se le parentesi risultano sbilanciate (mai riparazione silenziosa)
+    if candidate.count("{") > candidate.count("}") or candidate.count("[") > candidate.count("]"):
+        return None, "truncated_json"
+
+    return None, "invalid_json"
 
 
 def parse_json(raw: str):
-    """Estrae il primo oggetto JSON dalla risposta (togliendo eventuali fence, commenti e virgole residue)."""
-    if not raw:
-        return None
-    # 1. Rimuove blocchi thinking/reasoning
-    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
-    # 2. Rimuove markdown fences
-    raw = re.sub(r"```(?:json)?", "", raw)
-    # 3. Rimuove commenti stile C++/JS (es. // A1, // Totale A) che mandano in crash json.loads
-    raw = re.sub(r"(?<!:)\s*//[^\n\r]*", "", raw)
-
-    m = re.search(r"\{.*\}", raw, re.DOTALL)
-    if not m:
-        return None
-    candidate = m.group(0).strip()
-
-    # Tentativo 1: parsing diretto
-    try:
-        return json.loads(candidate)
-    except Exception:
-        pass
-
-    # Tentativo 2: pulizia trailing commas (es. {"a": 1,} o [1, 2,])
-    try:
-        no_trailing = re.sub(r',\s*([\]}])', r'\1', candidate)
-        return json.loads(no_trailing)
-    except Exception:
-        pass
-
-    # Tentativo 3: bilanciamento graffe aperte se l'output e' stato troncato alla fine
-    try:
-        open_b = candidate.count("{")
-        close_b = candidate.count("}")
-        if open_b > close_b:
-            repaired = candidate + ("}" * (open_b - close_b))
-            repaired = re.sub(r',\s*([\]}])', r'\1', repaired)
-            return json.loads(repaired)
-    except Exception:
-        pass
-
-    return None
+    """Estrae il primo oggetto JSON valido dalla risposta (mai autoriparazione silenziosa di JSON troncati)."""
+    data, _ = parse_json_with_status(raw)
+    return data
 
 
 class LLMProvider:

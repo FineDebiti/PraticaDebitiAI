@@ -1,7 +1,7 @@
 import io
 import pdfplumber
 import pytest
-from app.services.benchmark_pdf_generator import generate_benchmark_7page_pdf
+from app.benchmarks.damico_pdf_fixture import generate_damico_benchmark_7page_pdf as generate_benchmark_7page_pdf
 
 
 def test_benchmark_pdf_seven_pages():

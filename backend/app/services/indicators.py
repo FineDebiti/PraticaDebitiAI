@@ -79,11 +79,11 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
         _safe_div(prv("totale_attivo_circolante"), prv("debiti_entro")),
         "ratio", "attivo circolante / debiti a breve")
 
-    acid_cur_n = (cur("totale_attivo_circolante") or 0.0) - (cur("rimanenze") or 0.0)
-    acid_prv_n = (prv("totale_attivo_circolante") or 0.0) - (prv("rimanenze") or 0.0)
+    acid_cur_n = (cur("totale_attivo_circolante") - cur("rimanenze")) if (cur("totale_attivo_circolante") is not None and cur("rimanenze") is not None) else None
+    acid_prv_n = (prv("totale_attivo_circolante") - prv("rimanenze")) if (prv("totale_attivo_circolante") is not None and prv("rimanenze") is not None) else None
     add("acid_test", "Acid test (quick ratio)", "liquidita",
-        _safe_div(acid_cur_n, cur("debiti_entro")) if cur("totale_attivo_circolante") is not None else None,
-        _safe_div(acid_prv_n, prv("debiti_entro")) if prv("totale_attivo_circolante") is not None else None,
+        _safe_div(acid_cur_n, cur("debiti_entro")),
+        _safe_div(acid_prv_n, prv("debiti_entro")),
         "ratio", "(circolante - rimanenze) / debiti a breve")
 
     add("liquidita_immediata", "Liquidità immediata", "liquidita",
@@ -108,8 +108,8 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
         _safe_div(prv("debiti_totali"), pn_p) if (pn_p or 0.0) > 0 else None,
         "ratio", "debiti / PN (n.s. se PN≤0)")
 
-    ms_c = (pn_c or 0.0) - (cur("totale_immobilizzazioni") or 0.0) if pn_c is not None else None
-    ms_p = (pn_p or 0.0) - (prv("totale_immobilizzazioni") or 0.0) if pn_p is not None else None
+    ms_c = (pn_c - cur("totale_immobilizzazioni")) if (pn_c is not None and cur("totale_immobilizzazioni") is not None) else None
+    ms_p = (pn_p - prv("totale_immobilizzazioni")) if (pn_p is not None and prv("totale_immobilizzazioni") is not None) else None
     add("margine_struttura", "Margine di struttura", "struttura", ms_c, ms_p, "eur",
         "PN - immobilizzazioni", status_cur=("green" if (ms_c or 0) >= 0 else "amber") if ms_c is not None else "na")
 
@@ -201,7 +201,7 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
         )
     )
 
-    if has_sp_or_deb:
+    if has_sp_or_deb and cur("disponibilita_liquide") is not None:
         deb_banche = _imp("banche")
         tfr_val = cur("tfr") or 0.0
         fin_soci = _imp("soci_finanziamenti")
@@ -211,14 +211,14 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
         pfn_esma_res = calculate_pfn_esma(
             debiti_bancari_breve=deb_banche,
             debiti_bancari_medio_lungo=cur("debiti_oltre") or 0.0,
-            disponibilita_liquide=cur("disponibilita_liquide") or 0.0,
+            disponibilita_liquide=cur("disponibilita_liquide"),
             tfr_fondo=tfr_val,
             finanziamenti_soci=fin_soci,
             debiti_tributari_scaduti=trib_scad,
             debiti_fornitori_scaduti_90gg=forn_scad,
         )
         pfn_c: Optional[float] = pfn_esma_res["pfn_totale"]
-        pfn_status = "green" if (pfn_c or 0) <= 0 else ("amber" if (pfn_c or 0) < 500000 else "red")
+        pfn_status = "green" if (pfn_c is not None and pfn_c <= 0) else ("amber" if (pfn_c is not None and pfn_c < 500000) else ("red" if pfn_c is not None else "na"))
         pfn_note = "Debiti Finanziari + Debt-like items (TFR, tributi, soci) - Liquidità [ESMA / CNDCEC]"
     else:
         pfn_c = None

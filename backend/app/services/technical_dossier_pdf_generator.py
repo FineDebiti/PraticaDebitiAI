@@ -18,9 +18,10 @@ from fpdf import FPDF
 from fpdf.fonts import FontFace
 from fpdf.enums import TableCellFillMode, TableBordersLayout, XPos, YPos
 
+from datetime import datetime
 from app.services.forensic_audit_engine import (
     build_complete_technical_dossier,
-    run_controlled_verification_suite,
+    run_case_runtime_checks,
 )
 
 # Tavolozza istituzionale ad alto contrasto e leggibilità per il Dossier Tecnico
@@ -44,10 +45,10 @@ COLOR_WHITE = (255, 255, 255)
 class TechnicalDossierPDF(FPDF):
     """FPDF specializzata per il Dossier Tecnico di Calcolo e Audit (7 pagine A4)."""
 
-    def __init__(self, client_name: str = "", draft_date: str = "12.11.2026", version: int = 1):
+    def __init__(self, client_name: str = "", draft_date: str = "", version: int = 1):
         super().__init__(orientation="portrait", unit="mm", format="A4")
-        self.client_name = client_name or "PIU' D'AMICO LUCREZIA"
-        self.draft_date = draft_date or "12.11.2026"
+        self.client_name = client_name or "FASCICOLO"
+        self.draft_date = draft_date or datetime.now().strftime("%d.%m.%Y")
         self.version = version
         self.set_margins(left=13, top=12, right=13)
         self.set_auto_page_break(auto=True, margin=13)
@@ -132,15 +133,15 @@ class TechnicalDossierPDF(FPDF):
 
 
 def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
-    """Genera il PDF completo (7 pagine A4) del Dossier Tecnico di Calcolo e Audit."""
+    """Genera il PDF completo (7 pagine A4) del Dossier Tecnico di Calcolo e Audit Forense."""
     header = report_data.get("header", {})
-    client_name = header.get("cliente") or "PIU' D'AMICO LUCREZIA"
-    draft_date = header.get("data_bozza") or "12.11.2026"
+    client_name = header.get("cliente") or "FASCICOLO SENZA INTESTAZIONE"
+    draft_date = header.get("data_bozza") or datetime.now().strftime("%d.%m.%Y")
     meta = report_data.get("_meta", {})
     version = int(meta.get("version") or 1)
 
     dossier = report_data.get("technical_dossier") or build_complete_technical_dossier([], report_data)
-    collaudo_suite = run_controlled_verification_suite()
+    collaudo_suite = dossier.get("collaudo_v21_suite") or dossier.get("runtime_checks") or run_case_runtime_checks(dossier, report_data)
 
     pdf = TechnicalDossierPDF(client_name=client_name, draft_date=draft_date, version=version)
     f_fam = pdf.font_family_name
@@ -176,7 +177,7 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     pdf.cell(pdf.epw, 5.5, "Dossier Tecnico di Calcolo, Riconciliazione e Audit Forense", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font(f_fam, "B", 10.0)
     pdf.set_text_color(*COLOR_SUBTITLE)
-    forma_txt = header.get("forma_giuridica") or "Ditta individuale artigiana · Palermo"
+    forma_txt = header.get("forma_giuridica") or "Forma giuridica non specificata"
     pdf.cell(pdf.epw, 4.5, f"Fascicolo: {client_name} ({forma_txt})", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(0.8)
@@ -199,11 +200,13 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     n_sources = len(dossier.get("sources_matrix", []))
     n_quads = len(dossier.get("decimal_audit", {}).get("quadrature", []))
     n_quads_ok = sum(1 for q in dossier.get("decimal_audit", {}).get("quadrature", []) if "VERIFICATO" in str(q.get("esito", "")))
+    prove_list = collaudo_suite.get("prove", [])
+    n_prove_ok = sum(1 for pr in prove_list if pr.get("esito") == "SUPERATO")
     audit_cards = [
         (f"{n_sources} Fonti (SHA-256)", "Impronta 64 hex e copertura pagg."),
         (f"{n_quads_ok} / {n_quads} Quadrature", "Decimal al centesimo (verifica)"),
         (f"{counts.get('totale_anomalie', 0)} Anomalie ({counts.get('rosso', 0)} Rosse)", "Istruttoria aperta • Human Gate"),
-        ("5 / 5 Prove Collaudo", "Suite reattiva v2.1 superata"),
+        (f"{n_prove_ok} / {len(prove_list)} Verifiche", "Controlli runtime su fascicolo"),
     ]
     for i, (val, lbl) in enumerate(audit_cards):
         cx = pdf.l_margin + i * (card_w + 3)
@@ -267,14 +270,13 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     # =========================================================================
     pdf.add_page()
     pdf.section_banner("02", "Tracciabilità Puntuale Cifra → Fonte, Pagina, Formula e Natura Epistemica")
+    ev_list = dossier.get("evidence_trace_map", [])
     pdf.body_p(
-        "Ogni grandezza esposta nella Relazione Cliente discende da una specifica evidenza codificata (EV-01..EV-13). "
+        f"Ogni grandezza esposta nella Relazione Cliente discende da una specifica evidenza codificata (EV-01..EV-{max(1, len(ev_list)):02d}). "
         "Classificazione applicata: FATTO [D] = documentato; CALCOLO [C] = formula deterministica; "
         "RIFERITO [R] = dichiarato verbalmente; STIMA [S] = forchetta esplorativa non peritale; IPOTESI [H] = simulazione what-if.",
         size_pt=6.7,
     )
-
-    ev_list = dossier.get("evidence_trace_map", [])
     col_w2 = (13, 39, 29, 23, 37, 43)  # Totale = 184mm
     with pdf.table(
         col_widths=col_w2,
@@ -341,15 +343,15 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
             row.cell(f"{q['formula']}\nSorgenti: {src_str}")
             row.cell(q["valore_calcolato"], style=highlight_style)
             row.cell(q["scarto"])
-            row.cell(q["esito"], style=green_style)
+            q_esito = str(q.get("esito", ""))
+            q_style = green_style if "VERIFICATO" in q_esito else (red_style if "ERRORE" in q_esito else amber_style)
+            row.cell(q_esito, style=q_style)
 
     pdf.ln(2.0)
     pdf.sub_heading("3.2 Regole di Riconciliazione ed Esclusione Duplicazioni Applicate (Anti-Double Counting)")
     dup_rules = dossier.get("dup_rules") or [
-        ("DUP-01", "Carichi Previdenziali INPS (€ 210.604,29)", "Estratto AdER Da Saldare", "Già compresi nel totale AdER di € 386.695,79 — non sommati una seconda volta come voce autonoma."),
-        ("DUP-02", "Rate Piani di Rottamazione e Preavvisi Fermo", "AdER Procedure / Moduli", "Riferiti alle medesime cartelle dell'estratto Da Saldare — esclusi dal cumulo aggiuntivo."),
-        ("DUP-03", "Segnalazioni Storiche CR 2025 e Cessioni GIADA Sec.", "Centrale Rischi Banca d'Italia", "Considerato esclusivamente lo stock attivo dell'ultimo mese rilevato (agosto 2026: € 133.460,00)."),
-        ("DUP-04", "Finanziamenti Compass e Agos Estinti", "Visura CTC / CRIF", "Contratti storicamente chiusi/regolari — esclusi dal passivo residuo (inclusa solo Santander € 2.945,00)."),
+        ("DUP-01", "Debiti finanziari e banche dati creditizie", "Centrale Rischi / Bilancio", "Applicato il principio di prevalenza della rilevazione più aggiornata ed esclusa la somma doppia di segnalazioni storiche o chiuse."),
+        ("DUP-02", "Carichi tributari e previdenziali a ruolo", "Estratto AdER / Bilancio", "Sottocomponenti già incluse nei totali AdER ed eventuali piani di rateazione/rottamazione non sommati una seconda volta."),
     ]
     col_wd = (16, 48, 38, 82)  # Totale = 184mm
     with pdf.table(
@@ -411,10 +413,10 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
             row.cell(pr["esito"], style=green_style if pr["esito"] == "SUPERATO" else red_style)
 
     pdf.ln(2.0)
-    pdf.sub_heading("4.2 Controllo Automatico delle Inferenze e Caso Critico Rigo RG5 (INF-01 .. INF-05)")
+    pdf.sub_heading("4.2 Controllo Automatico delle Inferenze Epistemiche (INF-01 .. INF-05)")
     pdf.body_p(
         "Il verificatore epistemico distingue ciò che il documento attesta [D] da ciò che il modello inferisce, "
-        "bloccando qualsiasi conclusione che trasformi componenti fiscali dichiarative (rigo RG5 €63.256 / reddito €237) in flussi di cassa.",
+        "bloccando qualsiasi conclusione che trasformi componenti fiscali extra-contabili in flussi di cassa o dati mancanti in zero.",
         size_pt=6.6,
     )
 
@@ -442,7 +444,9 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
             row.cell(ic["regola"], style=bold_style)
             row.cell(ic["inferenza_vietata"])
             row.cell(ic["formulazione_applicata"])
-            row.cell(ic["esito"], style=green_style)
+            ic_esito = str(ic.get("esito", ""))
+            ic_style = red_style if "BLOCCATO" in ic_esito else green_style
+            row.cell(ic_esito, style=ic_style)
 
     # =========================================================================
     # PAGINA 5: SEZIONE 05 (REGISTRO CODIFICATO DELLE 13 ANOMALIE)
@@ -522,9 +526,8 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
     # =========================================================================
     pdf.add_page()
     pdf.section_banner("07", "Cronologia Correzioni di Versione e Quality Gate a 4 Stati Distinti")
-    pdf.sub_heading("7.1 Storico delle Modifiche con Data, Versioni, Codice e Test di Regressione (CORR-01 .. CORR-06)")
-
     corrs = dossier.get("version_corrections", [])
+    pdf.sub_heading(f"7.1 Storico delle Modifiche e Test di Regressione (CORR-01 .. CORR-{max(1, len(corrs)):02d})")
     col_wc = (24, 38, 44, 45, 33)  # Totale = 184mm
     with pdf.table(
         col_widths=col_wc,
@@ -567,11 +570,12 @@ def generate_technical_dossier_pdf(report_data: Dict[str, Any]) -> bytes:
         row = table.row()
         row.cell("Test")
         row.cell("Criterio di Collaudo")
-        row.cell("Requisito Misurabile del Benchmark")
+        row.cell("Requisito Misurabile di Controllo")
         row.cell("Esito Verifica")
 
         for idx, item in enumerate(checklist):
-            st_face = green_style if item["status"] == "ok" else amber_style
+            st_val = item.get("status")
+            st_face = green_style if st_val == "ok" else (red_style if st_val == "danger" else amber_style)
             row = table.row(style=cell_regular if idx % 2 == 0 else cell_alt)
             row.cell(item["test_id"], style=bold_style)
             row.cell(item["criterio"], style=bold_style)

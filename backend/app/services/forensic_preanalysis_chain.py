@@ -74,21 +74,21 @@ FORMATO DI RISPOSTA OBBLIGATORIO:
 La risposta di Qwen deve sempre comporsi di due sezioni:
 
 PARTE 1: [MATRICE_ESTRAZIONE_JSON]
-Genera un blocco JSON con i valori estratti per ancorare la coerenza numerica nella memoria del modello prima della scrittura:
+Genera un blocco JSON con i valori estratti (usa `null` per OGNI campo non documentato o non quantificato nei documenti acquisiti, MAI `0.0` se il dato manca):
 ```json
 {{
   "qualifica_ccii": "...",
-  "ricavi_gestionali_ultimo_anno": 0.0,
-  "ebitda_gestionale_ultimo_anno": 0.0,
-  "ebitda_infrannuale_x3": 0.0,
-  "debito_ader_residuo_totale": 0.0,
-  "debito_ader_di_cui_inps": 0.0,
-  "cr_ultimo_saldo_utilizzato": 0.0,
-  "coobbligazioni_quantificate": 0.0,
-  "cumulo_principale_documentato": 0.0,
-  "debiti_riferiti_range": [0.0, 0.0],
-  "totale_misto_indicativo": [0.0, 0.0],
-  "realizzo_concorsuale_netto_range": [0.0, 0.0],
+  "ricavi_gestionali_ultimo_anno": null,
+  "ebitda_gestionale_ultimo_anno": null,
+  "ebitda_infrannuale_x3": null,
+  "debito_ader_residuo_totale": null,
+  "debito_ader_di_cui_inps": null,
+  "cr_ultimo_saldo_utilizzato": null,
+  "coobbligazioni_quantificate": null,
+  "cumulo_principale_documentato": null,
+  "debiti_riferiti_range": [null, null],
+  "totale_misto_indicativo": [null, null],
+  "realizzo_concorsuale_netto_range": [null, null],
   "dati_non_disponibili": []
 }}
 ```
@@ -109,6 +109,29 @@ PARTE 1: [MATRICE_ESTRAZIONE_JSON]
 PARTE 2: [RELAZIONE_PREANALISI_CLIENTE]"""
 
 
+from pydantic import BaseModel, ConfigDict, Field
+from app.services.llm_providers.base import parse_json_with_status
+
+
+class ForensicMatrixSchema(BaseModel):
+    """Schema validato per PARTE 1 della catena forense (accetta null per dati assenti)."""
+    model_config = ConfigDict(extra="allow")
+
+    qualifica_ccii: Optional[str] = None
+    ricavi_gestionali_ultimo_anno: Optional[float] = None
+    ebitda_gestionale_ultimo_anno: Optional[float] = None
+    ebitda_infrannuale_x3: Optional[float] = None
+    debito_ader_residuo_totale: Optional[float] = None
+    debito_ader_di_cui_inps: Optional[float] = None
+    cr_ultimo_saldo_utilizzato: Optional[float] = None
+    coobbligazioni_quantificate: Optional[float] = None
+    cumulo_principale_documentato: Optional[float] = None
+    debiti_riferiti_range: Optional[list] = None
+    totale_misto_indicativo: Optional[list] = None
+    realizzo_concorsuale_netto_range: Optional[list] = None
+    dati_non_disponibili: list = Field(default_factory=list)
+
+
 class _DirectHttpForensicChain:
     """Fallback compatibile con .invoke() via httpx diretto su endpoint OpenAI/LM Studio."""
 
@@ -117,31 +140,41 @@ class _DirectHttpForensicChain:
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
+        self.last_usage: Dict[str, Any] = {}
+        self.last_model: str = model
+        self.last_retries: int = 0
+        self.last_finish_reason: str | None = None
 
     def invoke(self, inputs: Dict[str, Any]) -> str:
-        import httpx
+        from app.services.llm_providers.base import post_with_retry, get_last_retry_count, reset_last_retry_count
         sys_msg = SYSTEM_PROMPT_FORENSIC_PREANALYSIS.replace("{{", "{").replace("}}", "}")
         user_msg = HUMAN_PROMPT_TEMPLATE.format(
             nome_cliente=inputs.get("nome_cliente", ""),
             data_analisi=inputs.get("data_analisi", ""),
             documenti_testo=inputs.get("documenti_testo", ""),
         )
-        resp = httpx.post(
+        reset_last_retry_count()
+        resp = post_with_retry(
             f"{self.base_url}/chat/completions",
-            json={
+            {
                 "model": self.model,
                 "temperature": self.temperature,
-                "max_tokens": 1500,
+                "max_tokens": 4096,
                 "messages": [
                     {"role": "system", "content": sys_msg},
                     {"role": "user", "content": user_msg},
                 ],
             },
             timeout=self.timeout,
+            attempts=2,
         )
-        resp.raise_for_status()
+        self.last_retries = get_last_retry_count()
         data = resp.json()
-        return ((data.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        self.last_usage = data.get("usage") or {}
+        self.last_model = data.get("model") or self.model
+        choice = (data.get("choices") or [{}])[0]
+        self.last_finish_reason = choice.get("finish_reason")
+        return (choice.get("message") or {}).get("content") or ""
 
 
 def get_forensic_chain(temperature: float = 0.1):
@@ -159,7 +192,7 @@ def get_forensic_chain(temperature: float = 0.1):
         temperature=temperature,
         api_key="not-needed",
         timeout=timeout,
-        max_tokens=1500,
+        max_tokens=4096,
         max_retries=0,
     )
 
@@ -168,32 +201,41 @@ def get_forensic_chain(temperature: float = 0.1):
         HumanMessagePromptTemplate.from_template(HUMAN_PROMPT_TEMPLATE),
     ])
 
-    return prompt | llm | StrOutputParser()
+    return prompt | llm
 
 
 def parse_forensic_output(raw_output: str) -> Tuple[Dict[str, Any], str]:
-    """Separa e valida PARTE 1 [MATRICE_ESTRAZIONE_JSON] e PARTE 2 [RELAZIONE_PREANALISI_CLIENTE]."""
-    json_matrix = {}
+    """Separa e valida con Pydantic PARTE 1 [MATRICE_ESTRAZIONE_JSON] e PARTE 2 [RELAZIONE_PREANALISI_CLIENTE]."""
+    json_matrix: Dict[str, Any] = {}
     client_report_text = ""
 
-    # Estrazione blocco JSON (Parte 1)
+    # Estrazione blocco JSON (Parte 1) con parse_json_with_status (nessuna riparazione silenziosa di troncamenti)
     json_match = re.search(r"PARTE 1:\s*\[MATRICE_ESTRAZIONE_JSON\]\s*```(?:json)?\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
     if not json_match:
-        # Fallback se non ci sono i tag esatti ma un blocco json all'inizio
         json_match = re.search(r"```(?:json)?\s*(\{\s*\"qualifica_ccii\".*?\})\s*```", raw_output, re.DOTALL)
+    if not json_match:
+        json_match = re.search(r"(?:PARTE 1:\s*\[MATRICE_ESTRAZIONE_JSON\]\s*)?```(?:json)?\s*(\{.*)", raw_output, re.DOTALL)
 
     if json_match:
-        try:
-            json_matrix = json.loads(json_match.group(1))
-        except Exception as e:
-            logger.warning(f"Errore parsing JSON matrice preanalisi: {e}")
+        raw_block = re.split(r"PARTE 2:", json_match.group(1), maxsplit=1)[0].strip()
+        raw_block = re.sub(r"```\s*$", "", raw_block).strip()
+        parsed, parse_err = parse_json_with_status(raw_block)
+        if parsed is not None:
+            try:
+                validated = ForensicMatrixSchema.model_validate(parsed)
+                json_matrix = validated.model_dump()
+            except Exception as exc:
+                logger.warning("Validazione schema matrice forense fallita: %s", exc)
+                json_matrix = {"_validation_error": str(exc), "_raw_parsed": parsed}
+        else:
+            logger.warning("Errore parsing JSON matrice preanalisi: %s", parse_err)
+            json_matrix = {"_validation_error": parse_err or "invalid_json"}
 
     # Estrazione testo cliente (Parte 2)
     parte2_split = re.split(r"PARTE 2:\s*\[RELAZIONE_PREANALISI_CLIENTE\]", raw_output, maxsplit=1)
     if len(parte2_split) > 1:
         client_report_text = parte2_split[1].strip()
     else:
-        # Se non c'è il marker, prendi tutto ciò che segue il blocco json
         if json_match:
             end_pos = json_match.end()
             client_report_text = raw_output[end_pos:].strip()
@@ -203,37 +245,150 @@ def parse_forensic_output(raw_output: str) -> Tuple[Dict[str, Any], str]:
     return json_matrix, client_report_text
 
 
+def _split_forensic_chunks(documenti_testo: str, max_chunk_chars: int = 24000, max_chunks: int = 6) -> Tuple[list[str], bool]:
+    """Suddivide documenti lunghi in blocchi omogenei per analisi multi-passaggio senza tagli muti."""
+    if len(documenti_testo) <= max_chunk_chars:
+        return [documenti_testo], False
+    chunks: list[str] = []
+    pos = 0
+    total = len(documenti_testo)
+    while pos < total and len(chunks) < max_chunks:
+        end = min(total, pos + max_chunk_chars)
+        if end < total:
+            nl = documenti_testo.rfind("\n", pos + int(max_chunk_chars * 0.7), end)
+            if nl > pos:
+                end = nl + 1
+        chunks.append(documenti_testo[pos:end])
+        pos = end
+    return chunks, pos < total
+
+
+def _invoke_forensic_once(chain: Any, nome_cliente: str, data_analisi: str, payload_text: str, default_model: str) -> Dict[str, Any]:
+    try:
+        res_msg = chain.invoke({
+            "nome_cliente": nome_cliente,
+            "data_analisi": data_analisi,
+            "documenti_testo": payload_text,
+        })
+        if isinstance(res_msg, str):
+            return {
+                "raw_output": res_msg,
+                "usage": getattr(chain, "last_usage", {}) or {},
+                "model": getattr(chain, "last_model", default_model) or default_model,
+                "retries": int(getattr(chain, "last_retries", 0) or 0),
+                "finish_reason": getattr(chain, "last_finish_reason", None),
+                "error": None,
+            }
+        raw_output = getattr(res_msg, "content", "") or ""
+        resp_meta = getattr(res_msg, "response_metadata", {}) or {}
+        return {
+            "raw_output": raw_output,
+            "usage": resp_meta.get("token_usage") or getattr(res_msg, "usage_metadata", {}) or {},
+            "model": resp_meta.get("model_name") or resp_meta.get("model") or default_model,
+            "retries": 0,
+            "finish_reason": resp_meta.get("finish_reason"),
+            "error": None,
+        }
+    except Exception as e:
+        logger.error(f"Errore invocazione LangChain Qwen: {e}")
+        return {
+            "raw_output": "",
+            "usage": {},
+            "model": default_model,
+            "retries": int(getattr(chain, "last_retries", 0) or 0),
+            "finish_reason": None,
+            "error": str(e),
+        }
+
+
 def run_forensic_preanalysis_chain(
     nome_cliente: str,
     data_analisi: str,
     documenti_testo: str,
     temperature: float = 0.1,
 ) -> Dict[str, Any]:
-    """Invocazione completa della catena LangChain Forense per DossierLex."""
+    """Invocazione completa (singola o multi-passaggio) con validazione JSON e telemetria completa."""
     import time
     t0 = time.time()
     logger.info(f"Avvio Forensic Preanalysis Chain per '{nome_cliente}' al {data_analisi}")
 
+    max_input_chars = 30000
     chain = get_forensic_chain(temperature=temperature)
+    actual_model = settings.lmstudio_model or ""
+    actual_provider = "lmstudio" if (settings.llm_provider or "lmstudio") in ("lmstudio", "stub") else settings.llm_provider
 
-    try:
-        raw_output = chain.invoke({
-            "nome_cliente": nome_cliente,
-            "data_analisi": data_analisi,
-            "documenti_testo": documenti_testo[:15000],  # budget tokens safe
-        })
-    except Exception as e:
-        logger.error(f"Errore invocazione LangChain Qwen: {e}")
-        raw_output = ""
+    multi_pass = len(documenti_testo) > max_input_chars
+    total_retries = 0
+    partial_coverage = False
+    if not multi_pass:
+        chunks = [documenti_testo]
+        inv = _invoke_forensic_once(chain, nome_cliente, data_analisi, documenti_testo, actual_model)
+        raw_output = inv["raw_output"]
+        actual_usage = inv["usage"]
+        actual_model = inv["model"]
+        total_retries += inv["retries"]
+        inv_error = inv["error"]
+        finish_reason = inv["finish_reason"]
+        chunks_processed = 1
+        chars_sent = len(documenti_testo)
+    else:
+        chunks, partial_coverage = _split_forensic_chunks(documenti_testo, max_chunk_chars=24000, max_chunks=6)
+        partial_summaries: list[str] = []
+        chars_sent = 0
+        inv_error = None
+        finish_reason = None
+        actual_usage: Dict[str, Any] = {}
+        for idx, ch in enumerate(chunks, 1):
+            chars_sent += len(ch)
+            sub_res = _invoke_forensic_once(
+                chain, nome_cliente, data_analisi,
+                f"[PASSAGGIO PARZIALE {idx}/{len(chunks)} - NON CONCLUDERE COME DEFINITIVO]\n{ch}",
+                actual_model,
+            )
+            total_retries += sub_res["retries"]
+            if sub_res["error"] and not inv_error:
+                inv_error = sub_res["error"]
+            mat_sub, rep_sub = parse_forensic_output(sub_res["raw_output"])
+            partial_summaries.append(
+                f"--- ESTRATTO PASSAGGIO {idx}/{len(chunks)} ---\n"
+                f"MATRICE: {json.dumps(mat_sub, ensure_ascii=False)}\n"
+                f"NOTE: {rep_sub[:2000]}"
+            )
+        cov_notice = (
+            "[AVVISO COPERTURA PARZIALE: documenti eccedenti la finestra di consolidamento multi-passaggio.]\n"
+            if partial_coverage else
+            f"[CONSOLIDAMENTO INTEGRALE DI {len(chunks)} PASSAGGI DOCUMENTALI]\n"
+        )
+        consolidation_payload = cov_notice + "\n\n".join(partial_summaries)
+        inv = _invoke_forensic_once(chain, nome_cliente, data_analisi, consolidation_payload[:max_input_chars], actual_model)
+        raw_output = inv["raw_output"]
+        actual_usage = inv["usage"]
+        actual_model = inv["model"]
+        total_retries += inv["retries"]
+        inv_error = inv["error"] or inv_error
+        finish_reason = inv["finish_reason"]
+        chunks_processed = len(chunks)
 
     elapsed_s = round(time.time() - t0, 1)
-    prompt_tokens_est = (len(documenti_testo[:15000]) + len(SYSTEM_PROMPT_FORENSIC_PREANALYSIS)) // 4
-    completion_tokens_est = len(raw_output) // 4
-    total_tokens_est = prompt_tokens_est + completion_tokens_est
-
     json_matrix, client_report_text = parse_forensic_output(raw_output)
 
-    logger.info(f"Forensic Preanalysis Chain completata in {elapsed_s}s (~{total_tokens_est} token totali, di cui ~{completion_tokens_est} generati)")
+    if inv_error:
+        validation_status = "provider_error"
+    elif finish_reason == "length":
+        validation_status = "truncated_output"
+        if "_validation_error" not in json_matrix:
+            json_matrix["_validation_error"] = "finish_reason=length"
+    elif not raw_output.strip():
+        validation_status = "empty_output"
+    elif "_validation_error" in json_matrix or not json_matrix:
+        validation_status = "validation_error"
+    else:
+        validation_status = "valid"
+
+    logger.info(
+        "Forensic Preanalysis Chain completata in %ss (model=%s, status=%s, multi_pass=%s, partial=%s)",
+        elapsed_s, actual_model, validation_status, multi_pass, partial_coverage,
+    )
 
     return {
         "raw_output": raw_output,
@@ -241,10 +396,23 @@ def run_forensic_preanalysis_chain(
         "client_report_text": client_report_text,
         "telemetry": {
             "elapsed_seconds": elapsed_s,
-            "prompt_tokens_approx": prompt_tokens_est,
-            "completion_tokens_approx": completion_tokens_est,
-            "total_tokens_approx": total_tokens_est,
-            "model": "qwen/qwen3.8-27b",
-            "provider": "lmstudio",
+            "duration_s": elapsed_s,
+            "usage": actual_usage,
+            "prompt_tokens": actual_usage.get("prompt_tokens") or actual_usage.get("input_tokens"),
+            "completion_tokens": actual_usage.get("completion_tokens") or actual_usage.get("output_tokens"),
+            "total_tokens": actual_usage.get("total_tokens"),
+            "model": actual_model,
+            "provider": actual_provider,
+            "retries": total_retries,
+            "error": inv_error,
+            "fallback_used": False,
+            "validation_status": validation_status,
+            "input_truncated": partial_coverage,
+            "multi_pass": multi_pass,
+            "chunks_total": len(chunks),
+            "chunks_processed": chunks_processed,
+            "partial_coverage": partial_coverage,
+            "input_chars_total": len(documenti_testo),
+            "input_chars_sent": chars_sent,
         },
     }
