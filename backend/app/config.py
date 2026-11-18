@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     lmstudio_timeout: int = 240
     # Guardia privacy locale: impedisce fallback silenziosi su cloud quando llm_provider == "lmstudio"
     allow_cloud_llm_fallback: bool = False
+    # Token opzionale di sola lettura per l'incorporamento iframe /embed su Bentivegna OS
+    embed_readonly_token: str = ""
 
     # Document AI
     docai_project_id: str = ""

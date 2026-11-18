@@ -16,6 +16,7 @@ function AppShellInner({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isEmbed = pathname?.startsWith("/embed");
   const [cases, setCases] = useState([]);
   const [isBackendOnline, setIsBackendOnline] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -28,6 +29,7 @@ function AppShellInner({ children }) {
   const activeCaseId = caseIdFromQuery || caseIdFromPath || "";
 
   useEffect(() => {
+    if (isEmbed) return;
     async function loadCases() {
       try {
         const list = await listCases();
@@ -45,7 +47,22 @@ function AppShellInner({ children }) {
     pingBackend();
     const interval = setInterval(pingBackend, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isEmbed]);
+
+  if (isEmbed) {
+    return (
+      <div
+        className="pd-embed-shell"
+        style={{
+          minHeight: "100vh",
+          padding: "16px 20px",
+          background: "var(--pd-bg, #f7f5f0)",
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
 
   const activeCase = cases.find(c => c.id === activeCaseId);
 

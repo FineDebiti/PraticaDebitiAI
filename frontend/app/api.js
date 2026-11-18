@@ -1,12 +1,41 @@
 export function getApiBase() {
-  if (typeof window !== "undefined" && window.location?.hostname) {
-    return `http://${window.location.hostname}:8000`;
+  if (typeof window !== "undefined") {
+    const host = window.location?.hostname;
+    if (window.location?.protocol === "https:") {
+      return "";
+    }
+    if (host && window.location?.port === "3001") {
+      return `http://${host}:8000`;
+    }
+    return "";
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  return process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
 
 export async function listCases() {
   const r = await fetch(`${getApiBase()}/api/cases`, { cache: "no-store" });
+  return r.json();
+}
+
+export async function listEmbedCases(embedToken = "") {
+  const headers = {};
+  if (embedToken) headers["X-Embed-Token"] = embedToken;
+  const qs = embedToken ? `?token=${encodeURIComponent(embedToken)}` : "";
+  const r = await fetch(`${getApiBase()}/api/embed/cases${qs}`, {
+    cache: "no-store",
+    headers,
+    credentials: "same-origin",
+  });
+  if (!r.ok) {
+    let detail = "Accesso embed non autorizzato o servizio non disponibile.";
+    try {
+      const body = await r.json();
+      detail = body.detail || detail;
+    } catch {}
+    const err = new Error(detail);
+    err.status = r.status;
+    throw err;
+  }
   return r.json();
 }
 export async function checkHealth() {

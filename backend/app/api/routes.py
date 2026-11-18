@@ -1,6 +1,7 @@
+import hmac
 import os
 import uuid
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Cookie, Depends, Header, Query, Response, UploadFile, File, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.config import settings
@@ -64,6 +65,35 @@ def create_case(payload: CaseCreate, db: Session = Depends(get_db)):
 
 @router.get("/cases", response_model=list[CaseOut])
 def list_cases(db: Session = Depends(get_db)):
+    return db.query(Case).order_by(Case.created_at.desc()).all()
+
+
+@router.get("/embed/cases", response_model=list[CaseOut])
+def list_embed_cases(
+    request: Request,
+    response: Response,
+    token: str | None = Query(default=None),
+    x_embed_token: str | None = Header(default=None),
+    dossierlex_embed_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    """Endpoint dedicato alla vista /embed in sola lettura per incorporamento CRM."""
+    expected = (settings.embed_readonly_token or "").strip()
+    supplied = (x_embed_token or token or dossierlex_embed_token or "").strip()
+    if expected and not (supplied and hmac.compare_digest(supplied, expected)):
+        raise HTTPException(status_code=401, detail="Token embed di sola lettura mancante o non valido.")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    if expected and supplied:
+        is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+        if is_https:
+            response.set_cookie(
+                key="dossierlex_embed_token",
+                value=supplied,
+                httponly=True,
+                secure=True,
+                samesite="none",
+                path="/",
+            )
     return db.query(Case).order_by(Case.created_at.desc()).all()
 
 
