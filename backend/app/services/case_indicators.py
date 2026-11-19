@@ -13,7 +13,7 @@ Dato mancante -> value=None, status="na" (la cella mostrerà "non disponibile", 
 from datetime import date
 from app.config import settings
 from app.models import (
-    Debtor, RealEstate, Vehicle, Company, FinancialStatement,
+    Debtor, RealEstate, Vehicle, Company,
     CreditExposure, GuaranteeGiven, CreditReportSummary, TaxDebtStatement,
 )
 from app.services.income_summary import compute_income_summary

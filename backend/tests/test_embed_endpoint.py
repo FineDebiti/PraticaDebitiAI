@@ -1,5 +1,6 @@
-"""Test endpoint /api/auth/ticket, riscatto monouso, /api/embed/cases e CSP Lovable."""
+"""Test endpoint /api/auth/ticket, riscatto monouso, /api/embed/cases, CSP Lovable e ticket_auth."""
 
+import time
 import pytest
 from fastapi.testclient import TestClient
 
@@ -7,6 +8,7 @@ from app.config import settings
 from app.db import get_db
 from app.main import app
 from app.models import Case
+from app.services import ticket_auth
 
 
 @pytest.fixture()
@@ -23,7 +25,6 @@ def api_client(db_session):
 
 def test_embed_cases_csp_and_readonly_method_guard(api_client, db_session, monkeypatch):
     """Verifica CSP Lovable aggiornata, assenza X-Frame-Options, Cache-Control e solo GET."""
-    monkeypatch.setattr(settings, "embed_readonly_token", "")
     monkeypatch.setattr(settings, "dossierlex_server_secret", "")
     db_session.add(Case(client_name="Test Embed SRL", client_tax_code="01234567890", status="in_lavorazione"))
     db_session.commit()
@@ -45,10 +46,34 @@ def test_embed_cases_csp_and_readonly_method_guard(api_client, db_session, monke
     assert api_client.delete("/api/embed/cases").status_code == 405
 
 
-def test_one_time_ticket_issue_burn_and_scope_isolation(api_client, db_session, monkeypatch):
-    """Ticket monouso TTL 60s: emissione Bearer, bruciatura immediata al 1o uso e isolamento scope."""
+def test_embed_cases_local_http_vs_external_https(api_client, db_session, monkeypatch):
+    """HTTP locale diretto su localhost consente consultazione; HTTPS esterno/testserver richiede cookie embed."""
+    monkeypatch.setattr(settings, "dossierlex_server_secret", "srv-secret-local-test")
+    db_session.add(Case(client_name="Locale Check SRL", client_tax_code="11223344556", status="in_lavorazione"))
+    db_session.commit()
+
+    # Richiesta esterna / TestClient di default senza cookie -> 401
+    assert api_client.get("/api/embed/cases").status_code == 401
+
+    # Host HTTP locale diretto -> 200
+    r_local = api_client.get("/api/embed/cases", headers={"Host": "localhost:3001"})
+    assert r_local.status_code == 200
+
+    # Ma se arriva via proxy HTTPS (x-forwarded-proto=https), anche con Host localhost richiede cookie -> 401
+    r_https = api_client.get(
+        "/api/embed/cases",
+        headers={"Host": "localhost:3001", "X-Forwarded-Proto": "https"},
+    )
+    assert r_https.status_code == 401
+
+    # Host spoofing prefix come 192.168.1.evil.com non passa -> 401
+    r_spoof = api_client.get("/api/embed/cases", headers={"Host": "192.168.1.evil.com"})
+    assert r_spoof.status_code == 401
+
+
+def test_one_time_ticket_issue_burn_expiry_and_scope_isolation(api_client, db_session, monkeypatch):
+    """Ticket monouso TTL 60s: emissione Bearer, bruciatura al 1o uso, scadenza <= e isolamento scope."""
     monkeypatch.setattr(settings, "dossierlex_server_secret", "srv-secret-test-xyz")
-    monkeypatch.setattr(settings, "embed_readonly_token", "")
     db_session.add(Case(client_name="Cliente Ticket", client_tax_code="99887766554", status="in_lavorazione"))
     db_session.commit()
 
@@ -114,7 +139,7 @@ def test_one_time_ticket_issue_burn_and_scope_isolation(api_client, db_session, 
     api_client.cookies.set("dossierlex_embed_session", embed_session)
     assert api_client.get("/api/embed/cases").status_code == 200
 
-    # Sessione full NON puo sostituire embed su /api/embed/cases senza token
+    # Sessione full NON puo sostituire embed su /api/embed/cases
     t_full = api_client.post(
         "/api/auth/ticket",
         headers={"Authorization": "Bearer srv-secret-test-xyz"},
@@ -128,3 +153,9 @@ def test_one_time_ticket_issue_burn_and_scope_isolation(api_client, db_session, 
     api_client.cookies.clear()
     api_client.cookies.set("dossierlex_embed_session", full_session)
     assert api_client.get("/api/embed/cases").status_code == 401
+
+    # Verifica scadenza <= exp su fallback memoria e riuso singleton Redis
+    with ticket_auth._MEM_LOCK:
+        ticket_auth._MEM_TICKETS["exp-now"] = {"scope": "embed", "exp": int(time.time())}
+    ok_exp, _, _ = ticket_auth.redeem_one_time_ticket("exp-now", "embed")
+    assert ok_exp is False

@@ -1,7 +1,8 @@
 import hmac
 import os
+import re
 import uuid
-from fastapi import APIRouter, Cookie, Depends, Header, Query, Response, UploadFile, File, Form, HTTPException, Request
+from fastapi import APIRouter, Cookie, Depends, Header, Response, UploadFile, File, Form, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.db import get_db
@@ -121,37 +122,32 @@ def redeem_auth_ticket(
     return {"ok": True, "scope": payload.scope, "session_token": session_token}
 
 
+_LOCAL_IP_RE = re.compile(r"^(?:192\.168\.1\.\d{1,3}|100\.80\.46\.\d{1,3})$")
+
+
+def _is_local_http_request(request: Request) -> bool:
+    """True solo per richieste HTTP dirette su rete locale/studio (escluso HTTPS Funnel e testserver)."""
+    fwd_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if fwd_proto == "https" or request.url.scheme == "https":
+        return False
+    raw_host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+    host = raw_host.lstrip("[").split("]")[0].split(":")[0].lower()
+    if host in ("localhost", "127.0.0.1", "::1", "backend"):
+        return True
+    return bool(_LOCAL_IP_RE.match(host))
+
+
 @router.get("/embed/cases", response_model=list[CaseOut])
 def list_embed_cases(
     request: Request,
     response: Response,
-    token: str | None = Query(default=None),
-    x_embed_token: str | None = Header(default=None),
-    dossierlex_embed_token: str | None = Cookie(default=None),
     dossierlex_embed_session: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
     """Endpoint dedicato alla vista /embed in sola lettura per incorporamento CRM."""
     has_valid_session = ticket_auth.verify_session_token(dossierlex_embed_session, "embed")
-    expected_legacy = (settings.embed_readonly_token or "").strip()
-    supplied_legacy = (x_embed_token or token or dossierlex_embed_token or "").strip()
-    has_valid_legacy = bool(expected_legacy and supplied_legacy and hmac.compare_digest(supplied_legacy, expected_legacy))
-
-    if not has_valid_session:
-        # Se è configurata l'autenticazione (ticket secret o token legacy), richiede credenziali valide
-        if (settings.dossierlex_server_secret or expected_legacy) and not has_valid_legacy:
-            raise HTTPException(status_code=401, detail="Sessione o ticket /embed mancante o non valido.")
-        if expected_legacy and supplied_legacy:
-            is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-            if is_https:
-                response.set_cookie(
-                    key="dossierlex_embed_token",
-                    value=supplied_legacy,
-                    httponly=True,
-                    secure=True,
-                    samesite="none",
-                    path="/",
-                )
+    if (settings.dossierlex_server_secret or "").strip() and not has_valid_session and not _is_local_http_request(request):
+        raise HTTPException(status_code=401, detail="Sessione /embed mancante o non valida.")
 
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return db.query(Case).order_by(Case.created_at.desc()).all()

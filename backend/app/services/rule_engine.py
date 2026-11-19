@@ -6,15 +6,12 @@ Consente al legale e al responsabile analisi di:
 3. Iniettare automaticamente le regole attive nei prompt di Qwen (super-analisi, report, pipeline)
    per prevenire la ripetizione di errori passati in contesti analoghi.
 """
-import time
-import json
 import logging
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 
 from app.models import StudioRule, Case
 from app.services.llm_providers import REGISTRY
-from app.services.llm_providers.base import parse_json
 from app.config import settings
 
 logger = logging.getLogger("dossierlex.rule_engine")

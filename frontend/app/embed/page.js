@@ -40,7 +40,22 @@ function EmbedContent() {
       }
       emitLiveSignal();
     }, HEARTBEAT_MS);
-    return () => clearInterval(timer);
+
+    function handleVisibilityChange() {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        emitLiveSignal();
+      }
+    }
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+    return () => {
+      clearInterval(timer);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+    };
   }, [isLiveActive]);
 
   return <PraticheDashboard readOnly={true} onLoaded={handleLoaded} onError={handleError} />;

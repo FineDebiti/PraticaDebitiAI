@@ -22,7 +22,6 @@ from app.schemas.dto import (
 )
 from app.services import fiscal_code as fc
 from app.services.cross_analysis import execute_cross_analysis
-from app.services.preanalysis_report import build_preanalysis_report
 from app.services.pdf_report_generator import generate_preanalysis_pdf
 
 router = APIRouter()

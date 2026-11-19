@@ -7,33 +7,20 @@ ditta individuale art. 2740 c.c., raccordo RG5, realizzo concorsuale a lotti).
 import json
 import logging
 import re
-from datetime import datetime
 from typing import Dict, Any, Tuple, Optional
 
 try:
     from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-    from langchain_core.output_parsers import StrOutputParser
     from langchain_openai import ChatOpenAI
     _HAS_LANGCHAIN = True
 except ImportError:
     ChatPromptTemplate = None
     SystemMessagePromptTemplate = None
     HumanMessagePromptTemplate = None
-    StrOutputParser = None
     ChatOpenAI = None
     _HAS_LANGCHAIN = False
 
 from app.config import settings
-from app.services.statutory_knowledge import (
-    calculate_ebitda_oic12,
-    calculate_pfn_esma,
-    evaluate_pfn_ebitda,
-    check_ccii_soglie_impresa_minore,
-    calculate_test_pratico_ministeriale,
-    evaluate_risanabilita_diagnosi,
-    classify_cinque_criticita,
-    identify_documenti_indispensabili,
-)
 
 logger = logging.getLogger("dossierlex.forensic_chain")
 

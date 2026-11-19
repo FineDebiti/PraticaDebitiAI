@@ -17,12 +17,11 @@ from sqlalchemy.orm import Session
 from app.models import (
     Case, Debtor, RealEstate, Vehicle, Company,
     CreditReportSummary, CreditExposure, GuaranteeGiven,
-    FinancialStatement, TaxDebtStatement, DebtPosition, Document, Extraction,
+    TaxDebtStatement, DebtPosition, Document, Extraction,
     CaseCrossAnalysis,
 )
 from app.services.rule_engine import build_active_rules_prompt_block
 from app.services.llm_providers import REGISTRY
-from app.services.llm_providers.base import parse_json
 from app.config import settings
 
 logger = logging.getLogger("dossierlex.cross_analysis")

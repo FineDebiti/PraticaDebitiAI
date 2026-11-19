@@ -31,6 +31,7 @@ function AppShellInner({ children }) {
   useEffect(() => {
     if (isEmbed) return;
     async function loadCases() {
+      if (!activeCaseId) return;
       try {
         const list = await listCases();
         if (Array.isArray(list)) setCases(list);
@@ -39,15 +40,29 @@ function AppShellInner({ children }) {
       }
     }
     async function pingBackend() {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const ok = await checkHealth();
       setIsBackendOnline(ok);
     }
 
     loadCases();
     pingBackend();
-    const interval = setInterval(pingBackend, 5000);
-    return () => clearInterval(interval);
-  }, [isEmbed]);
+    const interval = setInterval(pingBackend, 15000);
+    function handleVisibility() {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        pingBackend();
+      }
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibility);
+    }
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibility);
+      }
+    };
+  }, [isEmbed, activeCaseId]);
 
   if (isEmbed) {
     return (

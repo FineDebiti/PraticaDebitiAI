@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import threading
 import time
@@ -11,11 +12,16 @@ from typing import Optional
 
 from app.config import settings
 
+logger = logging.getLogger("dossierlex.ticket_auth")
+
 TICKET_TTL_SECONDS = 60
 SESSION_TTL_SECONDS = 28800  # 8 ore
 
 _MEM_LOCK = threading.Lock()
 _MEM_TICKETS: dict[str, dict] = {}
+_REDIS_LOCK = threading.Lock()
+_REDIS_CLIENT = None
+_REDIS_URL = ""
 
 
 def _b64u_encode(raw: bytes) -> str:
@@ -27,23 +33,43 @@ def _b64u_decode(val: str) -> bytes:
     return base64.urlsafe_b64decode(val + pad)
 
 
+def _reset_redis() -> None:
+    global _REDIS_CLIENT, _REDIS_URL
+    with _REDIS_LOCK:
+        _REDIS_CLIENT = None
+        _REDIS_URL = ""
+
+
 def _get_redis():
-    try:
-        import redis
-        client = redis.Redis.from_url(
-            settings.redis_url,
-            decode_responses=True,
-            socket_connect_timeout=0.35,
-            socket_timeout=0.35,
-        )
-        client.ping()
-        return client
-    except Exception:
+    """Restituisce un client Redis singleton riusabile senza ping per-richiesta."""
+    global _REDIS_CLIENT, _REDIS_URL
+    target_url = (settings.redis_url or "").strip()
+    if not target_url:
         return None
+    with _REDIS_LOCK:
+        if _REDIS_CLIENT is not None and _REDIS_URL == target_url:
+            return _REDIS_CLIENT
+        try:
+            import redis
+            client = redis.Redis.from_url(
+                target_url,
+                decode_responses=True,
+                socket_connect_timeout=0.35,
+                socket_timeout=0.35,
+            )
+            client.ping()
+            _REDIS_CLIENT = client
+            _REDIS_URL = target_url
+            return _REDIS_CLIENT
+        except Exception as exc:
+            logger.debug("Redis non raggiungibile per ticket monouso, uso fallback memoria: %s", exc)
+            _REDIS_CLIENT = None
+            _REDIS_URL = ""
+            return None
 
 
 def _signing_secret() -> str:
-    return (settings.dossierlex_server_secret or settings.embed_readonly_token or "").strip()
+    return (settings.dossierlex_server_secret or "").strip()
 
 
 def sign_session_token(scope: str, ttl_seconds: int = SESSION_TTL_SECONDS) -> str:
@@ -92,9 +118,15 @@ def create_one_time_ticket(scope: str) -> dict:
     ticket = secrets.token_urlsafe(32)
     record = {"scope": scope, "exp": int(time.time()) + TICKET_TTL_SECONDS}
     r = _get_redis()
+    stored_in_redis = False
     if r is not None:
-        r.set(f"dlx:ticket:{ticket}", json.dumps(record), ex=TICKET_TTL_SECONDS)
-    else:
+        try:
+            r.set(f"dlx:ticket:{ticket}", json.dumps(record), ex=TICKET_TTL_SECONDS)
+            stored_in_redis = True
+        except Exception as exc:
+            logger.warning("Errore scrittura Redis ticket monouso, uso fallback memoria: %s", exc)
+            _reset_redis()
+    if not stored_in_redis:
         now = time.time()
         with _MEM_LOCK:
             expired = [k for k, v in _MEM_TICKETS.items() if v["exp"] <= now]
@@ -114,18 +146,20 @@ def redeem_one_time_ticket(ticket: str, expected_scope: str) -> tuple[bool, str,
     r = _get_redis()
     if r is not None:
         key = f"dlx:ticket:{ticket}"
-        if hasattr(r, "getdel"):
-            raw_val = r.getdel(key)
-        else:
-            pipe = r.pipeline()
-            pipe.get(key)
-            pipe.delete(key)
-            raw_val, _ = pipe.execute()
-        if raw_val:
-            try:
+        try:
+            if hasattr(r, "getdel"):
+                raw_val = r.getdel(key)
+            else:
+                pipe = r.pipeline()
+                pipe.get(key)
+                pipe.delete(key)
+                raw_val, _ = pipe.execute()
+            if raw_val:
                 record = json.loads(raw_val)
-            except Exception:
-                record = None
+        except Exception as exc:
+            logger.warning("Errore lettura/bruciatura Redis ticket monouso: %s", exc)
+            _reset_redis()
+            record = None
 
     if record is None:
         with _MEM_LOCK:
@@ -133,7 +167,7 @@ def redeem_one_time_ticket(ticket: str, expected_scope: str) -> tuple[bool, str,
 
     if not record:
         return False, "Ticket inesistente, scaduto o già utilizzato.", ""
-    if int(record.get("exp", 0)) < int(time.time()):
+    if int(record.get("exp", 0)) <= int(time.time()):
         return False, "Ticket scaduto.", ""
     if record.get("scope") != expected_scope:
         return False, "Scope del ticket non compatibile con la rotta richiesta.", ""

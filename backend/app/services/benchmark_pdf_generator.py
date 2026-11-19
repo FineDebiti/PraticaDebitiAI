@@ -5,7 +5,7 @@ persone fisiche, S.r.l., S.p.A., società di persone), senza dati preimpostati.
 """
 
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from fpdf import FPDF
 from fpdf.fonts import FontFace
 from fpdf.enums import TableCellFillMode, TableBordersLayout, XPos, YPos

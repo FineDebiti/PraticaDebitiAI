@@ -11,7 +11,7 @@ Realizzato con fpdf2 per una resa grafica vettoriale istituzionale:
 """
 
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from fpdf import FPDF
 from fpdf.fonts import FontFace
 from fpdf.enums import TableCellFillMode, TableBordersLayout, XPos, YPos

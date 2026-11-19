@@ -39,8 +39,6 @@ class Settings(BaseSettings):
     lmstudio_timeout: int = 240
     # Guardia privacy locale: impedisce fallback silenziosi su cloud quando llm_provider == "lmstudio"
     allow_cloud_llm_fallback: bool = False
-    # Token opzionale di sola lettura per l'incorporamento iframe /embed su Bentivegna OS
-    embed_readonly_token: str = ""
     # Chiave segreta server-to-server per emissione e riscatto ticket monouso CRM
     dossierlex_server_secret: str = ""
 

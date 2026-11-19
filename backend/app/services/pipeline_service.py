@@ -11,7 +11,7 @@ Separa le fasi di elaborazione in stati espliciti:
 
 import time
 import logging
-from typing import Tuple, Dict, Any, List
+from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 
 from app.models import (

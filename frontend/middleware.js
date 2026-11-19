@@ -4,6 +4,13 @@ const EMBED_CSP =
   "frame-ancestors 'self' https://flow-canvas-automations.lovable.app https://id-preview--49092334-bbfd-47c6-9334-7ba579814b60.lovable.app https://lovable.dev";
 const BACKEND_INTERNAL_URL = (process.env.BACKEND_INTERNAL_URL || "http://backend:8000").replace(/\/+$/, "");
 
+const LOCAL_LAN_REGEX = /^(?:192\.168\.1\.\d{1,3}|100\.80\.46\.\d{1,3})$/;
+const SAFE_HOST_REGEX = /^[a-zA-Z0-9.\-:]+$/;
+const SAFE_PATH_REGEX = /^\/(?!\/)/;
+
+let cachedHmacSecret = "";
+let cachedHmacKey = null;
+
 function b64UrlToUint8Array(str) {
   const b64 = str.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (str.length % 4)) % 4);
   const bin = atob(b64);
@@ -14,6 +21,22 @@ function b64UrlToUint8Array(str) {
   return out;
 }
 
+async function getHmacVerifyKey(secret) {
+  if (cachedHmacKey && cachedHmacSecret === secret) {
+    return cachedHmacKey;
+  }
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+  cachedHmacSecret = secret;
+  cachedHmacKey = key;
+  return key;
+}
+
 async function verifySignedSession(token, requiredScope, secret) {
   if (!token || !secret || !token.includes(".")) return false;
   const dotIdx = token.indexOf(".");
@@ -21,16 +44,14 @@ async function verifySignedSession(token, requiredScope, secret) {
   const sigB64 = token.slice(dotIdx + 1);
   if (!payloadB64 || !sigB64) return false;
   try {
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      "raw",
-      enc.encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["verify"]
-    );
+    const key = await getHmacVerifyKey(secret);
     const sigBytes = b64UrlToUint8Array(sigB64);
-    const validSig = await crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(payloadB64));
+    const validSig = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      sigBytes,
+      new TextEncoder().encode(payloadB64)
+    );
     if (!validSig) return false;
 
     const payloadJson = new TextDecoder().decode(b64UrlToUint8Array(payloadB64));
@@ -54,6 +75,7 @@ async function redeemTicket(ticket, scope, serverSecret) {
       },
       body: JSON.stringify({ ticket, scope }),
       cache: "no-store",
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return { ok: false };
     const body = await res.json();
@@ -75,11 +97,12 @@ function getClientHost(request) {
 
 function getPublicOrigin(request) {
   const fwdProto = (request.headers.get("x-forwarded-proto") || "").split(",")[0].trim().toLowerCase();
-  const proto = fwdProto || request.nextUrl.protocol.replace(":", "").toLowerCase() || "http";
-  const rawHost = (request.headers.get("x-forwarded-host") || request.headers.get("host") || request.nextUrl.host || "localhost:3001")
+  const proto = fwdProto === "https" || fwdProto === "http" ? fwdProto : request.nextUrl.protocol.replace(":", "").toLowerCase() || "http";
+  const candidateHost = (request.headers.get("x-forwarded-host") || request.headers.get("host") || "")
     .split(",")[0]
     .trim();
-  return `${proto}://${rawHost}`;
+  const safeHost = SAFE_HOST_REGEX.test(candidateHost) ? candidateHost : (request.nextUrl.host || "localhost:3001");
+  return `${proto}://${safeHost}`;
 }
 
 function isLocalHostname(host) {
@@ -87,8 +110,7 @@ function isLocalHostname(host) {
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "::1" ||
-    host.startsWith("192.168.1.") ||
-    host.startsWith("100.80.46.")
+    LOCAL_LAN_REGEX.test(host)
   );
 }
 
@@ -122,7 +144,8 @@ function unauthorizedResponse(isApi, message, status = 401) {
 }
 
 export async function middleware(request) {
-  const pathname = request.nextUrl.pathname || "/";
+  const rawPathname = request.nextUrl.pathname || "/";
+  const pathname = SAFE_PATH_REGEX.test(rawPathname) ? rawPathname : "/";
   const isEmbedRoute = pathname === "/embed" || pathname.startsWith("/embed/");
   const isEmbedApi = pathname === "/api/embed" || pathname.startsWith("/api/embed/");
   const isApi = pathname.startsWith("/api/");
@@ -153,13 +176,13 @@ export async function middleware(request) {
     const qTicket = (request.nextUrl.searchParams.get("ticket") || "").trim();
     const sessionCookie = (request.cookies.get("dossierlex_embed_session")?.value || "").trim();
 
-    if (qTicket) {
+    if (qTicket && !isApi) {
       if (!serverSecret) {
-        return unauthorizedResponse(isApi, "DOSSIERLEX_SERVER_SECRET non configurato.", 403);
+        return unauthorizedResponse(false, "DOSSIERLEX_SERVER_SECRET non configurato.", 403);
       }
       const redeemed = await redeemTicket(qTicket, "embed", serverSecret);
       if (!redeemed.ok) {
-        return unauthorizedResponse(isApi, "Ticket /embed non valido, scaduto o già utilizzato.", 401);
+        return unauthorizedResponse(false, "Ticket /embed non valido, scaduto o già utilizzato.", 401);
       }
       const response = applySecurityHeaders(NextResponse.next());
       response.cookies.set("dossierlex_embed_session", redeemed.sessionToken, {
@@ -185,15 +208,15 @@ export async function middleware(request) {
     return applySecurityHeaders(NextResponse.next());
   }
 
-  // 2. Gestione ?ticket= (scope="full") per apertura sicura con redirect pulito a /
+  // 2. Gestione ?ticket= (scope="full") solo su rotte pagina GET/HEAD con redirect pulito a /
   const qFullTicket = (request.nextUrl.searchParams.get("ticket") || "").trim();
-  if (qFullTicket) {
+  if (qFullTicket && !isApi && (request.method === "GET" || request.method === "HEAD")) {
     if (!serverSecret) {
-      return unauthorizedResponse(isApi, "DOSSIERLEX_SERVER_SECRET non configurato.", 403);
+      return unauthorizedResponse(false, "DOSSIERLEX_SERVER_SECRET non configurato.", 403);
     }
     const redeemed = await redeemTicket(qFullTicket, "full", serverSecret);
     if (!redeemed.ok) {
-      return unauthorizedResponse(isApi, "Ticket di accesso non valido, scaduto o già utilizzato.", 401);
+      return unauthorizedResponse(false, "Ticket di accesso non valido, scaduto o già utilizzato.", 401);
     }
     const cleanSearch = new URLSearchParams(request.nextUrl.searchParams);
     cleanSearch.delete("ticket");
@@ -228,5 +251,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|DossierLex-logo\\.svg|DossierLex-logo-white\\.svg).*)"],
 };

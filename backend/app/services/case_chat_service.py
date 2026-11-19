@@ -12,32 +12,26 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple
 import httpx
 from sqlalchemy.orm import Session
 
 from app.models import (
     Case,
     Company,
-    CompanyMember,
     Debtor,
     Document,
     FinancialStatement,
-    CreditExposure,
     CreditReportSummary,
     TaxDebtStatement,
     RealEstate,
-    Vehicle,
     StudioRule,
-    CasePreanalysisReport,
     CaseChatMessage,
 )
 from app.services.report_regenerator import get_or_create_preanalysis_report
 from app.services.llm_providers import REGISTRY
 from app.services.statutory_knowledge import (
     calculate_ebitda_oic12,
-    calculate_pfn_esma,
-    evaluate_pfn_ebitda,
 )
 from app.config import settings
 

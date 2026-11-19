@@ -7,7 +7,6 @@ Consente al legale o all'analista di:
 4. Mantenere versioni storicizzate del report (v1, v2, v3...) per iterazioni successive;
 5. Garantire che la vista a video e il PDF esportato siano sempre perfettamente sincronizzati.
 """
-import copy
 import json
 import logging
 import re
@@ -18,7 +17,6 @@ from sqlalchemy.orm import Session
 from app.models import (
     Case,
     Company,
-    CompanyMember,
     Document,
     StudioRule,
     CasePreanalysisReport,
@@ -26,7 +24,6 @@ from app.models import (
 from app.services.preanalysis_report import build_preanalysis_report
 from app.services.rule_engine import get_active_rules
 from app.services.llm_providers import REGISTRY
-from app.services.llm_providers.base import parse_json
 from app.config import settings
 
 logger = logging.getLogger("dossierlex.report_regenerator")
@@ -358,8 +355,7 @@ def get_or_create_preanalysis_report(db: Session, case_id: str) -> Tuple[CasePre
     cached_forensic = (existing.report_data or {}).get("forensic_preanalysis") or (existing.report_data or {}).get("forensic_protocol") if existing else None
     fresh_data = build_preanalysis_report(db, case_id, cached_forensic=cached_forensic)
 
-    rules = get_active_rules(db)
-    case_rules = [r for r in rules if r.case_id == case_id or r.case_id is None]
+    case_rules = get_active_rules(db, case_id=case_id)
     if fresh_data.get("capitolo_2_profilo"):
         fresh_data["capitolo_2_profilo"] = _reconcile_company_profile(
             db, case_id, fresh_data["capitolo_2_profilo"], case_rules
@@ -415,11 +411,7 @@ def regenerate_preanalysis_report(
     current_version = latest_record.version if latest_record else 0
 
     # Recupera tutte le regole attive pertinenti
-    all_active_rules = get_active_rules(db)
-    relevant_rules = [
-        r for r in all_active_rules
-        if r.case_id == case_id or r.case_id is None
-    ]
+    relevant_rules = get_active_rules(db, case_id=case_id)
 
     # Se sono state passate istruzioni ad-hoc, aggiungile temporaneamente
     ad_hoc_rules = []

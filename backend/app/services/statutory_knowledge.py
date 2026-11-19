@@ -16,8 +16,7 @@ Codifica in modo rigoroso, deterministico e auditabile le fonti normative primar
      PRO, Concordato preventivo, Concordato minore, Liquidazione controllata, Esdebitazione).
 """
 
-from typing import Dict, Any, Optional, List, Tuple
-import math
+from typing import Dict, Any, Optional, List
 
 
 # =============================================================================

@@ -17,7 +17,7 @@ Conforme al template professionale dello studio legale Avv. Aurelio Bentivegna:
 - 11. Conclusione provvisoria
 """
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.models import (

@@ -26,7 +26,7 @@ from app.services.llm_providers import REGISTRY
 from app.services.llm_providers.base import ExtractionResult, parse_json
 from app.services import llm_crosscheck as cc
 from app.services.prompts import (
-    CLASSIFY_PROMPT, get_extract_prompt, GENERIC_EXTRACT_PROMPT, _COMMON_RULES,
+    CLASSIFY_PROMPT, get_extract_prompt, _COMMON_RULES,
 )
 
 LOCAL_PROVIDERS = {"lmstudio"}
