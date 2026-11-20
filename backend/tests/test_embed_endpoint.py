@@ -229,3 +229,37 @@ def test_embed_cases_accepts_session_header_fallback(api_client, db_session, mon
     # Isolamento scope: token full rifiutato su /api/embed/cases anche via header
     r_wrong_scope = api_client.get("/api/embed/cases", headers={"X-DossierLex-Session": full_session})
     assert r_wrong_scope.status_code == 401
+
+
+def test_local_origin_cors_preflight_and_post_case(api_client, db_session):
+    """Verifica preflight OPTIONS e POST /api/cases da origin locale http://localhost:3001."""
+    local_origin = "http://localhost:3001"
+    r_opt = api_client.options(
+        "/api/cases",
+        headers={
+            "Origin": local_origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert r_opt.status_code == 204
+    assert r_opt.headers.get("access-control-allow-origin") == local_origin
+    assert r_opt.headers.get("access-control-allow-credentials") == "true"
+    assert "POST" in (r_opt.headers.get("access-control-allow-methods") or "")
+    assert "Content-Type" in (r_opt.headers.get("access-control-allow-headers") or "")
+
+    r_post = api_client.post(
+        "/api/cases",
+        headers={"Origin": local_origin},
+        json={
+            "client_kind": "persona",
+            "first_name": "Mario",
+            "last_name": "Rossi",
+            "client_tax_code": "RSSMRA80A01H501U",
+        },
+    )
+    assert r_post.status_code == 200
+    assert r_post.headers.get("access-control-allow-origin") == local_origin
+    body = r_post.json()
+    assert body["client_name"] == "Mario Rossi"
+    assert body["client_tax_code"] == "RSSMRA80A01H501U"

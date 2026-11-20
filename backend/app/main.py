@@ -1,3 +1,4 @@
+import re
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
@@ -16,6 +17,11 @@ ALLOWED_LOVABLE_ORIGINS = {
     "https://id-preview--49092334-bbfd-47c6-9334-7ba579814b60.lovable.app",
     "https://lovable.dev",
 }
+
+_LOCAL_ORIGIN_RE = re.compile(
+    r"^https?://(?:localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|100\.\d{1,3}\.\d{1,3}\.\d{1,3}|evo-x2\.tail723056\.ts\.net)(?::\d+)?$",
+    re.IGNORECASE,
+)
 
 EMBED_CSP = (
     "frame-ancestors 'self' "
@@ -45,10 +51,13 @@ def _apply_cors_pna_headers(response: Response, origin: str, path: str = "") -> 
     response.headers["Access-Control-Allow-Headers"] = (
         "Content-Type, Authorization, X-DossierLex-Session, Access-Control-Request-Private-Network"
     )
-    if origin in ALLOWED_LOVABLE_ORIGINS:
+    response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
+    if origin in ALLOWED_LOVABLE_ORIGINS or (origin and _LOCAL_ORIGIN_RE.match(origin)):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Vary"] = "Origin"
+    elif not is_embed and not response.headers.get("Access-Control-Allow-Origin"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
 
 
 @app.middleware("http")

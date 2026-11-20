@@ -397,9 +397,15 @@ export function PraticheDashboard({ readOnly = false, onLoaded = null, onError =
       ? { client_kind: "persona", first_name: firstName.trim(), last_name: lastName.trim(), client_tax_code: normalizeCf(tax) }
       : { client_kind: "azienda", denomination: denomination.trim(), client_tax_code: normalizeCf(tax) };
 
-    const res = await createCase(payload);
-    if (res && res.error) {
-      setErr(res.error);
+    let res;
+    try {
+      res = await createCase(payload);
+    } catch (e) {
+      setErr(e?.message || "Errore di connessione durante la creazione della pratica.");
+      return;
+    }
+    if (!res || res.error) {
+      setErr(res?.error || "Impossibile creare la pratica.");
       return;
     }
     setFirstName("");

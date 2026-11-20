@@ -75,7 +75,14 @@ export async function createCase(payload) {
   if (!r.ok) {
     // backend valida il codice fiscale: in caso di errore risponde 422 con { detail }
     let detail = "Errore nella creazione della pratica.";
-    try { const body = await r.json(); detail = body.detail || detail; } catch {}
+    try {
+      const body = await r.json();
+      if (typeof body?.detail === "string" && body.detail.trim()) {
+        detail = body.detail;
+      } else if (Array.isArray(body?.detail) && body.detail[0]?.msg) {
+        detail = body.detail[0].msg;
+      }
+    } catch {}
     return { error: detail };
   }
   return r.json();
