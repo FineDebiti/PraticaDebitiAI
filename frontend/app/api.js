@@ -12,13 +12,38 @@ export function getApiBase() {
   return process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 }
 
+let _inMemorySessionToken = "";
+
+export function setSessionToken(token) {
+  _inMemorySessionToken = (token || "").trim();
+}
+
+export function getSessionToken() {
+  return _inMemorySessionToken;
+}
+
+export function apiFetch(url, options = {}) {
+  const nextOptions = {
+    credentials: "same-origin",
+    ...options,
+  };
+  if (_inMemorySessionToken) {
+    const headers = new Headers(options.headers || {});
+    if (!headers.has("X-DossierLex-Session")) {
+      headers.set("X-DossierLex-Session", _inMemorySessionToken);
+    }
+    nextOptions.headers = headers;
+  }
+  return fetch(url, nextOptions);
+}
+
 export async function listCases() {
-  const r = await fetch(`${getApiBase()}/api/cases`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases`, { cache: "no-store" });
   return r.json();
 }
 
 export async function listEmbedCases() {
-  const r = await fetch("/api/embed/cases", {
+  const r = await apiFetch("/api/embed/cases", {
     cache: "no-store",
     credentials: "same-origin",
   });
@@ -36,14 +61,14 @@ export async function listEmbedCases() {
 }
 export async function checkHealth() {
   try {
-    const r = await fetch(`${getApiBase()}/api/health`, { cache: "no-store" });
+    const r = await apiFetch(`${getApiBase()}/api/health`, { cache: "no-store" });
     return r.ok;
   } catch {
     return false;
   }
 }
 export async function createCase(payload) {
-  const r = await fetch(`${getApiBase()}/api/cases`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
@@ -56,11 +81,11 @@ export async function createCase(payload) {
   return r.json();
 }
 export async function getCase(id) {
-  const r = await fetch(`${getApiBase()}/api/cases/${id}`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${id}`, { cache: "no-store" });
   return r.json();
 }
 export async function deleteCase(id) {
-  const r = await fetch(`${getApiBase()}/api/cases/${id}`, { method: "DELETE" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${id}`, { method: "DELETE" });
   if (!r.ok) {
     let detail = "Errore durante l'eliminazione della pratica.";
     try { const body = await r.json(); detail = body.detail || detail; } catch {}
@@ -72,7 +97,7 @@ export async function uploadDoc(caseId, file, docType = "") {
   const fd = new FormData();
   fd.append("file", file);
   if (docType) fd.append("doc_type", docType);   // upload mirato: tipo già noto
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/documents`, { method: "POST", body: fd });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/documents`, { method: "POST", body: fd });
   return r.json();
 }
 
@@ -81,18 +106,18 @@ export async function uploadAer(caseId, file, ownerKind = "person", entityId = "
   const fd = new FormData();
   fd.append("file", file);
   const q = new URLSearchParams({ owner_kind: ownerKind, entity_id: entityId || "" });
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/aer/upload?${q}`, { method: "POST", body: fd });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/aer/upload?${q}`, { method: "POST", body: fd });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Errore upload AER");
   return r.json();
 }
 
 export async function deleteAer(caseId, stmtId) {
-  await fetch(`${getApiBase()}/api/cases/${caseId}/aer/${stmtId}`, { method: "DELETE" });
+  await apiFetch(`${getApiBase()}/api/cases/${caseId}/aer/${stmtId}`, { method: "DELETE" });
 }
 
 // ---------- Correzione tracciata dei dati estratti ----------
 export async function patchRecord(caseId, entityType, entityId, changes, reason = "") {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/records/${entityType}/${entityId}`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/records/${entityType}/${entityId}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ changes, reason }),
   });
@@ -101,13 +126,13 @@ export async function patchRecord(caseId, entityType, entityId, changes, reason 
 }
 
 export async function getEdits(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/edits`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/edits`, { cache: "no-store" });
   if (!r.ok) return [];
   return r.json();
 }
 
 export async function deleteDoc(caseId, docId) {
-  await fetch(`${getApiBase()}/api/cases/${caseId}/documents/${docId}`, { method: "DELETE" });
+  await apiFetch(`${getApiBase()}/api/cases/${caseId}/documents/${docId}`, { method: "DELETE" });
 }
 
 // URL del file originale di un documento (per aprirlo/scaricarlo in una nuova scheda).
@@ -117,33 +142,33 @@ export function docFileUrl(caseId, docId) {
 
 // Documenti di reddito della pratica con il dettaglio estratto (per il pannello dettaglio).
 export async function getIncomeDocuments(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/income/documents`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/income/documents`, { cache: "no-store" });
   if (!r.ok) return [];
   return r.json();
 }
 
 // Riepilogo reddito consolidato (fonti normalizzate a mensile + proposta).
 export async function getIncomeSummary(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/income/summary`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/income/summary`, { cache: "no-store" });
   if (!r.ok) return null;
   return r.json();
 }
 
 export async function getIndicators(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/indicators`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/indicators`, { cache: "no-store" });
   if (!r.ok) return null;
   return r.json();
 }
 
 // ---------- Indice CF cross-pratica (correlati) ----------
 export async function relatedCases(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/related`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/related`, { cache: "no-store" });
   if (!r.ok) return [];
   return r.json();
 }
 
 export async function openRelated(caseId, toCaseId) {
-  await fetch(`${getApiBase()}/api/cases/${caseId}/related/open`, {
+  await apiFetch(`${getApiBase()}/api/cases/${caseId}/related/open`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ to_case_id: toCaseId }),
   });
@@ -151,24 +176,24 @@ export async function openRelated(caseId, toCaseId) {
 
 // ---------- Scheda cliente ----------
 export async function getCard(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/card`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/card`, { cache: "no-store" });
   return r.json();
 }
 export async function saveDebtor(caseId, data) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/debtor`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/debtor`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   return r.json();
 }
 export async function addRealEstate(caseId, data) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/real-estates`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/real-estates`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
   });
   return r.json();
 }
 export async function createCompany(caseId, company) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/companies`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/companies`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(company),
   });
   const b = await r.json().catch(() => ({}));
@@ -176,7 +201,7 @@ export async function createCompany(caseId, company) {
   return b;
 }
 export async function updateCompany(caseId, cid, company) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/companies/${cid}`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/companies/${cid}`, {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(company),
   });
   const b = await r.json().catch(() => ({}));
@@ -184,30 +209,30 @@ export async function updateCompany(caseId, cid, company) {
   return b;
 }
 export async function deleteCompany(caseId, cid) {
-  await fetch(`${getApiBase()}/api/cases/${caseId}/companies/${cid}`, { method: "DELETE" });
+  await apiFetch(`${getApiBase()}/api/cases/${caseId}/companies/${cid}`, { method: "DELETE" });
 }
 export async function promoteCompany(caseId, cid) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/companies/${cid}/promote`, { method: "POST" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/companies/${cid}/promote`, { method: "POST" });
   const b = await r.json().catch(() => ({}));
   if (!r.ok) return { error: b.detail || "Errore nella promozione dell'azienda." };
   return b;
 }
 export async function delRealEstate(caseId, id) {
-  await fetch(`${getApiBase()}/api/cases/${caseId}/real-estates/${id}`, { method: "DELETE" });
+  await apiFetch(`${getApiBase()}/api/cases/${caseId}/real-estates/${id}`, { method: "DELETE" });
 }
 export async function addVehicle(caseId, data) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/vehicles`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/vehicles`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
   });
   return r.json();
 }
 export async function delVehicle(caseId, id) {
-  await fetch(`${getApiBase()}/api/cases/${caseId}/vehicles/${id}`, { method: "DELETE" });
+  await apiFetch(`${getApiBase()}/api/cases/${caseId}/vehicles/${id}`, { method: "DELETE" });
 }
 
 
 export async function setPrimaryResidence(caseId, reId, isPrimary) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/real-estates/${reId}/primary-residence`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/real-estates/${reId}/primary-residence`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ is_primary_residence: isPrimary }),
   });
@@ -216,24 +241,24 @@ export async function setPrimaryResidence(caseId, reId, isPrimary) {
 
 // ---------- Ricerca Openapi asincrona (visure camerali reali) ----------
 export async function openapiSearch(caseId, source, query, params = {}) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/openapi/search`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/openapi/search`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ source, query, params }),
   });
   return r.json();
 }
 export async function openapiRequests(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/openapi/requests`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/openapi/requests`, { cache: "no-store" });
   return r.json();
 }
 export async function openapiRequest(caseId, reqId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/openapi/requests/${reqId}`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/openapi/requests/${reqId}`, { cache: "no-store" });
   return r.json();
 }
 
 // ---------- Openapi Company (dati azienda, sincrono) ----------
 export async function companyFill(caseId, identifier = "", level = "advanced") {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/company/fill`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/company/fill`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identifier, level }),
   });
@@ -242,7 +267,7 @@ export async function companyFill(caseId, identifier = "", level = "advanced") {
   return body; // { identifier, level, data }
 }
 export async function companyImport(caseId, data) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/company/import`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/company/import`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ data }),
   });
@@ -253,7 +278,7 @@ export async function companyImport(caseId, data) {
 
 // ---------- Super-Analisi Trasversale (Qwen) ----------
 export async function runCrossAnalysis(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/cross-analysis`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/cross-analysis`, {
     method: "POST", headers: { "Content-Type": "application/json" },
   });
   if (!r.ok) {
@@ -264,19 +289,19 @@ export async function runCrossAnalysis(caseId) {
 }
 
 export async function getCrossAnalysis(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/cross-analysis`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/cross-analysis`, { cache: "no-store" });
   if (!r.ok) return null;
   return r.json();
 }
 
 export async function getPreanalysisReport(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/preanalysis-report`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/preanalysis-report`, { cache: "no-store" });
   if (!r.ok) return null;
   return r.json();
 }
 
 export async function reanalyzeCase(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/reanalyze`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/reanalyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
@@ -302,13 +327,13 @@ export function getAuditExportUrl(caseId, format = "json") {
 
 // ---------- Chat e Assistente AI di Pratica ----------
 export async function getCaseChat(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/chat`, { cache: "no-store" });
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/chat`, { cache: "no-store" });
   if (!r.ok) return { total: 0, messages: [] };
   return r.json();
 }
 
 export async function sendCaseChatMessage(caseId, message) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/chat`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message }),
@@ -323,7 +348,7 @@ export async function sendCaseChatMessage(caseId, message) {
 
 export async function streamCaseChatMessage(caseId, message, { onDelta, onDone, onError }) {
   try {
-    const response = await fetch(`${getApiBase()}/api/cases/${caseId}/chat/stream`, {
+    const response = await apiFetch(`${getApiBase()}/api/cases/${caseId}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message }),
@@ -373,13 +398,10 @@ export async function streamCaseChatMessage(caseId, message, { onDelta, onDone, 
 }
 
 export async function clearCaseChat(caseId) {
-  const r = await fetch(`${getApiBase()}/api/cases/${caseId}/chat`, {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/chat`, {
     method: "DELETE",
     cache: "no-store",
   });
   if (!r.ok) return { success: false };
   return r.json();
 }
-
-
-

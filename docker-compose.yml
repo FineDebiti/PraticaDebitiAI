@@ -69,7 +69,8 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      DOSSIERLEX_SERVER_SECRET: ${DOSSIERLEX_SERVER_SECRET}
 
 volumes:
   pgdata:        # database Postgres

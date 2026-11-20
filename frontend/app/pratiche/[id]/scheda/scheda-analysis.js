@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import {
+  apiFetch,
   getPreanalysisReport,
   getPreanalysisReportPdfUrl,
   getTechnicalDossierPdfUrl,
@@ -18,7 +19,7 @@ async function _downloadFromApi(url, fallbackName, onBusy, onError) {
   try {
     if (onError) onError("");
     if (onBusy) onBusy(true);
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     if (!res.ok) {
       throw new Error(`Errore HTTP ${res.status} durante il download`);
     }

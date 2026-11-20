@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
+const ALLOWED_LOVABLE_ORIGINS = new Set([
+  "https://flow-canvas-automations.lovable.app",
+  "https://preview--flow-canvas-automations.lovable.app",
+  "https://id-preview--49092334-bbfd-47c6-9334-7ba579814b60.lovable.app",
+  "https://lovable.dev",
+]);
 const EMBED_CSP =
-  "frame-ancestors 'self' https://flow-canvas-automations.lovable.app https://id-preview--49092334-bbfd-47c6-9334-7ba579814b60.lovable.app https://lovable.dev";
+  "frame-ancestors 'self' https://flow-canvas-automations.lovable.app https://preview--flow-canvas-automations.lovable.app https://id-preview--49092334-bbfd-47c6-9334-7ba579814b60.lovable.app https://lovable.dev";
 const BACKEND_INTERNAL_URL = (process.env.BACKEND_INTERNAL_URL || "http://backend:8000").replace(/\/+$/, "");
 
 const LOCAL_LAN_REGEX = /^(?:192\.168\.1\.\d{1,3}|100\.80\.46\.\d{1,3})$/;
@@ -121,26 +127,108 @@ function isExternalHttpsRequest(request) {
   return fwdProto === "https" || nextProto === "https" || !isLocalHostname(host);
 }
 
-function applySecurityHeaders(response) {
+function isStaticAssetPath(pathname) {
+  return (
+    pathname.startsWith("/_next/static/") ||
+    pathname.startsWith("/_next/image/") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/DossierLex-logo.svg" ||
+    pathname === "/DossierLex-logo-white.svg"
+  );
+}
+
+function resolveAllowedOrigin(request, allowRefererFallback = false) {
+  const origin = (request.headers.get("origin") || "").trim();
+  if (origin && ALLOWED_LOVABLE_ORIGINS.has(origin)) {
+    return origin;
+  }
+  if (!origin && allowRefererFallback) {
+    const referer = (request.headers.get("referer") || "").trim();
+    if (referer) {
+      try {
+        const refOrigin = new URL(referer).origin;
+        if (ALLOWED_LOVABLE_ORIGINS.has(refOrigin)) {
+          return refOrigin;
+        }
+      } catch {
+        // Ignora referer malformato
+      }
+    }
+  }
+  return "";
+}
+
+function applyCorsAndPnaHeaders(response, request, allowRefererFallback = false, allowAllMethods = false) {
+  response.headers.set("Access-Control-Allow-Private-Network", "true");
+  response.headers.set("Cross-Origin-Resource-Policy", "cross-origin");
+  response.headers.set(
+    "Access-Control-Allow-Methods",
+    allowAllMethods ? "GET, POST, PUT, PATCH, DELETE, OPTIONS" : "GET, POST, OPTIONS"
+  );
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-DossierLex-Session, Access-Control-Request-Private-Network"
+  );
+  const allowedOrigin = resolveAllowedOrigin(request, allowRefererFallback);
+  if (allowedOrigin) {
+    response.headers.set("Access-Control-Allow-Origin", allowedOrigin);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
+    response.headers.set("Vary", "Origin");
+  }
+  return response;
+}
+
+function applySecurityHeaders(response, request, allowRefererFallback = false, allowAllMethods = false) {
   response.headers.set("Content-Security-Policy", EMBED_CSP);
   response.headers.delete("x-frame-options");
   response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
   response.headers.set("Pragma", "no-cache");
   response.headers.set("Expires", "0");
+  if (request) {
+    applyCorsAndPnaHeaders(response, request, allowRefererFallback, allowAllMethods);
+  }
   return response;
 }
 
-function unauthorizedResponse(isApi, message, status = 401) {
+function unauthorizedResponse(isApi, message, status = 401, request = null) {
   if (isApi) {
-    return applySecurityHeaders(NextResponse.json({ detail: message }, { status }));
+    return applySecurityHeaders(NextResponse.json({ detail: message }, { status }), request, true);
   }
   const html = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Accesso Riservato - DossierLex</title></head><body style="font-family:system-ui,sans-serif;background:#f7f5f0;color:#1e261f;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="background:#fff;border:1px solid #d9d4c7;border-radius:10px;padding:28px 32px;max-width:480px;box-shadow:0 8px 24px rgba(0,0,0,0.06)"><h1 style="margin:0 0 8px;font-size:20px">${status} — Accesso riservato</h1><p style="margin:0;color:#555;font-size:14px">${message}</p></div></body></html>`;
   return applySecurityHeaders(
     new NextResponse(html, {
       status,
       headers: { "Content-Type": "text/html; charset=utf-8" },
-    })
+    }),
+    request,
+    true
   );
+}
+
+function setSessionCookie(response, name, value, externalHttps) {
+  const attrs = externalHttps
+    ? "Path=/; Max-Age=28800; HttpOnly; SameSite=None; Secure; Partitioned"
+    : "Path=/; Max-Age=28800; HttpOnly; SameSite=Lax";
+  response.headers.append("Set-Cookie", `${name}=${value}; ${attrs}`);
+}
+
+async function hasValidSession(request, cookieName, requiredScope, serverSecret) {
+  const candidates = [];
+  const cookieVal = (request.cookies.get(cookieName)?.value || "").trim();
+  if (cookieVal) candidates.push(cookieVal);
+  const headerVal = (request.headers.get("x-dossierlex-session") || "").trim();
+  if (headerVal) candidates.push(headerVal);
+  const authHeader = (request.headers.get("authorization") || "").trim();
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    const bearerVal = authHeader.slice(7).trim();
+    if (bearerVal) candidates.push(bearerVal);
+  }
+  for (const token of candidates) {
+    if (await verifySignedSession(token, requiredScope, serverSecret)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function middleware(request) {
@@ -148,108 +236,112 @@ export async function middleware(request) {
   const pathname = SAFE_PATH_REGEX.test(rawPathname) ? rawPathname : "/";
   const isEmbedRoute = pathname === "/embed" || pathname.startsWith("/embed/");
   const isEmbedApi = pathname === "/api/embed" || pathname.startsWith("/api/embed/");
+  const isStaticAsset = isStaticAssetPath(pathname);
+
+  // Gestione immediata preflight CORS / Private Network Access (non consuma mai ticket monouso)
+  if (request.method === "OPTIONS") {
+    const res = new NextResponse(null, { status: 204 });
+    res.headers.set("Content-Security-Policy", EMBED_CSP);
+    res.headers.delete("x-frame-options");
+    return applyCorsAndPnaHeaders(res, request, true, !(isEmbedRoute || isEmbedApi));
+  }
+
+  // Asset statici: preserva cache immutabile e aggiungi header PNA/CORP/CORS per iframe cross-origin
+  if (isStaticAsset) {
+    const res = NextResponse.next();
+    res.headers.delete("x-frame-options");
+    return applyCorsAndPnaHeaders(res, request, true);
+  }
+
   const isApi = pathname.startsWith("/api/");
   const externalHttps = isExternalHttpsRequest(request);
   const serverSecret = (process.env.DOSSIERLEX_SERVER_SECRET || "").trim();
 
   // Endpoint server-to-server per emissione ticket (verifica Bearer affidata al backend FastAPI)
   if (pathname === "/api/auth/ticket") {
-    if (!["POST", "OPTIONS"].includes(request.method)) {
-      return applySecurityHeaders(NextResponse.json({ detail: "Method not allowed" }, { status: 405 }));
+    if (request.method !== "POST") {
+      return applySecurityHeaders(NextResponse.json({ detail: "Method not allowed" }, { status: 405 }), request);
     }
-    return applySecurityHeaders(NextResponse.next());
+    return applySecurityHeaders(NextResponse.next(), request);
   }
 
   // Blocca chiamate esterne dirette all'endpoint interno di riscatto ticket
   if (pathname === "/api/auth/redeem") {
-    return unauthorizedResponse(true, "Endpoint interno non esposto.", 403);
+    return unauthorizedResponse(true, "Endpoint interno non esposto.", 403, request);
   }
 
-  // 1. Protezione /embed e /api/embed/* (solo ticket monouso scope="embed" + cookie SameSite=None; Secure)
+  // 1. Protezione /embed e /api/embed/* (solo ticket monouso scope="embed" + cookie SameSite=None; Secure; Partitioned)
   if (isEmbedRoute || isEmbedApi) {
-    if (isEmbedApi && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    if (isEmbedApi && !["GET", "HEAD"].includes(request.method)) {
       return applySecurityHeaders(
-        NextResponse.json({ detail: "Endpoint /api/embed in sola lettura." }, { status: 405 })
+        NextResponse.json({ detail: "Endpoint /api/embed in sola lettura." }, { status: 405 }),
+        request
       );
     }
 
     const qTicket = (request.nextUrl.searchParams.get("ticket") || "").trim();
-    const sessionCookie = (request.cookies.get("dossierlex_embed_session")?.value || "").trim();
 
     if (qTicket && !isApi) {
       if (!serverSecret) {
-        return unauthorizedResponse(false, "DOSSIERLEX_SERVER_SECRET non configurato.", 403);
+        return unauthorizedResponse(false, "DOSSIERLEX_SERVER_SECRET non configurato.", 403, request);
       }
       const redeemed = await redeemTicket(qTicket, "embed", serverSecret);
       if (!redeemed.ok) {
-        return unauthorizedResponse(false, "Ticket /embed non valido, scaduto o già utilizzato.", 401);
+        return unauthorizedResponse(false, "Ticket /embed non valido, scaduto o già utilizzato.", 401, request);
       }
-      const response = applySecurityHeaders(NextResponse.next());
-      response.cookies.set("dossierlex_embed_session", redeemed.sessionToken, {
-        httpOnly: true,
-        secure: externalHttps,
-        sameSite: externalHttps ? "none" : "lax",
-        path: "/",
-        maxAge: 28800,
-      });
+      const response = applySecurityHeaders(NextResponse.next(), request, true);
+      setSessionCookie(response, "dossierlex_embed_session", redeemed.sessionToken, externalHttps);
       return response;
     }
 
     if (externalHttps) {
       if (!serverSecret) {
-        return unauthorizedResponse(isApi, "DOSSIERLEX_SERVER_SECRET non configurato sul server.", 403);
+        return unauthorizedResponse(isApi, "DOSSIERLEX_SERVER_SECRET non configurato sul server.", 403, request);
       }
-      const okSession = await verifySignedSession(sessionCookie, "embed", serverSecret);
+      const okSession = await hasValidSession(request, "dossierlex_embed_session", "embed", serverSecret);
       if (!okSession) {
-        return unauthorizedResponse(isApi, "Ticket monouso o sessione /embed mancante o scaduta.", 401);
+        return unauthorizedResponse(isApi, "Ticket monouso o sessione /embed mancante o scaduta.", 401, request);
       }
     }
 
-    return applySecurityHeaders(NextResponse.next());
+    return applySecurityHeaders(NextResponse.next(), request, true);
   }
 
   // 2. Gestione ?ticket= (scope="full") solo su rotte pagina GET/HEAD con redirect pulito a /
   const qFullTicket = (request.nextUrl.searchParams.get("ticket") || "").trim();
   if (qFullTicket && !isApi && (request.method === "GET" || request.method === "HEAD")) {
     if (!serverSecret) {
-      return unauthorizedResponse(false, "DOSSIERLEX_SERVER_SECRET non configurato.", 403);
+      return unauthorizedResponse(false, "DOSSIERLEX_SERVER_SECRET non configurato.", 403, request);
     }
     const redeemed = await redeemTicket(qFullTicket, "full", serverSecret);
     if (!redeemed.ok) {
-      return unauthorizedResponse(false, "Ticket di accesso non valido, scaduto o già utilizzato.", 401);
+      return unauthorizedResponse(false, "Ticket di accesso non valido, scaduto o già utilizzato.", 401, request);
     }
     const cleanSearch = new URLSearchParams(request.nextUrl.searchParams);
     cleanSearch.delete("ticket");
     const qs = cleanSearch.toString();
     const targetUrl = `${getPublicOrigin(request)}${pathname}${qs ? `?${qs}` : ""}`;
-    const response = applySecurityHeaders(NextResponse.redirect(targetUrl, 302));
-    response.cookies.set("dossierlex_admin_session", redeemed.sessionToken, {
-      httpOnly: true,
-      secure: externalHttps,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 28800,
-    });
+    const response = applySecurityHeaders(NextResponse.redirect(targetUrl, 302), request, true, true);
+    setSessionCookie(response, "dossierlex_admin_session", redeemed.sessionToken, externalHttps);
     return response;
   }
 
   // 3. Tutte le altre rotte (/ e /api/*) su HTTPS esterno richiedono sessione "full"
   if (externalHttps) {
     if (!serverSecret) {
-      return unauthorizedResponse(isApi, "Accesso HTTPS bloccato: DOSSIERLEX_SERVER_SECRET non configurato.", 403);
+      return unauthorizedResponse(isApi, "Accesso HTTPS bloccato: DOSSIERLEX_SERVER_SECRET non configurato.", 403, request);
     }
-    const adminCookie = (request.cookies.get("dossierlex_admin_session")?.value || "").trim();
-    const okAdmin = await verifySignedSession(adminCookie, "full", serverSecret);
+    const okAdmin = await hasValidSession(request, "dossierlex_admin_session", "full", serverSecret);
     if (!okAdmin) {
-      return unauthorizedResponse(isApi, "Accesso HTTPS riservato: ticket monouso richiesto.", 401);
+      return unauthorizedResponse(isApi, "Accesso HTTPS riservato: ticket monouso richiesto.", 401, request);
     }
-    return applySecurityHeaders(NextResponse.next());
+    return applySecurityHeaders(NextResponse.next(), request, true, true);
   }
 
   // 4. Rete locale diretta (localhost, 192.168.1.*, 100.80.46.*): accesso libero
-  return applySecurityHeaders(NextResponse.next());
+  return applySecurityHeaders(NextResponse.next(), request, false, true);
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|DossierLex-logo\\.svg|DossierLex-logo-white\\.svg).*)"],
+  matcher: ["/:path*"],
 };

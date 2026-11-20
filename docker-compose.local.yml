@@ -78,6 +78,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    env_file: .env.local
     depends_on:
       backend:
         condition: service_healthy
@@ -85,7 +86,8 @@ services:
       - "3001:3000"
     # Il browser gira sullo stesso PC: l'API e' raggiungibile su localhost:8000.
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      DOSSIERLEX_SERVER_SECRET: ${DOSSIERLEX_SERVER_SECRET}
 
 volumes:
   pgdata:        # database Postgres

@@ -142,10 +142,22 @@ def list_embed_cases(
     request: Request,
     response: Response,
     dossierlex_embed_session: str | None = Cookie(default=None),
+    x_dossierlex_session: str | None = Header(default=None, alias="X-DossierLex-Session"),
+    authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
     """Endpoint dedicato alla vista /embed in sola lettura per incorporamento CRM."""
-    has_valid_session = ticket_auth.verify_session_token(dossierlex_embed_session, "embed")
+    candidates = []
+    if dossierlex_embed_session:
+        candidates.append(dossierlex_embed_session.strip())
+    if x_dossierlex_session:
+        candidates.append(x_dossierlex_session.strip())
+    if authorization and authorization.lower().startswith("bearer "):
+        candidates.append(authorization[7:].strip())
+
+    has_valid_session = any(
+        tok and ticket_auth.verify_session_token(tok, "embed") for tok in candidates
+    )
     if (settings.dossierlex_server_secret or "").strip() and not has_valid_session and not _is_local_http_request(request):
         raise HTTPException(status_code=401, detail="Sessione /embed mancante o non valida.")
 
