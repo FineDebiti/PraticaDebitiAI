@@ -15,10 +15,20 @@ export function getApiBase() {
 let _inMemorySessionToken = "";
 
 export function setSessionToken(token) {
-  _inMemorySessionToken = (token || "").trim();
+  const clean = (token || "").trim();
+  _inMemorySessionToken = clean;
+  if (typeof window !== "undefined" && clean) {
+    window.__DOSSIERLEX_SESSION__ = clean;
+  }
 }
 
 export function getSessionToken() {
+  if (!_inMemorySessionToken && typeof window !== "undefined") {
+    const injected = typeof window.__DOSSIERLEX_SESSION__ === "string" ? window.__DOSSIERLEX_SESSION__.trim() : "";
+    if (injected) {
+      _inMemorySessionToken = injected;
+    }
+  }
   return _inMemorySessionToken;
 }
 
@@ -27,10 +37,11 @@ export function apiFetch(url, options = {}) {
     credentials: "same-origin",
     ...options,
   };
-  if (_inMemorySessionToken) {
+  const sessionToken = getSessionToken();
+  if (sessionToken) {
     const headers = new Headers(options.headers || {});
     if (!headers.has("X-DossierLex-Session")) {
-      headers.set("X-DossierLex-Session", _inMemorySessionToken);
+      headers.set("X-DossierLex-Session", sessionToken);
     }
     nextOptions.headers = headers;
   }

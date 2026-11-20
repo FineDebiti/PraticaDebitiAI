@@ -3,8 +3,6 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { PraticheDashboard } from "../components/PraticheHome";
 
-export const dynamic = "force-dynamic";
-
 const HEARTBEAT_MS = 30000;
 
 function emitLiveSignal() {
@@ -22,6 +20,19 @@ function emitLiveSignal() {
 
 function EmbedContent() {
   const [isLiveActive, setIsLiveActive] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has("ticket")) {
+        u.searchParams.delete("ticket");
+        window.history.replaceState(null, "", `${u.pathname}${u.search}${u.hash}`);
+      }
+    } catch {
+      // Ignora eventuali limiti su history.replaceState
+    }
+  }, []);
 
   const handleLoaded = useCallback(() => {
     setIsLiveActive(true);

@@ -212,7 +212,20 @@ function setSessionCookie(response, name, value, externalHttps) {
   response.headers.append("Set-Cookie", `${name}=${value}; ${attrs}`);
 }
 
-async function hasValidSession(request, cookieName, requiredScope, serverSecret) {
+function createSanitizedNext(request, injectedSessionToken = "") {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-dossierlex-injected-session");
+  if (injectedSessionToken) {
+    requestHeaders.set("x-dossierlex-injected-session", injectedSessionToken);
+  }
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+}
+
+async function resolveValidSessionToken(request, cookieName, requiredScope, serverSecret) {
   const candidates = [];
   const cookieVal = (request.cookies.get(cookieName)?.value || "").trim();
   if (cookieVal) candidates.push(cookieVal);
@@ -225,10 +238,10 @@ async function hasValidSession(request, cookieName, requiredScope, serverSecret)
   }
   for (const token of candidates) {
     if (await verifySignedSession(token, requiredScope, serverSecret)) {
-      return true;
+      return token;
     }
   }
-  return false;
+  return "";
 }
 
 export async function middleware(request) {
@@ -270,7 +283,7 @@ export async function middleware(request) {
     return unauthorizedResponse(true, "Endpoint interno non esposto.", 403, request);
   }
 
-  // 1. Protezione /embed e /api/embed/* (solo ticket monouso scope="embed" + cookie SameSite=None; Secure; Partitioned)
+  // 1. Protezione /embed e /api/embed/* (ticket monouso scope="embed", cookie Partitioned + iniezione cookieless Safari ITP)
   if (isEmbedRoute || isEmbedApi) {
     if (isEmbedApi && !["GET", "HEAD"].includes(request.method)) {
       return applySecurityHeaders(
@@ -289,7 +302,11 @@ export async function middleware(request) {
       if (!redeemed.ok) {
         return unauthorizedResponse(false, "Ticket /embed non valido, scaduto o già utilizzato.", 401, request);
       }
-      const response = applySecurityHeaders(NextResponse.next(), request, true);
+      const response = applySecurityHeaders(
+        createSanitizedNext(request, redeemed.sessionToken),
+        request,
+        true
+      );
       setSessionCookie(response, "dossierlex_embed_session", redeemed.sessionToken, externalHttps);
       return response;
     }
@@ -298,13 +315,22 @@ export async function middleware(request) {
       if (!serverSecret) {
         return unauthorizedResponse(isApi, "DOSSIERLEX_SERVER_SECRET non configurato sul server.", 403, request);
       }
-      const okSession = await hasValidSession(request, "dossierlex_embed_session", "embed", serverSecret);
-      if (!okSession) {
+      const validToken = await resolveValidSessionToken(request, "dossierlex_embed_session", "embed", serverSecret);
+      if (!validToken) {
         return unauthorizedResponse(isApi, "Ticket monouso o sessione /embed mancante o scaduta.", 401, request);
       }
+      return applySecurityHeaders(
+        isApi ? NextResponse.next() : createSanitizedNext(request, validToken),
+        request,
+        true
+      );
     }
 
-    return applySecurityHeaders(NextResponse.next(), request, true);
+    return applySecurityHeaders(
+      isApi ? NextResponse.next() : createSanitizedNext(request, ""),
+      request,
+      true
+    );
   }
 
   // 2. Gestione ?ticket= (scope="full") solo su rotte pagina GET/HEAD con redirect pulito a /
@@ -331,15 +357,25 @@ export async function middleware(request) {
     if (!serverSecret) {
       return unauthorizedResponse(isApi, "Accesso HTTPS bloccato: DOSSIERLEX_SERVER_SECRET non configurato.", 403, request);
     }
-    const okAdmin = await hasValidSession(request, "dossierlex_admin_session", "full", serverSecret);
-    if (!okAdmin) {
+    const validAdmin = await resolveValidSessionToken(request, "dossierlex_admin_session", "full", serverSecret);
+    if (!validAdmin) {
       return unauthorizedResponse(isApi, "Accesso HTTPS riservato: ticket monouso richiesto.", 401, request);
     }
-    return applySecurityHeaders(NextResponse.next(), request, true, true);
+    return applySecurityHeaders(
+      isApi ? NextResponse.next() : createSanitizedNext(request, validAdmin),
+      request,
+      true,
+      true
+    );
   }
 
   // 4. Rete locale diretta (localhost, 192.168.1.*, 100.80.46.*): accesso libero
-  return applySecurityHeaders(NextResponse.next(), request, false, true);
+  return applySecurityHeaders(
+    isApi ? NextResponse.next() : createSanitizedNext(request, ""),
+    request,
+    false,
+    true
+  );
 }
 
 export const config = {
