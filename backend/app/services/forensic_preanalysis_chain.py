@@ -9,16 +9,7 @@ import logging
 import re
 from typing import Dict, Any, Tuple, Optional
 
-try:
-    from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-    from langchain_openai import ChatOpenAI
-    _HAS_LANGCHAIN = True
-except ImportError:
-    ChatPromptTemplate = None
-    SystemMessagePromptTemplate = None
-    HumanMessagePromptTemplate = None
-    ChatOpenAI = None
-    _HAS_LANGCHAIN = False
+_HAS_LANGCHAIN = False
 
 from app.config import settings
 
@@ -165,30 +156,11 @@ class _DirectHttpForensicChain:
 
 
 def get_forensic_chain(temperature: float = 0.1):
-    """Costruisce la catena LangChain configurata su Qwen (endpoint locale LM Studio)."""
+    """Costruisce la catena HTTP diretta configurata su Qwen (endpoint locale LM Studio)."""
     base_url = settings.lmstudio_base_url.rstrip("/")
     target_model = settings.lmstudio_model or "qwen/qwen3.8-27b"
     timeout = 180
-
-    if not _HAS_LANGCHAIN:
-        return _DirectHttpForensicChain(base_url, target_model, temperature, timeout)
-
-    llm = ChatOpenAI(
-        base_url=base_url,
-        model=target_model,
-        temperature=temperature,
-        api_key="not-needed",
-        timeout=timeout,
-        max_tokens=4096,
-        max_retries=0,
-    )
-
-    prompt = ChatPromptTemplate.from_messages([
-        SystemMessagePromptTemplate.from_template(SYSTEM_PROMPT_FORENSIC_PREANALYSIS),
-        HumanMessagePromptTemplate.from_template(HUMAN_PROMPT_TEMPLATE),
-    ])
-
-    return prompt | llm
+    return _DirectHttpForensicChain(base_url, target_model, temperature, timeout)
 
 
 def parse_forensic_output(raw_output: str) -> Tuple[Dict[str, Any], str]:

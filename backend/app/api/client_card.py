@@ -686,8 +686,9 @@ def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
     _get_case(db, case_id)
     report_record, report_data = _get_fresh_report(db, case_id)
     if isinstance(report_data, dict):
-        docs = db.query(Document).filter_by(case_id=case_id).all()
-        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        if not isinstance(report_data.get("technical_dossier"), dict):
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {
             "version": report_record.version,
             "status": report_record.status,
@@ -780,8 +781,9 @@ def get_technical_dossier_pdf_endpoint(
     case = _get_case(db, case_id)
     report_record, report_data = _get_fresh_report(db, case_id)
     if isinstance(report_data, dict):
-        docs = db.query(Document).filter_by(case_id=case_id).all()
-        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        if not isinstance(report_data.get("technical_dossier"), dict):
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {"version": report_record.version}
 
     pdf_bytes = generate_technical_dossier_pdf(report_data)
@@ -839,8 +841,10 @@ def approve_human_gate_endpoint(
     """Tenta la validazione Human Gate della relazione: blocca se le anomalie rosse non sono prese in carico."""
     _get_case(db, case_id)
     _, report_data = get_or_create_preanalysis_report(db, case_id)
-    docs = db.query(Document).filter_by(case_id=case_id).all()
-    dossier = build_complete_technical_dossier(docs=docs, report_data=report_data)
+    dossier = report_data.get("technical_dossier") if isinstance(report_data, dict) else None
+    if not isinstance(dossier, dict):
+        docs = db.query(Document).filter_by(case_id=case_id).all()
+        dossier = build_complete_technical_dossier(docs=docs, report_data=report_data)
     result = attempt_human_gate_approval(
         dossier=dossier,
         professionista=req.professionista,
@@ -870,9 +874,10 @@ def reanalyze_case_endpoint(case_id: str, db: Session = Depends(get_db)):
         cross_warning = str(exc)
 
     report_record, report_data = reset_preanalysis_report(db, case_id)
-    docs = db.query(Document).filter_by(case_id=case_id).all()
     if isinstance(report_data, dict):
-        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        if not isinstance(report_data.get("technical_dossier"), dict):
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {
             "version": report_record.version,
             "status": report_record.status,
