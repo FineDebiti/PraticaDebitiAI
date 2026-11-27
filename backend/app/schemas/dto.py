@@ -183,3 +183,10 @@ class ProtocolAssessmentOut(BaseModel):
     effective: Dict[str, Any]
     gate0: Dict[str, Any]
 
+
+class DeterministicAnalysisOut(BaseModel):
+    case_id: str
+    protocol_assessment: Dict[str, Any]
+    debt_ledger: Dict[str, Any]
+    formula_engine: Dict[str, Any]
+

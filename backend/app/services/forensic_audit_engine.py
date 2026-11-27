@@ -539,47 +539,88 @@ def _build_dynamic_decimal_audit(
             altri_a = _d(ex.get("altri_ricavi_a2_a5"))
             val_prod = _d(ex.get("valore_produzione_a"))
             costi_b = _d(ex.get("costi_produzione_b"))
+            amm_b10 = _d(ex.get("ammortamenti"))
+            ebit_att = _d(ex.get("ebit"))
             mol_att = _d(ex.get("mol"))
 
-            if val_prod is not None and costi_b is not None:
-                mol_calc: Optional[Decimal] = _q2(val_prod - costi_b)
-            else:
-                mol_calc = None
-
-            scarto = _q2(mol_calc - mol_att) if (mol_calc is not None and mol_att is not None) else None
-            ok = scarto is not None and abs(scarto) <= Decimal("1.00")
-            if mol_calc is None or mol_att is None:
-                esito_q = "NON VERIFICABILE (NULL)"
+            # 1) Quadratura EBIT = Valore Produzione (A) - Costi Produzione (B)
+            ebit_calc: Optional[Decimal] = _q2(val_prod - costi_b) if (val_prod is not None and costi_b is not None) else None
+            ebit_ref = ebit_att if ebit_att is not None else ebit_calc
+            scarto_ebit = _q2(ebit_calc - ebit_ref) if (ebit_calc is not None and ebit_ref is not None) else None
+            if ebit_calc is None:
+                esito_ebit = "NON VERIFICABILE (NULL)"
                 null_semantics_audit.append({
-                    "voce": f"Grandezze CE esercizio {anno} (Valore Prod. / Costi B / MOL)",
+                    "voce": f"Grandezze CE esercizio {anno} (Valore Prod. A / Costi B / EBIT)",
                     "valore_db": None,
                     "esposizione_report": "Non disponibile (NULL)",
                     "zero_placeholder_bloccato": True,
                 })
-            elif ok:
-                esito_q = "VERIFICATO (100%)"
+            elif scarto_ebit is not None and abs(scarto_ebit) <= Decimal("1.00"):
+                esito_ebit = "VERIFICATO (100%)"
             else:
-                esito_q = "ERRORE QUADRATURA"
+                esito_ebit = "ERRORE QUADRATURA"
 
             quadrature.append({
                 "quad_id": f"QUAD-{len(quadrature) + 1:02d}",
-                "titolo": f"Quadratura Valore Produzione − Costi B = MOL ({anno})",
-                "formula": f"Valore Prod. A ({_fmt_dec_eur(val_prod)}) − Costi B ({_fmt_dec_eur(costi_b)}) = MOL {anno}",
-                "formula_codice": "valore_produzione_a - costi_produzione_b == mol",
+                "titolo": f"Quadratura Valore Produzione − Costi B = EBIT ({anno})",
+                "formula": f"Valore Prod. A ({_fmt_dec_eur(val_prod)}) − Costi B ({_fmt_dec_eur(costi_b)}) = EBIT {anno}",
+                "formula_codice": "valore_produzione_a - costi_produzione_b == ebit",
                 "valori_sorgente_non_arrotondati": {
                     "ricavi_a1": str(ric_a1) if ric_a1 is not None else "NULL",
                     "altri_ricavi_a2_a5": str(altri_a) if altri_a is not None else "NULL",
                     "valore_produzione_a": str(val_prod) if val_prod is not None else "NULL",
                     "costi_produzione_b": str(costi_b) if costi_b is not None else "NULL",
                 },
+                "valore_calcolato": _fmt_dec_eur(ebit_calc),
+                "valore_calcolato_raw": str(ebit_calc) if ebit_calc is not None else "NULL",
+                "valore_atteso": _fmt_dec_eur(ebit_ref),
+                "valore_atteso_raw": str(ebit_ref) if ebit_ref is not None else "NULL",
+                "scarto": _fmt_dec_eur(scarto_ebit) if scarto_ebit is not None else "N/D (NULL)",
+                "scarto_raw": str(scarto_ebit) if scarto_ebit is not None else "NULL",
+                "esito": esito_ebit,
+                "test_automatico": "dynamic_decimal_ce_ebit_quadrature",
+            })
+            totals_dec[f"ebit_{anno}"] = str(ebit_calc) if ebit_calc is not None else "NULL"
+
+            # 2) Quadratura EBITDA / MOL = EBIT (A - B) + Ammortamenti (B10a + B10b + B10c)
+            if ebit_calc is not None and amm_b10 is not None:
+                mol_calc: Optional[Decimal] = _q2(ebit_calc + amm_b10)
+            elif ebit_calc is not None and mol_att is not None and abs(_q2(ebit_calc - mol_att)) <= Decimal("0.01"):
+                mol_calc = ebit_calc
+            else:
+                mol_calc = None
+
+            scarto_mol = _q2(mol_calc - mol_att) if (mol_calc is not None and mol_att is not None) else None
+            if mol_calc is None or mol_att is None:
+                esito_q = "NON VERIFICABILE (NULL)"
+                null_semantics_audit.append({
+                    "voce": f"Grandezze EBITDA / MOL esercizio {anno} (EBIT / Ammortamenti B10abc)",
+                    "valore_db": None,
+                    "esposizione_report": "Non disponibile (NULL)",
+                    "zero_placeholder_bloccato": True,
+                })
+            elif scarto_mol is not None and abs(scarto_mol) <= Decimal("1.00"):
+                esito_q = "VERIFICATO (100%)"
+            else:
+                esito_q = "ERRORE QUADRATURA"
+
+            quadrature.append({
+                "quad_id": f"QUAD-{len(quadrature) + 1:02d}",
+                "titolo": f"Quadratura EBIT + Ammortamenti (B10a+B10b+B10c) = EBITDA / MOL ({anno})",
+                "formula": f"EBIT ({_fmt_dec_eur(ebit_calc)}) + Ammortamenti B10abc ({_fmt_dec_eur(amm_b10)}) = EBITDA {anno}",
+                "formula_codice": "(valore_produzione_a - costi_produzione_b) + ammortamenti_b10abc == ebitda",
+                "valori_sorgente_non_arrotondati": {
+                    "ebit_a_meno_b": str(ebit_calc) if ebit_calc is not None else "NULL",
+                    "ammortamenti_b10abc": str(amm_b10) if amm_b10 is not None else "NULL",
+                },
                 "valore_calcolato": _fmt_dec_eur(mol_calc),
                 "valore_calcolato_raw": str(mol_calc) if mol_calc is not None else "NULL",
                 "valore_atteso": _fmt_dec_eur(mol_att),
                 "valore_atteso_raw": str(mol_att) if mol_att is not None else "NULL",
-                "scarto": _fmt_dec_eur(scarto) if scarto is not None else "N/D (NULL)",
-                "scarto_raw": str(scarto) if scarto is not None else "NULL",
+                "scarto": _fmt_dec_eur(scarto_mol) if scarto_mol is not None else "N/D (NULL)",
+                "scarto_raw": str(scarto_mol) if scarto_mol is not None else "NULL",
                 "esito": esito_q,
-                "test_automatico": "dynamic_decimal_ce_quadrature",
+                "test_automatico": "dynamic_decimal_ce_ebitda_quadrature",
             })
             totals_dec[f"mol_{anno}"] = str(mol_calc) if mol_calc is not None else "NULL"
 

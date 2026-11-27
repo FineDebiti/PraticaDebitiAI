@@ -18,9 +18,13 @@ from app.schemas.debtor import (
 )
 from app.schemas.dto import (
     IncomeDocumentOut, RelatedCaseOut, CaseIndicatorsOut, FieldEditOut, EnrichmentRequestOut,
-    CaseCrossAnalysisOut, ProtocolConfirmationIn, ProtocolAssessmentOut,
+    CaseCrossAnalysisOut, ProtocolConfirmationIn, ProtocolAssessmentOut, DeterministicAnalysisOut,
 )
-from app.services.protocols.service import get_protocol_assessment, confirm_case_protocol
+from app.services.protocols.service import (
+    get_protocol_assessment,
+    confirm_case_protocol,
+    get_deterministic_analysis,
+)
 from app.services import fiscal_code as fc
 from app.services.cross_analysis import execute_cross_analysis
 from app.services.pdf_report_generator import generate_preanalysis_pdf
@@ -919,6 +923,12 @@ def confirm_case_protocol_endpoint(
         operator=body.operator,
         reason=body.reason,
     )
+
+
+@router.get("/cases/{case_id}/deterministic-analysis", response_model=DeterministicAnalysisOut)
+def get_deterministic_analysis_endpoint(case_id: str, db: Session = Depends(get_db)):
+    """Motore deterministico Fase 2 (Formula Engine + DebtLedger riconciliato) in sola lettura."""
+    return get_deterministic_analysis(db, case_id)
 
 
 

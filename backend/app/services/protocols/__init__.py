@@ -11,7 +11,13 @@ from app.services.protocols.classifier import (
     protocol_code_for_profile,
 )
 from app.services.protocols.gate0 import Gate0Result, evaluate_gate0
-from app.services.protocols.service import confirm_case_protocol, get_protocol_assessment
+from app.services.protocols.debt_ledger import build_debt_ledger
+from app.services.protocols.formula_engine import run_formula_engine
+from app.services.protocols.service import (
+    confirm_case_protocol,
+    get_deterministic_analysis,
+    get_protocol_assessment,
+)
 
 __all__ = [
     "ACCOUNTING_REGIMES",
@@ -24,6 +30,9 @@ __all__ = [
     "classify_case_dimensions",
     "protocol_code_for_profile",
     "evaluate_gate0",
+    "build_debt_ledger",
+    "run_formula_engine",
     "get_protocol_assessment",
+    "get_deterministic_analysis",
     "confirm_case_protocol",
 ]

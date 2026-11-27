@@ -432,23 +432,27 @@ def _classify_accounting_regime(
         raw = fs.raw_extraction if isinstance(fs.raw_extraction, dict) else {}
         sp = raw.get("stato_patrimoniale") if isinstance(raw.get("stato_patrimoniale"), dict) else {}
         ce = raw.get("conto_economico") if isinstance(raw.get("conto_economico"), dict) else {}
-        has_sp_fields = (
-            _has_real_number(fs.total_assets)
-            or _has_real_number(fs.equity)
-            or _has_real_number(fs.total_debts)
-            or any(sp.get(k) not in (None, "", 0) for k in ("attivo_totale", "patrimonio_netto", "totale_attivo", "debiti"))
+        is_sempl_st = any(tok in st for tok in ("semplificat", "cassa", "rg"))
+        has_nonzero_sp_cols = any(
+            (v is not None and float(v) != 0.0)
+            for v in (fs.total_assets, fs.equity, fs.total_debts)
         )
-        if has_sp_fields or any(tok in st for tok in ("ordinari", "civilistic", "cee", "xbrl", "abbreviat", "micro")):
-            regimes.add("ordinaria")
-            evidence.append(
-                f"Bilancio ({fs.fiscal_year_end or 'n/d'}, tipo='{fs.statement_type or 'n/d'}') "
-                "documenta Stato Patrimoniale / contabilità ordinaria."
-            )
-        elif "semplificat" in st or "cassa" in st or "rg" in st:
+        has_sp_json = any(
+            sp.get(k) not in (None, "", 0, 0.0)
+            for k in ("attivo_totale", "totale_attivo", "patrimonio_netto", "debiti", "debiti_totali")
+        )
+        has_sp_fields = (not is_sempl_st) and (has_sp_json or has_nonzero_sp_cols)
+        if is_sempl_st and not has_sp_json:
             regimes.add("semplificata")
             evidence.append(
                 f"Prospetto ({fs.fiscal_year_end or 'n/d'}, tipo='{fs.statement_type}') "
                 "documenta contabilità semplificata (assenza SP)."
+            )
+        elif has_sp_fields or any(tok in st for tok in ("ordinari", "civilistic", "cee", "xbrl", "abbreviat", "micro")):
+            regimes.add("ordinaria")
+            evidence.append(
+                f"Bilancio ({fs.fiscal_year_end or 'n/d'}, tipo='{fs.statement_type or 'n/d'}') "
+                "documenta Stato Patrimoniale / contabilità ordinaria."
             )
         elif _has_real_number(fs.revenues) or ce:
             # Solo CE senza SP e senza tipo esplicito non prova ordinaria
@@ -615,9 +619,20 @@ def _classify_ccii_size(
     latest_fs_debts: Optional[Decimal] = None
 
     for idx_yr, (label, fs) in enumerate(eval_list):
-        att = _to_decimal(fs.total_assets)
+        raw_fs = fs.raw_extraction if isinstance(fs.raw_extraction, dict) else {}
+        sp_fs = raw_fs.get("stato_patrimoniale") if isinstance(raw_fs.get("stato_patrimoniale"), dict) else {}
+        st_lower = str(fs.statement_type or "").lower()
+        is_sempl_without_sp = any(tok in st_lower for tok in ("semplificat", "cassa", "rg")) and not sp_fs
+        if is_sempl_without_sp and (fs.total_assets or 0.0) == 0.0 and (fs.total_debts or 0.0) == 0.0:
+            att = None
+            deb = None
+        elif (fs.total_assets or 0.0) == 0.0 and (fs.equity or 0.0) == 0.0 and (fs.total_debts or 0.0) == 0.0 and not sp_fs:
+            att = None
+            deb = None
+        else:
+            att = _to_decimal(fs.total_assets)
+            deb = _to_decimal(fs.total_debts)
         ric = _to_decimal(fs.revenues)
-        deb = _to_decimal(fs.total_debts)
         if idx_yr == 0:
             latest_fs_debts = deb
 

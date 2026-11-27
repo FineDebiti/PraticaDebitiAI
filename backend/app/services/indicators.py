@@ -11,6 +11,7 @@ from app.services.statutory_knowledge import (
     calculate_ebitda_oic12,
     calculate_pfn_esma,
     evaluate_pfn_ebitda,
+    extract_bank_debt_split,
 )
 
 
@@ -202,15 +203,15 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
     )
 
     if has_sp_or_deb and cur("disponibilita_liquide") is not None:
-        deb_banche = _imp("banche")
+        deb_b_breve, deb_b_ml, _split_note = extract_bank_debt_split(sp, deb)
         tfr_val = cur("tfr") or 0.0
         fin_soci = _imp("soci_finanziamenti")
         trib_scad = _imp("tributari")
         forn_scad = _imp("fornitori_scaduti")
 
         pfn_esma_res = calculate_pfn_esma(
-            debiti_bancari_breve=deb_banche,
-            debiti_bancari_medio_lungo=cur("debiti_oltre") or 0.0,
+            debiti_bancari_breve=deb_b_breve,
+            debiti_bancari_medio_lungo=deb_b_ml,
             disponibilita_liquide=cur("disponibilita_liquide"),
             tfr_fondo=tfr_val,
             finanziamenti_soci=fin_soci,

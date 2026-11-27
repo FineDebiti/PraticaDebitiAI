@@ -38,6 +38,7 @@ from app.services.statutory_knowledge import (
     evaluate_risanabilita_diagnosi,
     classify_cinque_criticita,
     identify_documenti_indispensabili,
+    extract_bank_debt_split,
 )
 
 
@@ -804,7 +805,15 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
         )
     else:
         tot_massa_stimata = None
-    tot_massa_bilancio: Optional[float] = round(sum(float(r["dato_bilancio"] or 0.0) for r in stima_massa_rows), 2) if has_balance_debts else None
+    # Escludi le righe subtotale per evitare il doppio conteggio nella somma di bilancio
+    tot_massa_bilancio: Optional[float] = round(
+        sum(
+            float(r["dato_bilancio"] or 0.0)
+            for r in stima_massa_rows
+            if "subtotale" not in (r.get("categoria") or "").lower()
+        ),
+        2,
+    ) if has_balance_debts else None
 
     # Aggiungi dato_bilancio_display a ciascuna riga della tabella 5.3
     for r in stima_massa_rows:
@@ -893,16 +902,16 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
     if tot_catastale > 0:
         lotti_concorsuali.append({
             "lotto": f"Patrimonio immobiliare ({len(real_estates)} unità censite)",
-            "prudente": f"€ {tot_catastale * 0.65:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            "favorevole": f"€ {tot_catastale * 1.15:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            "note": "Forchetta indicativa su valore catastale (richiede perizia OMI / CTU).",
+            "prudente": "Da perizia OMI / CTU",
+            "favorevole": _fmt_eur(tot_catastale),
+            "note": "Valore catastale documentato (nessuna percentuale liquidatoria presunta; richiede perizia OMI / CTU).",
         })
     if vehicles_val := sum(float(v.estimated_value or 0.0) for v in vehicles):
         lotti_concorsuali.append({
             "lotto": f"Parco automezzi / veicoli ({len(vehicles)} unità)",
-            "prudente": f"€ {vehicles_val * 0.55:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            "favorevole": f"€ {vehicles_val * 0.85:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            "note": "Stima realizzo competitivo PRA / parco mezzi.",
+            "prudente": "Da perizia / quotazione PRA",
+            "favorevole": _fmt_eur(vehicles_val),
+            "note": "Valore indicato a fascicolo senza abbattimenti percentuali arbitrari.",
         })
     elif vehicles:
         lotti_concorsuali.append({
@@ -1000,21 +1009,23 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
     # Calcolo Posizione Finanziaria Netta (PFN) ESMA 2021 & Rapporto PFN / EBITDA con semantica NULL rigorosa
     last_fs_sp = (last_approved_fs.raw_extraction.get("stato_patrimoniale") or {}) if last_approved_fs else {}
     last_fs_deb = (last_approved_fs.raw_extraction.get("debiti_per_natura") or {}) if last_approved_fs else {}
-    deb_banche_val = _num_opt((last_fs_deb.get("banche") or {}).get("importo")) or tot_cr_ut
-    deb_ml_val = _num_opt(last_fs_sp.get("debiti_oltre"))
+    deb_b_breve_sp, deb_b_ml_sp, _ = extract_bank_debt_split(last_fs_sp, last_fs_deb)
+    deb_banche_val = deb_b_breve_sp if deb_b_breve_sp is not None else tot_cr_ut
+    deb_ml_val = deb_b_ml_sp
     liq_val = _num_opt(last_fs_sp.get("disponibilita_liquide"))
     tfr_val = _num_opt(last_fs_sp.get("tfr"))
     soci_fin_val = _num_opt((last_fs_deb.get("soci_finanziamenti") or {}).get("importo"))
     tot_ader_scad = aer_component
 
     if last_fs_sp and liq_val is not None:
+        trib_scad_pfn = tot_ader_scad if tot_ader_scad is not None else (tot_trib_bilancio + tot_prev_bilancio)
         pfn_obj = calculate_pfn_esma(
             debiti_bancari_breve=deb_banche_val or 0.0,
             debiti_bancari_medio_lungo=deb_ml_val or 0.0,
             disponibilita_liquide=liq_val,
             tfr_fondo=tfr_val or 0.0,
             finanziamenti_soci=soci_fin_val or 0.0,
-            debiti_tributari_scaduti=tot_ader_scad or 0.0,
+            debiti_tributari_scaduti=trib_scad_pfn or 0.0,
         )
     else:
         pfn_obj = {
@@ -1313,7 +1324,11 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
                 "totale_bilancio": tot_massa_bilancio if has_balance_debts else 0.0,
                 "totale_bilancio_display": f"€ {tot_massa_bilancio:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if has_balance_debts else "n.r.*",
                 "has_balance_debts": has_balance_debts,
-                "nota_metodologica": "*n.r. = Non rilevabile: contabilità semplificata priva di stato patrimoniale ex art. 2424 c.c.",
+                "nota_metodologica": (
+                    "*n.r. = Non rilevabile: contabilità priva di stato patrimoniale o passivo per natura completo."
+                    if not has_balance_debts
+                    else "Valori di bilancio riconciliati con le banche dati esterne (senza duplicazioni sui subtotali)."
+                ),
             },
             "tabella_pfn_esma": pfn_obj,
             "valutazione_pfn_ebitda": pfn_eval,
@@ -1335,8 +1350,8 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
                 f"che evidenzia: {pfn_eval['valutazione_bancaria']}."
             ),
             "sintesi_vitalita": (
-                "L'impresa manifesta presupposti operativi per il risanamento, purché si attivi tempestivamente "
-                "uno strumento di regolazione della crisi idoneo a rimodulare e stralciare l'indebitamento pregresso."
+                "La verifica della continuità e della capacità di risanamento è subordinata ai dati economici verificati, "
+                "alla ricognizione completa del passivo e alla sostenibilità prospettica dei flussi di cassa (esame professionale)."
             ),
             "inquadramento_ccii": ccii_minore,
             "segnali_allarme_art3": ccii_art3,
@@ -1352,7 +1367,7 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
             "immobilizzazioni_materiali": {
                 "valore_netto_bilancio": val_cespiti,
                 "valore_netto_display": val_cespiti_display,
-                "costo_storico_stimato": val_cespiti * 1.5 if val_cespiti > 0 else 0.0,
+                "costo_storico_stimato": None,
                 "costo_storico_display": costo_storico_display,
                 "note": nota_cespiti,
             },
@@ -1360,11 +1375,11 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
         },
         "capitolo_9_orientamento_risanamento": {
             "scenari": scenari_ccii,
-            "proposta_coerente": "Composizione Negoziata della Crisi (art. 12 CCII) combinata con Concordato Semplificato (art. 160 CCII) o Transazione Fiscale (art. 63 CCII)",
+            "proposta_coerente": None,
             "motivazione": (
-                "La Composizione Negoziata consente di congelare azioni esecutive e cautelari tramite misure protettive, "
-                "negoziando con AdER e l'istituto bancario uno stralcio e una rateizzazione sostenibile. In caso di mancato "
-                "accordo con il ceto creditorio, l'accesso al Concordato Semplificato assicura la rapida definizione senza voto."
+                "L'inquadramento giuridico-decisionale degli strumenti ex CCII non è preselezionato automaticamente "
+                "ed è rimesso alla valutazione del professionista previa verifica di accessibilità, flussi di cassa "
+                "e documentazione completa (matrice CCII prevista in Fase 3)."
             ),
             "condizioni": [
                 "Acquisizione dell'indicazione del flusso di cassa annuo disponibile da parte del cliente.",
