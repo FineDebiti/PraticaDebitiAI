@@ -13,7 +13,7 @@ Dato mancante -> value=None, status="na" (la cella mostrerà "non disponibile", 
 from datetime import date
 from app.config import settings
 from app.models import (
-    Debtor, RealEstate, Vehicle, Company,
+    Case, Debtor, RealEstate, Vehicle, Company,
     CreditExposure, GuaranteeGiven, CreditReportSummary, TaxDebtStatement,
 )
 from app.services.income_summary import compute_income_summary
@@ -23,7 +23,9 @@ from app.services.statutory_knowledge import (
     evaluate_pfn_ebitda,
     check_ccii_soglie_impresa_minore,
     check_ccii_segnali_allarme_art3,
+    extract_bank_debt_split,
 )
+from app.services.protocols.debt_ledger import build_debt_ledger
 
 # area -> tab di destinazione del link "→ vedi in ..."
 SECTION_TAB = {
@@ -254,18 +256,26 @@ def compute_case_indicators(db, case_id: str) -> dict:
             return None
 
     liq_num = _val_opt(sp_dict.get("disponibilita_liquide"), "corrente")
-    deb_banc = _val_opt(deb_dict.get("banche"), "importo")
-    deb_ml = _val_opt(sp_dict.get("debiti_oltre"), "corrente")
+    deb_b_breve, deb_b_ml, _ = extract_bank_debt_split(sp_dict, deb_dict)
     tfr_val = _val_num(sp_dict.get("tfr"), "corrente")
     soc_fin = _val_num(deb_dict.get("soci_finanziamenti"), "importo")
+    trib_bil = _val_num(deb_dict.get("tributari"), "importo")
+
+    case_obj = db.get(Case, case_id)
+    debt_ledger = build_debt_ledger(db, case_obj) if case_obj else None
+    trib_reconciled = (
+        float(debt_ledger["bucket_totals"].get("tributari_contributivi") or 0.0)
+        if debt_ledger and has_aer
+        else (aer_total if has_aer else trib_bil)
+    )
 
     pfn_calc = calculate_pfn_esma(
-        debiti_bancari_breve=deb_banc if deb_banc is not None else (0.0 if (deb_ml is not None or aer_total is not None) else None),
-        debiti_bancari_medio_lungo=deb_ml if deb_ml is not None else (0.0 if (deb_banc is not None or aer_total is not None) else None),
+        debiti_bancari_breve=deb_b_breve if deb_b_breve is not None else (0.0 if (deb_b_ml is not None or has_aer) else None),
+        debiti_bancari_medio_lungo=deb_b_ml if deb_b_ml is not None else (0.0 if (deb_b_breve is not None or has_aer) else None),
         disponibilita_liquide=liq_num,
         tfr_fondo=tfr_val,
         finanziamenti_soci=soc_fin,
-        debiti_tributari_scaduti=aer_total or 0.0,
+        debiti_tributari_scaduti=trib_reconciled,
     ) if (fs and liq_num is not None) else None
 
     pfn_val = pfn_calc["pfn_totale"] if pfn_calc else None
@@ -284,14 +294,20 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     criterion=pfn_eb_eval["valutazione_bancaria"] if pfn_eb_eval else None,
                     status=pfn_eb_eval["status"] if pfn_eb_eval else "na"))
 
-    # Verifica soglie CCII Impresa Minore (art. 2 co. 1 lett. d)
+    reconciled_debt = (
+        debt_ledger["totals"].get("esposizioni_per_cassa_certe")
+        if debt_ledger and debt_ledger.get("stato_dato") == "VERIFICATO"
+        else None
+    )
+
+    # Verifica soglie CCII Impresa Minore (art. 2 co. 1 lett. d) — senza doppia somma
     all_fss = [f for c in cliente for f in c.financial_statements]
     attivi_triennio = [float(f.total_assets or 0.0) for f in all_fss if f.total_assets]
     ricavi_triennio = [float(f.revenues or 0.0) for f in all_fss if f.revenues]
     ccii_minore = check_ccii_soglie_impresa_minore(
         attivo_patrimoniale_triennio=attivi_triennio,
         ricavi_lordi_triennio=ricavi_triennio,
-        debiti_totali_attuali=(imp_debiti or 0.0) + (aer_total or 0.0) + (cr_esp or 0.0),
+        debiti_totali_attuali=reconciled_debt if reconciled_debt is not None else imp_debiti,
     ) if (all_fss or imp_debiti or aer_total) else None
 
     if ccii_minore:
@@ -375,14 +391,14 @@ def compute_case_indicators(db, case_id: str) -> dict:
                                "prima: la priorità la decide il legale."),
                     section="trasversale"))
 
-    # ---------------- MACRO (calcolati dagli aggregati sopra) ----------------
-    indeb = round((aer_total or 0) + (cr_esp or 0) + (imp_debiti or 0), 2)
-    has_indeb = has_aer or cr is not None or fs is not None
+    # ---------------- MACRO (riconciliati senza doppie somme tramite DebtLedger) ----------------
+    indeb = round(float(reconciled_debt), 2) if reconciled_debt is not None else round((aer_total or 0) + (cr_esp or 0) + (imp_debiti or 0), 2)
+    has_indeb = (reconciled_debt is not None) or has_aer or cr is not None or fs is not None
     rapporto = round(indeb / aggredibile, 2) if aggredibile else None
     macro = [
         _ind("indebitamento_totale", "Indebitamento totale", "macro",
              indeb if has_indeb else None, "eur",
-             "AER + esposizione bancaria + debiti impresa"),
+             "Indebitamento netto riconciliato per cassa (senza duplicazioni AdER/CR/bilancio)"),
         _ind("patrimonio_aggredibile", "Patrimonio aggredibile (stima)", "macro",
              aggredibile if (has_re or vehicles) else None, "eur",
              "valore immobili (escl. prima casa) + veicoli"),

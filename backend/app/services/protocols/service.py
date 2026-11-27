@@ -20,6 +20,8 @@ from app.services.protocols.classifier import (
     protocol_code_for_profile,
 )
 from app.services.protocols.gate0 import evaluate_gate0
+from app.services.protocols.debt_ledger import build_debt_ledger
+from app.services.protocols.formula_engine import run_formula_engine
 
 
 OPERATOR_AUDIT_DISCLAIMER = (
@@ -183,3 +185,24 @@ def confirm_case_protocol(
     db.commit()
     db.refresh(case)
     return get_protocol_assessment(db, case.id)
+
+
+def get_deterministic_analysis(db: Session, case_id: str) -> dict[str, Any]:
+    """Orchestra classificazione, Gate 0, DebtLedger e Formula Engine in sola lettura."""
+    case = _load_case_or_404(db, case_id)
+    assessment = get_protocol_assessment(db, case_id)
+    cls = classify_case_dimensions(
+        db,
+        case,
+        effective_profile_override=case.debtor_profile_confirmed,
+        effective_regime_override=case.accounting_regime_confirmed,
+    )
+    debt_ledger = build_debt_ledger(db, case)
+    formula_engine = run_formula_engine(db, case, cls, debt_ledger)
+
+    return {
+        "case_id": case.id,
+        "protocol_assessment": assessment,
+        "debt_ledger": debt_ledger,
+        "formula_engine": formula_engine,
+    }
