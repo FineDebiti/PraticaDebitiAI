@@ -172,7 +172,7 @@ class ProtocolConfirmationIn(BaseModel):
         "non_documentato",
     ]] = None
     dossier_completeness_status: Literal["in_raccolta", "fascicolo_confermato"] = "in_raccolta"
-    operator: str = "operatore"
+    operator: str = "operatore_non_autenticato"
     reason: str = ""
 
 

@@ -60,6 +60,7 @@ export default function ProtocolGate0Card({ caseId, docsCount = 0, onConfirmed }
   const [profile, setProfile] = useState("forma_incerta");
   const [regime, setRegime] = useState("");
   const [completeness, setCompleteness] = useState("in_raccolta");
+  const [operatorRef, setOperatorRef] = useState("operatore_non_autenticato");
   const [reason, setReason] = useState("");
 
   async function refresh() {
@@ -93,12 +94,12 @@ export default function ProtocolGate0Card({ caseId, docsCount = 0, onConfirmed }
         debtor_profile_confirmed: profile,
         accounting_regime_confirmed: regime || null,
         dossier_completeness_status: completeness,
-        operator: "operatore",
+        operator: operatorRef.trim() || "operatore_non_autenticato",
         reason: reason.trim() || "Conferma inquadramento metodologico e Gate 0",
       });
       setData(res);
       setReason("");
-      setMsg("Inquadramento metodologico confermato e tracciato nell'audit.");
+      setMsg("Inquadramento metodologico registrato in FieldEdit (operatore non autenticato).");
       if (typeof onConfirmed === "function") onConfirmed();
     } catch (e2) {
       setErr(e2?.message || "Errore salvataggio conferma");
@@ -224,6 +225,13 @@ export default function ProtocolGate0Card({ caseId, docsCount = 0, onConfirmed }
               <strong>Nota / motivazione (Audit)</strong>
               <input
                 type="text"
+                value={operatorRef}
+                onChange={e => setOperatorRef(e.target.value)}
+                placeholder="operatore_non_autenticato"
+                style={{ padding: "6px 8px", borderRadius: 6 }}
+              />
+              <input
+                type="text"
                 value={reason}
                 onChange={e => setReason(e.target.value)}
                 placeholder="Es. Conferma da visura e bilanci"
@@ -235,17 +243,24 @@ export default function ProtocolGate0Card({ caseId, docsCount = 0, onConfirmed }
             </label>
           </form>
 
+          <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 12 }}>
+            Nota audit: {data.confirmed?.operator_audit_disclaimer || "Identità operatore non autenticata (nessun login/ruoli attivo): il log FieldEdit non costituisce prova certa dell'identità personale."}
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, fontSize: 12 }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Checklist documenti indispensabili (P0)</div>
               <ul style={{ margin: 0, paddingLeft: 16 }}>
                 {p0Items.map(item => (
-                  <li key={item.code} style={{ marginBottom: 4 }}>
+                  <li key={item.code} style={{ marginBottom: 6 }}>
                     <Pill
-                      text={item.status}
-                      kind={item.status === "presente" ? "ok" : item.status === "in_elaborazione" ? "warn" : "err"}
+                      text={`${item.status}${item.verification_stage ? ` · ${item.verification_stage}` : ""}`}
+                      kind={item.status === "presente" ? "ok" : (item.status === "in_elaborazione" || item.status === "parziale") ? "warn" : "err"}
                     />{" "}
                     <strong>{item.title}</strong>
+                    {Array.isArray(item.missing_details) && item.missing_details.length > 0 && (
+                      <div style={{ color: "#92400e", marginTop: 2 }}>{item.missing_details.join(" ")}</div>
+                    )}
                   </li>
                 ))}
               </ul>

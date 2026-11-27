@@ -26,10 +26,12 @@ from sqlalchemy.orm import Session
 from app.models.entities import (
     Case,
     Company,
+    CreditExposure,
     CreditReportSummary,
     Debtor,
     Document,
     FinancialStatement,
+    GuaranteeGiven,
     TaxDebtStatement,
 )
 
@@ -157,6 +159,8 @@ class ClassificationResult:
     ccii_size_label: str = CCII_SIZE_LABELS["non_determinabile"]
     ccii_size_evidence: list[str] = field(default_factory=list)
     ccii_metrics_by_year: list[dict[str, Any]] = field(default_factory=list)
+    ccii_required_verifications: list[str] = field(default_factory=list)
+    ccii_external_breakdown: dict[str, Any] = field(default_factory=dict)
 
     protocol_code: Optional[str] = None
     supported_by_protocol: bool = False
@@ -513,50 +517,109 @@ def _classify_accounting_regime(
     return next(iter(regimes)), evidence, anomalies
 
 
+def _is_interim_fs(fs: FinancialStatement) -> bool:
+    st = str(fs.statement_type or "").lower()
+    if any(tok in st for tok in ("provvisori", "infrannual", "interim", "parzial")):
+        return True
+    dt = str(fs.fiscal_year_end or "").strip()
+    if not dt:
+        return False
+    # Date tipo YYYY-MM-DD non terminate al 31/12 (o YYYY-MM con mese != 12) sono infrannuali
+    m_full = re.match(r"^((?:19|20)\d{2})-(\d{2})-(\d{2})$", dt)
+    if m_full:
+        return not (m_full.group(2) == "12" and m_full.group(3) == "31")
+    m_ym = re.match(r"^((?:19|20)\d{2})-(\d{2})$", dt)
+    if m_ym:
+        return m_ym.group(2) != "12"
+    m_it = re.match(r"^(\d{2})/(\d{2})/((?:19|20)\d{2})$", dt)
+    if m_it:
+        return not (m_it.group(1) == "31" and m_it.group(2) == "12")
+    return False
+
+
+def _is_guarantee_or_firma_exposure(exp: CreditExposure) -> bool:
+    cat = f"{exp.category or ''} {exp.status or ''}".lower()
+    return any(
+        tok in cat
+        for tok in ("firma", "garanz", "fideiuss", "avall", "cauzion")
+    )
+
+
+def _is_closed_or_informative_exposure(exp: CreditExposure) -> bool:
+    st = str(exp.status or "").lower()
+    return any(tok in st for tok in ("estint", "chius", "saldat", "informativ"))
+
+
 def _classify_ccii_size(
     legal_form_profile: str,
     client_companies: list[Company],
     statements: list[FinancialStatement],
     tax_statements: list[TaxDebtStatement],
     credit_reports: list[CreditReportSummary],
-) -> tuple[str, list[str], list[dict[str, Any]], list[str]]:
-    """Valuta i requisiti di impresa minore ex art. 2 co. 1 lett. d) CCII."""
+    credit_exposures: Optional[list[CreditExposure]] = None,
+    guarantees_given: Optional[list[GuaranteeGiven]] = None,
+) -> tuple[str, list[str], list[dict[str, Any]], list[str], list[str], dict[str, Any]]:
+    """Valuta i requisiti di impresa minore ex art. 2 co. 1 lett. d) CCII.
+
+    Regole di revisione Fase 1:
+    - Esclude i prospetti infrannuali dal conteggio dei 3 esercizi annuali chiusi.
+    - Verifica che gli esercizi siano consecutivi e pertinenti (latest >= anno_corrente - 2).
+    - Deduplica AdER per soggetto (codice_fiscale, owner_kind), distinguendo residuo netto vs sospeso.
+    - Separa in CR le esposizioni effettive per cassa dalle garanzie/firma e dall'accordato non utilizzato.
+    - Non somma automaticamente bilancio + AdER + CR; in caso di mancata riconciliazione -> non_determinabile.
+    """
     if legal_form_profile == "persona_fisica_non_imprenditore":
         return (
             "non_applicabile",
             ["Persona fisica non imprenditore: soglie dimensionali art. 2 co. 1 lett. d) CCII non applicabili."],
             [],
             [],
+            [],
+            {},
         )
 
     evidence: list[str] = []
     anomalies: list[str] = []
+    required_verifications: list[str] = []
 
-    # Raccogli metriche per esercizio da FinancialStatement (tenendo l'ultimo record per anno)
+    # 1. Separa bilanci annuali chiusi da infrannuali
     by_year: dict[int, FinancialStatement] = {}
-    undated: list[FinancialStatement] = []
+    interim_years: list[str] = []
+    undated_annual: list[FinancialStatement] = []
     for fs in statements:
+        if _is_interim_fs(fs):
+            interim_years.append(str(fs.fiscal_year_end or fs.statement_type or "infrannuale"))
+            continue
         yr = _parse_year(fs.fiscal_year_end)
         if yr is not None:
             by_year[yr] = fs
         else:
-            undated.append(fs)
+            undated_annual.append(fs)
+
+    if interim_years:
+        evidence.append(
+            f"Esclusi dal computo annuale CCII {len(interim_years)} prospetti infrannuali "
+            f"({', '.join(interim_years)}): usati solo i bilanci annuali chiusi."
+        )
 
     ordered_years = sorted(by_year.keys(), reverse=True)
     eval_list: list[tuple[str, FinancialStatement]] = [
         (str(yr), by_year[yr]) for yr in ordered_years[:3]
     ]
-    if not eval_list and undated:
-        eval_list = [("n/d", fs) for fs in undated[:3]]
+    if not eval_list and undated_annual:
+        eval_list = [("n/d", fs) for fs in undated_annual[:3]]
 
     metrics_by_year: list[dict[str, Any]] = []
     any_exceeded = False
     all_complete_under_threshold = bool(eval_list)
+    latest_fs_debts: Optional[Decimal] = None
 
-    for label, fs in eval_list:
+    for idx_yr, (label, fs) in enumerate(eval_list):
         att = _to_decimal(fs.total_assets)
         ric = _to_decimal(fs.revenues)
         deb = _to_decimal(fs.total_debts)
+        if idx_yr == 0:
+            latest_fs_debts = deb
 
         exceeded_fields: list[str] = []
         if att is not None and att > CCII_THRESHOLDS["attivo_max"]:
@@ -584,69 +647,213 @@ def _classify_ccii_size(
             }
         )
 
-    # Verifica debiti documentati esterni (AdER + Centrale Rischi, senza sommarli al bilancio)
-    aer_total = sum((_to_decimal(t.total_residuo) or Decimal("0")) for t in tax_statements)
-    cr_total = Decimal("0")
-    if credit_reports:
+    # 2. Analisi AdER deduplicata per soggetto (codice_fiscale, owner_kind), distinguendo netto vs sospeso
+    latest_aer_by_subject: dict[tuple[str, str], TaxDebtStatement] = {}
+    superseded_aer_count = 0
+    for st in sorted(
+        tax_statements,
+        key=lambda t: (str(t.data_elaborazione or ""), str(t.created_at or ""), str(t.id or "")),
+        reverse=True,
+    ):
+        subj_key = ((st.codice_fiscale or "").strip().upper() or st.id, (st.owner_kind or "person").lower())
+        if subj_key in latest_aer_by_subject:
+            superseded_aer_count += 1
+            continue
+        latest_aer_by_subject[subj_key] = st
+
+    if superseded_aer_count:
+        anomalies.append(
+            f"Rilevati {superseded_aer_count} estratti di ruolo AdER duplicati/precedenti sullo stesso CF: "
+            "utilizzato solo il prospetto più recente per evitare somme multiple."
+        )
+
+    aer_net_total = Decimal("0")
+    aer_suspended_total = Decimal("0")
+    for st in latest_aer_by_subject.values():
+        items = list(getattr(st, "items", None) or [])
+        items_susp = sum((_to_decimal(it.importo_sospeso) or Decimal("0")) for it in items)
+        res_netto = _to_decimal(st.total_residuo_netto)
+        res_lordo = _to_decimal(st.total_residuo)
+        if res_netto is not None and (res_netto > 0 or items_susp > 0):
+            aer_net_total += res_netto
+        elif res_lordo is not None:
+            aer_net_total += max(Decimal("0"), res_lordo - items_susp)
+        aer_suspended_total += items_susp
+
+    if aer_suspended_total > 0:
+        required_verifications.append(
+            f"AdER presenta {aer_suspended_total:,.2f} EUR in carichi sospesi/contestati: "
+            "esclusi dal debito certo ma da verificare in vista di eventuale revoca sospensione."
+        )
+
+    # 3. Analisi Centrale Rischi distinguendo cassa vs garanzie/firma vs accordato informativo
+    cr_exposures = list(credit_exposures or [])
+    cr_guarantees = list(guarantees_given or [])
+    cr_cash_total = Decimal("0")
+    cr_guarantees_total = Decimal("0")
+    cr_accordato_unused = Decimal("0")
+
+    if cr_exposures:
+        active_cash = [
+            e for e in cr_exposures
+            if not _is_guarantee_or_firma_exposure(e) and not _is_closed_or_informative_exposure(e)
+        ]
+        firma_exps = [
+            e for e in cr_exposures
+            if _is_guarantee_or_firma_exposure(e) and not _is_closed_or_informative_exposure(e)
+        ]
+        for e in active_cash:
+            ut = _to_decimal(e.utilizzato) or Decimal("0")
+            acc = _to_decimal(e.accordato) or Decimal("0")
+            cr_cash_total += ut
+            if acc > ut:
+                cr_accordato_unused += (acc - ut)
+        for e in firma_exps:
+            cr_guarantees_total += (_to_decimal(e.utilizzato) or _to_decimal(e.accordato) or Decimal("0"))
+    elif credit_reports:
         latest_cr = sorted(
             credit_reports,
             key=lambda c: (c.most_recent_month or "", c.id or ""),
             reverse=True,
         )[0]
-        cr_total = _to_decimal(latest_cr.total_exposure) or Decimal("0")
+        cr_cash_total = _to_decimal(latest_cr.total_exposure) or Decimal("0")
+        cr_guarantees_total = _to_decimal(latest_cr.total_guarantees) or Decimal("0")
 
-    if aer_total > CCII_THRESHOLDS["debiti_max"]:
-        any_exceeded = True
-        evidence.append(f"Debito fiscale residuo AdER ({aer_total:,.2f} EUR) > 500.000 EUR.")
-    if cr_total > CCII_THRESHOLDS["debiti_max"]:
-        any_exceeded = True
-        evidence.append(f"Esposizione bancaria CR ({cr_total:,.2f} EUR) > 500.000 EUR.")
+    if cr_guarantees:
+        gar_sum = sum(
+            (_to_decimal(g.valore_garanzia) or _to_decimal(g.importo_garantito) or Decimal("0"))
+            for g in cr_guarantees
+            if not any(tok in str(g.status or "").lower() for tok in ("estint", "liberat", "chius"))
+        )
+        if gar_sum > cr_guarantees_total:
+            cr_guarantees_total = gar_sum
+
+    if cr_guarantees_total > 0:
+        evidence.append(
+            f"Garanzie e rischi di firma CR ({cr_guarantees_total:,.2f} EUR) mantenuti separati dal debito per cassa."
+        )
+        required_verifications.append(
+            f"Verificare eventuale rischio di escussione delle garanzie/fideiussioni prestate ({cr_guarantees_total:,.2f} EUR)."
+        )
+    if cr_accordato_unused > 0:
+        evidence.append(
+            f"Margine accordato non utilizzato in CR ({cr_accordato_unused:,.2f} EUR) trattato come dato informativo, non come debito."
+        )
+
+    external_breakdown = {
+        "aer_netto_effettivo": float(aer_net_total),
+        "aer_sospeso_contestato": float(aer_suspended_total),
+        "cr_cassa_effettiva": float(cr_cash_total),
+        "cr_garanzie_e_firma": float(cr_guarantees_total),
+        "cr_accordato_informativo": float(cr_accordato_unused),
+    }
+
+    # 4. Superamento soglia da fonti certe vs mancata riconciliazione con il bilancio
+    external_direct_combined = aer_net_total + cr_cash_total
+    single_external_over = aer_net_total > CCII_THRESHOLDS["debiti_max"] or cr_cash_total > CCII_THRESHOLDS["debiti_max"]
 
     if any_exceeded:
-        return "non_minore", evidence, metrics_by_year, anomalies
+        return "non_minore", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
 
-    # Per qualificare "impresa_minore" servono 3 esercizi completi (o tutti quelli dalla costituzione se < 3 anni)
-    min_years_required = 3
+    if single_external_over:
+        if latest_fs_debts is not None and latest_fs_debts <= CCII_THRESHOLDS["debiti_max"]:
+            anomalies.append(
+                f"Mancata riconciliazione debitoria: il bilancio espone debiti per {latest_fs_debts:,.2f} EUR (<= 500k) "
+                f"mentre una fonte esterna diretta (AdER={aer_net_total:,.2f}, CR cassa={cr_cash_total:,.2f}) supera 500.000 EUR."
+            )
+            required_verifications.append(
+                "Riconciliare i debiti risultanti dal bilancio rispetto a AdER e Centrale Rischi prima di qualificare le soglie art. 2 CCII."
+            )
+            return "non_determinabile", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
+
+        if aer_net_total > CCII_THRESHOLDS["debiti_max"]:
+            evidence.append(f"Debito fiscale netto AdER ({aer_net_total:,.2f} EUR) > 500.000 EUR.")
+        if cr_cash_total > CCII_THRESHOLDS["debiti_max"]:
+            evidence.append(f"Esposizione bancaria per cassa CR ({cr_cash_total:,.2f} EUR) > 500.000 EUR.")
+        return "non_minore", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
+
+    # 5. Verifica periodo pertinente art. 2 co. 1 lett. d) CCII (ultimi 3 esercizi consecutivi)
+    current_year = date.today().year
     youngest_years: Optional[float] = None
     for comp in client_companies:
         yrs = _years_since_constitution(comp.constitution_date)
         if yrs is not None:
             youngest_years = yrs if youngest_years is None else min(youngest_years, yrs)
+
+    min_years_required = 3
     if youngest_years is not None and youngest_years < 3.0 and len(ordered_years) >= 1:
         min_years_required = len(ordered_years)
         evidence.append(
             f"Impresa costituita da {youngest_years:.1f} anni (< 3 anni): valutati {min_years_required} esercizi disponibili."
         )
 
-    if len(eval_list) >= min_years_required and all_complete_under_threshold and len(eval_list) >= 1:
-        # Avviso di riconciliazione se AdER + CR supera 500k ma ultimo bilancio dice <= 500k
-        if (aer_total + cr_total) > CCII_THRESHOLDS["debiti_max"]:
+    years_pertinent = True
+    years_consecutive = True
+    if ordered_years:
+        if ordered_years[0] < (current_year - 2):
+            years_pertinent = False
             anomalies.append(
-                f"La somma AdER ({aer_total:,.2f}) + CR ({cr_total:,.2f}) supera 500.000 EUR mentre "
+                f"Ultimo bilancio annuale chiuso ({ordered_years[0]}) antecedente al triennio pertinente (atteso >= {current_year - 2})."
+            )
+            required_verifications.append(
+                f"Acquisire i bilanci degli esercizi più recenti (>= {current_year - 2}) per il test triennale art. 2 CCII."
+            )
+        top_n = ordered_years[:min_years_required]
+        if len(top_n) >= 2:
+            for idx in range(len(top_n) - 1):
+                if top_n[idx] - top_n[idx + 1] != 1:
+                    years_consecutive = False
+                    anomalies.append(
+                        f"Triennio non consecutivo nei bilanci acquisiti ({', '.join(str(y) for y in top_n)})."
+                    )
+                    required_verifications.append(
+                        "Integrare l'esercizio mancante per ottenere 3 bilanci annuali consecutivi."
+                    )
+                    break
+
+    if (
+        len(eval_list) >= min_years_required
+        and all_complete_under_threshold
+        and len(eval_list) >= 1
+        and years_pertinent
+        and years_consecutive
+    ):
+        if external_direct_combined > CCII_THRESHOLDS["debiti_max"]:
+            anomalies.append(
+                f"La somma AdER netto ({aer_net_total:,.2f}) + CR cassa ({cr_cash_total:,.2f}) supera 500.000 EUR mentre "
                 "i bilanci registrano debiti sotto soglia: riconciliazione esposizioni necessaria."
             )
-            return "non_determinabile", evidence, metrics_by_year, anomalies
+            required_verifications.append(
+                "Eseguire riconciliazione tra debiti di bilancio e posizioni AdER + CR prima di attestare l'impresa minore."
+            )
+            return "non_determinabile", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
 
         evidence.append(
-            f"Tutti i {len(eval_list)} esercizi valutati rispettano congiuntamente attivo <= 300k, "
-            "ricavi <= 200k e debiti <= 500k."
+            f"Tutti i {len(eval_list)} esercizi annuali pertinenti rispettano attivo <= 300k, ricavi <= 200k e debiti <= 500k."
         )
-        return "impresa_minore", evidence, metrics_by_year, anomalies
+        return "impresa_minore", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
 
     missing_parts: list[str] = []
     if len(eval_list) < min_years_required:
         missing_parts.append(
-            f"disponibili {len(eval_list)}/{min_years_required} esercizi con dati patrimoniali/economici completi"
+            f"disponibili {len(eval_list)}/{min_years_required} esercizi annuali chiusi con dati patrimoniali/economici completi"
         )
     if eval_list and not all_complete_under_threshold:
         missing_parts.append(
             "uno o più esercizi non riportano tutti e tre i valori (attivo patrimoniale, ricavi, debiti)"
         )
+    if not years_pertinent:
+        missing_parts.append("esercizi non aggiornati al triennio di riferimento art. 2 CCII")
+    if not years_consecutive:
+        missing_parts.append("esercizi non consecutivi")
     if not eval_list:
-        missing_parts.append("nessun bilancio/prospetto triennale con attivo, ricavi e debiti caricato")
+        missing_parts.append("nessun bilancio annuale chiuso con attivo, ricavi e debiti caricato")
 
-    evidence.append("Qualificazione dimensionale CCII NON DETERMINABILE: " + "; ".join(missing_parts) + ".")
-    return "non_determinabile", evidence, metrics_by_year, anomalies
+    summary_msg = "Qualificazione dimensionale CCII NON DETERMINABILE: " + "; ".join(missing_parts) + "."
+    evidence.append(summary_msg)
+    if not required_verifications:
+        required_verifications.append("Completare la serie dei 3 bilanci annuali chiusi pertinenti per verificare l'art. 2 co. 1 lett. d) CCII.")
+    return "non_determinabile", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
 
 
 def classify_case_dimensions(
@@ -672,6 +879,8 @@ def classify_case_dimensions(
     docs: list[Document] = list(case.documents or [])
     tax_statements: list[TaxDebtStatement] = list(case.tax_debt_statements or [])
     credit_reports: list[CreditReportSummary] = list(case.cr_summaries or [])
+    credit_exposures: list[CreditExposure] = list(case.credit_exposures or [])
+    guarantees_given: list[GuaranteeGiven] = list(case.guarantees_given or [])
 
     lf_profile, lf_conf, lf_ev, lf_anom, lf_susp = _classify_legal_form(
         debtor, client_companies, statements, docs
@@ -681,8 +890,14 @@ def classify_case_dimensions(
     )
 
     profile_for_ccii = effective_profile_override or lf_profile
-    ccii_code, ccii_ev, ccii_metrics, ccii_anom = _classify_ccii_size(
-        profile_for_ccii, client_companies, statements, tax_statements, credit_reports
+    ccii_code, ccii_ev, ccii_metrics, ccii_anom, ccii_verifs, ccii_ext_breakdown = _classify_ccii_size(
+        profile_for_ccii,
+        client_companies,
+        statements,
+        tax_statements,
+        credit_reports,
+        credit_exposures=credit_exposures,
+        guarantees_given=guarantees_given,
     )
 
     anomalies = lf_anom + reg_anom + ccii_anom
@@ -713,6 +928,8 @@ def classify_case_dimensions(
         ccii_size_label=CCII_SIZE_LABELS.get(ccii_code, ccii_code),
         ccii_size_evidence=ccii_ev,
         ccii_metrics_by_year=ccii_metrics,
+        ccii_required_verifications=ccii_verifs,
+        ccii_external_breakdown=ccii_ext_breakdown,
         protocol_code=p_code,
         supported_by_protocol=p_code in ("A", "B"),
         anomalies=anomalies,

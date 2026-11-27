@@ -22,6 +22,13 @@ from app.services.protocols.classifier import (
 from app.services.protocols.gate0 import evaluate_gate0
 
 
+OPERATOR_AUDIT_DISCLAIMER = (
+    "Identità operatore non autenticata (nessun login/ruoli attivo): il log FieldEdit "
+    "registra cronologicamente la variazione a fini organizzativi ma non costituisce prova certa "
+    "dell'identità personale."
+)
+
+
 def _load_case_or_404(db: Session, case_id: str) -> Case:
     case = db.get(Case, case_id)
     if not case:
@@ -76,6 +83,8 @@ def get_protocol_assessment(db: Session, case_id: str) -> dict[str, Any]:
             "ccii_size_label": cls.ccii_size_label,
             "ccii_size_evidence": cls.ccii_size_evidence,
             "ccii_metrics_by_year": cls.ccii_metrics_by_year,
+            "ccii_required_verifications": cls.ccii_required_verifications,
+            "ccii_external_breakdown": cls.ccii_external_breakdown,
             "protocol_code": protocol_code_for_profile(cls.legal_form_profile),
         },
         "confirmed": {
@@ -84,6 +93,8 @@ def get_protocol_assessment(db: Session, case_id: str) -> dict[str, Any]:
             "protocol_code": case.protocol_code,
             "dossier_completeness_status": case.dossier_completeness_status or "in_raccolta",
             "protocol_confirmed_at": case.protocol_confirmed_at.isoformat() if case.protocol_confirmed_at else None,
+            "operator_identity_authenticated": False,
+            "operator_audit_disclaimer": OPERATOR_AUDIT_DISCLAIMER,
         },
         "effective": {
             "legal_form_profile": effective_profile,
@@ -118,7 +129,7 @@ def confirm_case_protocol(
     debtor_profile_confirmed: str,
     accounting_regime_confirmed: Optional[str] = None,
     dossier_completeness_status: str = "in_raccolta",
-    operator: str = "operatore",
+    operator: str = "operatore_non_autenticato",
     reason: str = "",
 ) -> dict[str, Any]:
     """Salva la conferma/override operatore su Case e registra ogni variazione in FieldEdit."""
@@ -134,7 +145,7 @@ def confirm_case_protocol(
     cls = classify_case_dimensions(db, case)
     new_protocol_code = protocol_code_for_profile(debtor_profile_confirmed)
     eff_reason = (reason or "").strip() or "Conferma classificazione metodologica / Gate 0"
-    eff_operator = (operator or "").strip() or "operatore"
+    eff_operator = (operator or "").strip() or "operatore_non_autenticato"
 
     changes: list[tuple[str, Any, Any]] = [
         ("debtor_profile_detected", case.debtor_profile_detected, cls.legal_form_profile),

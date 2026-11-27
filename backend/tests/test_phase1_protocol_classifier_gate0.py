@@ -13,12 +13,15 @@ from app.main import app
 from app.models.entities import (
     Case,
     Company,
+    CreditExposure,
     CreditReportSummary,
     Debtor,
     Document,
     Extraction,
     FieldEdit,
     FinancialStatement,
+    GuaranteeGiven,
+    TaxDebtItem,
     TaxDebtStatement,
 )
 from app.services.protocols import classify_case_dimensions, get_protocol_assessment
@@ -166,11 +169,31 @@ def test_impresa_individuale_semplificata_ccii_non_determinabile(db_session):
     assert assessment["detected"]["accounting_regime"] == "semplificata"
     assert assessment["detected"]["ccii_size_qualification"] == "non_determinabile"
 
-    # Gate 0 deve adattare la checklist al regime semplificato (Quadro RG presente, senza SP)
-    p0_codes = {item["code"]: item["status"] for item in assessment["gate0"]["documenti_indispensabili_p0"]}
-    assert "A-P0-CONT-SEMPL" in p0_codes
-    assert p0_codes["A-P0-CONT-SEMPL"] == "presente"
-    assert "A-P0-CONT-ORD" not in p0_codes
+    # Gate 0 deve adattare la checklist al regime semplificato e distinguere i 3 livelli:
+    # 1 sola dichiarazione acquisita+elaborata => document_acquired=True, document_processed_verified=True,
+    # content_sufficient=False ("parziale", NON "presente"!)
+    p0_by_code = {item["code"]: item for item in assessment["gate0"]["documenti_indispensabili_p0"]}
+    assert "A-P0-CONT-SEMPL" in p0_by_code
+    assert "A-P0-CONT-ORD" not in p0_by_code
+    sempl_item = p0_by_code["A-P0-CONT-SEMPL"]
+    assert sempl_item["document_acquired"] is True
+    assert sempl_item["document_processed_verified"] is True
+    assert sempl_item["content_sufficient"] is False
+    assert sempl_item["status"] == "parziale"
+
+    # Con 3 annualità distinte -> content_sufficient=True e status="presente"
+    _add_doc(
+        db_session, case, filename="redditi_2023.pdf", doc_type="dichiarazione_redditi",
+        raw_text="Modello Redditi PF 2023 Quadro RG contabilita semplificata.",
+    )
+    _add_doc(
+        db_session, case, filename="redditi_2022.pdf", doc_type="dichiarazione_redditi",
+        raw_text="Modello Redditi PF 2022 Quadro RG contabilita semplificata.",
+    )
+    assessment_3y = get_protocol_assessment(db_session, case.id)
+    sempl_3y = {i["code"]: i for i in assessment_3y["gate0"]["documenti_indispensabili_p0"]}["A-P0-CONT-SEMPL"]
+    assert sempl_3y["content_sufficient"] is True
+    assert sempl_3y["status"] == "presente"
 
 
 def test_impresa_individuale_senza_documenti_contabili(db_session):
@@ -287,8 +310,8 @@ def test_gate0_duplicati_sha256_p0_e_conclusivita(db_session):
     assert len(g0_partial["gate0"]["decisioni_sospese"]) >= 1
 
     # Aggiungi AdER + CR + conferma operatore -> PREANALISI_SU_FASCICOLO_CONFERMATO
-    db_session.add(TaxDebtStatement(case_id=case.id, denominazione="Omega S.r.l.", codice_fiscale="01234567890", total_residuo=85000))
-    db_session.add(CreditReportSummary(case_id=case.id, total_exposure=90000))
+    db_session.add(TaxDebtStatement(case_id=case.id, denominazione="Omega S.r.l.", codice_fiscale="01234567890", total_residuo=85000, quadrature_ok=True, cf_mismatch=False))
+    db_session.add(CreditReportSummary(case_id=case.id, most_recent_month="2025-12", total_exposure=90000))
     case.debtor_profile_confirmed = "societa_capitali_srl"
     case.accounting_regime_confirmed = "ordinaria"
     case.protocol_code = "B"
@@ -297,6 +320,96 @@ def test_gate0_duplicati_sha256_p0_e_conclusivita(db_session):
 
     g0_full = get_protocol_assessment(db_session, case.id)
     assert g0_full["gate0"]["conclusivity_level"] == "PREANALISI_SU_FASCICOLO_CONFERMATO"
+    assert g0_full["confirmed"]["operator_identity_authenticated"] is False
+    assert "non autenticata" in g0_full["confirmed"]["operator_audit_disclaimer"].lower()
+
+
+def test_ccii_distingue_cassa_firma_sospesi_e_riconciliazione(db_session):
+    """Revisione 2.A: garanzie CR e accordato non utilizzato non sono debito per cassa;
+    AdER deduplicato + sospesi separati; bilanci infrannuali/obsoleti esclusi; conflitto non riconciliato -> non_determinabile."""
+    # Caso 1: CR ha garanzie 450k + accordato 600k (utilizzato 150k), AdER ha 2 estratti duplicati (100k + 20k sospesi)
+    case = _make_case(db_session, code="CCII-REV-1", client_name="Epsilon")
+    comp = _add_company(db_session, case, legal_form="S.r.l.", company_type="capitali")
+    _add_fs(db_session, comp, year="2023", total_assets=180000, revenues=150000, total_debts=260000, equity=20000)
+    _add_fs(db_session, comp, year="2024", total_assets=190000, revenues=160000, total_debts=270000, equity=25000)
+    _add_fs(db_session, comp, year="2025", total_assets=200000, revenues=170000, total_debts=280000, equity=30000)
+    # Bilancio infrannuale 2026-06-30 non deve falsare la serie
+    _add_fs(db_session, comp, year="2026", total_assets=210000, revenues=90000, total_debts=275000, statement_type="infrannuale")
+    # Sostituisci con data non 12-31 esplicita sull'ultimo FS infrannuale
+    interim = db_session.query(FinancialStatement).filter(
+        FinancialStatement.company_id == comp.id,
+        FinancialStatement.statement_type == "infrannuale",
+    ).first()
+    interim.fiscal_year_end = "2026-06-30"
+
+    # Due AdER stesso CF -> solo il più recente (100k netti, 20k sospesi) deve valere
+    st_old = TaxDebtStatement(case_id=case.id, codice_fiscale="01234567890", owner_kind="company",
+                              data_elaborazione="2025-01-10", total_residuo=480000, total_residuo_netto=480000)
+    st_new = TaxDebtStatement(case_id=case.id, codice_fiscale="01234567890", owner_kind="company",
+                              data_elaborazione="2026-02-15", total_residuo=120000, total_residuo_netto=100000)
+    db_session.add_all([st_old, st_new])
+    db_session.flush()
+    db_session.add(TaxDebtItem(statement_id=st_new.id, totale_residuo=120000, importo_sospeso=20000, totale_residuo_netto=100000))
+
+    # CR: cassa 150k, accordato 600k (margine non usato 450k), garanzia firma 450k -> cassa effettiva 150k
+    db_session.add(CreditExposure(case_id=case.id, intermediary="Banca Alpha", category="rischi a scadenza",
+                                  accordato=600000, utilizzato=150000))
+    db_session.add(CreditExposure(case_id=case.id, intermediary="Banca Alpha", category="rischi di firma / garanzie",
+                                  accordato=450000, utilizzato=450000))
+    db_session.add(GuaranteeGiven(case_id=case.id, intermediary="Banca Alpha", valore_garanzia=450000))
+    db_session.commit()
+
+    res = classify_case_dimensions(db_session, case)
+    assert res.legal_form_profile == "societa_capitali_srl"
+    assert res.ccii_size_qualification == "impresa_minore"
+    assert res.ccii_external_breakdown["aer_netto_effettivo"] == 100000.0
+    assert res.ccii_external_breakdown["aer_sospeso_contestato"] == 20000.0
+    assert res.ccii_external_breakdown["cr_cassa_effettiva"] == 150000.0
+    assert res.ccii_external_breakdown["cr_garanzie_e_firma"] == 450000.0
+    assert res.ccii_external_breakdown["cr_accordato_informativo"] == 450000.0
+
+    # Caso 2: conflitto non riconciliato (bilancio debiti 250k vs AdER netto 550k) -> non_determinabile con anomalia
+    case_conf = _make_case(db_session, code="CCII-REV-2", client_name="Conflitto")
+    comp2 = _add_company(db_session, case_conf, legal_form="S.r.l.", company_type="capitali")
+    for yr in ("2023", "2024", "2025"):
+        _add_fs(db_session, comp2, year=yr, total_assets=150000, revenues=120000, total_debts=250000)
+    db_session.add(TaxDebtStatement(case_id=case_conf.id, codice_fiscale="99999999999",
+                                    total_residuo=550000, total_residuo_netto=550000))
+    db_session.commit()
+
+    res_conf = classify_case_dimensions(db_session, case_conf)
+    assert res_conf.ccii_size_qualification == "non_determinabile"
+    assert any("riconciliazione" in a.lower() for a in res_conf.anomalies)
+
+    # Caso 3: bilanci obsoleti (2019-2021) -> non_determinabile
+    case_old = _make_case(db_session, code="CCII-REV-3", client_name="Obsoleti")
+    comp3 = _add_company(db_session, case_old, legal_form="S.r.l.", company_type="capitali")
+    for yr in ("2019", "2020", "2021"):
+        _add_fs(db_session, comp3, year=yr, total_assets=100000, revenues=90000, total_debts=80000)
+    res_old = classify_case_dimensions(db_session, case_old)
+    assert res_old.ccii_size_qualification == "non_determinabile"
+    assert any("antecedente" in a.lower() for a in res_old.anomalies)
+
+
+def test_gate0_solo_un_bilancio_resta_parziale_e_blocca_fascicolo_confermato(db_session):
+    """Revisione 2.B: la presenza di 1 solo bilancio non attesta la sufficienza P0 (3 esercizi)."""
+    case = _make_case(db_session, code="G0-PART", client_name="Parziale Srl")
+    comp = _add_company(db_session, case, legal_form="S.r.l.", company_type="capitali")
+    _add_fs(db_session, comp, year="2024", total_assets=150000, revenues=120000, total_debts=180000)
+    db_session.add(TaxDebtStatement(case_id=case.id, total_residuo=20000, quadrature_ok=True, cf_mismatch=False))
+    db_session.add(CreditReportSummary(case_id=case.id, most_recent_month="2025-12", total_exposure=30000))
+    case.debtor_profile_confirmed = "societa_capitali_srl"
+    case.protocol_code = "B"
+    case.dossier_completeness_status = "fascicolo_confermato"
+    db_session.commit()
+
+    assessment = get_protocol_assessment(db_session, case.id)
+    p0_bil = next(i for i in assessment["gate0"]["documenti_indispensabili_p0"] if i["code"] == "B-P0-BIL")
+    assert p0_bil["document_acquired"] is True
+    assert p0_bil["document_processed_verified"] is True
+    assert p0_bil["content_sufficient"] is False
+    assert p0_bil["status"] == "parziale"
+    assert assessment["gate0"]["conclusivity_level"] == "DIAGNOSI_PRELIMINARE_DELIMITATA"
 
 
 def test_api_get_readonly_and_patch_override_audit(db_session):
