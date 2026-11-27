@@ -190,3 +190,8 @@ class DeterministicAnalysisOut(BaseModel):
     debt_ledger: Dict[str, Any]
     formula_engine: Dict[str, Any]
 
+
+class CciiMatrixSimulationOut(BaseModel):
+    case_id: str
+    ccii_matrix: Dict[str, Any]
+

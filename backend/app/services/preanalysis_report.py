@@ -965,10 +965,14 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
                 "dati_chiave": "Richiede piano finanziario e attestazione indipendente del professionista",
             },
             {
-                "scenario": "Concordato Semplificato per la Liquidazione (art. 160 CCII)",
-                "fattibilita": "IN VERIFICA",
-                "motivazione": "Opzione residuale esperibile qualora le trattative in composizione negoziata risultino infruttuose.",
-                "dati_chiave": "Valore di realizzo dell'attivo censito a beneficio dei creditori",
+                "scenario": "Concordato Semplificato per la Liquidazione (art. 25-sexies CCII)",
+                "fattibilita": "NON_DETERMINABILE (subordinato a CNC)",
+                "motivazione": (
+                    "Non accessibile direttamente e non automatico al fallimento delle trattative: richiede previa CNC conclusa, "
+                    "attestazione dell'esperto su correttezza/buona fede e impraticabilità delle soluzioni ex art. 23, "
+                    "deposito entro 60 giorni perentori e utilità per ciascun creditore."
+                ),
+                "dati_chiave": "Valore di realizzo dell'attivo censito a beneficio dei creditori e relazione finale esperto",
             },
             {
                 "scenario": "Liquidazione Giudiziale / Controllata",
@@ -1078,6 +1082,7 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
         ha_dati_infrannuali=bool(dato_infrannuale),
         ha_sofferenze_cr=bool(cr and cr.has_sofferenze),
         procedure_ader_attive=sum(1 for s in statements for it in s.items if it.proc_attive) if statements else 0,
+        tipo_soggetto="impresa_individuale" if is_individual else "societa_capitali",
     )
 
     documenti_indispensabili = identify_documenti_indispensabili(
@@ -1090,23 +1095,27 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
         has_real_estate_appraisal=any("perizia" in d.original_filename.lower() for d in docs),
     )
 
-    # Inquadramento CCII: soglie art. 2 e segnali allarme art. 3 co. 4
+    # Inquadramento CCII: soglie art. 2 e segnali allarme art. 3 co. 4 (NULL != 0)
     attivi_tri = [float(f.total_assets or 0.0) for f in fss if f.total_assets]
     ricavi_tri = [float(f.revenues or 0.0) for f in fss if f.revenues]
+    legal_prof = "impresa_individuale" if is_individual else "societa_capitali_srl"
     ccii_minore = check_ccii_soglie_impresa_minore(
         attivo_patrimoniale_triennio=attivi_tri,
         ricavi_lordi_triennio=ricavi_tri,
         debiti_totali_attuali=tot_massa_stimata,
+        legal_form_profile=legal_prof,
     )
     ccii_art3 = check_ccii_segnali_allarme_art3(
-        retribuzioni_scadute_30gg=0.0,
-        monte_salari_mensile=0.0,
-        debiti_fornitori_scaduti_90gg=0.0,
-        debiti_fornitori_non_scaduti=0.0,
-        esposizioni_banche_scadute_60gg=cr.total_exposure if (cr and cr.has_sofferenze) else 0.0,
-        sconfinamento_banche_fidi=0.0,
-        totale_fidi_accordati=0.0,
+        retribuzioni_scadute_30gg=None,
+        monte_salari_mensile=None,
+        debiti_fornitori_scaduti_90gg=None,
+        debiti_fornitori_non_scaduti=None,
+        esposizioni_banche_scadute_60gg=cr.total_exposure if (cr and cr.has_sofferenze) else None,
+        sconfinamento_banche_fidi=None,
+        totale_fidi_accordati=None,
         debiti_ader_scaduti_90gg=tot_ader_scad,
+        tipo_soggetto=legal_prof,
+        totale_esposizioni_bancarie=cr.total_exposure if (cr and cr.total_exposure) else None,
     )
 
     # Esposizioni soci / personali dinamiche
@@ -1336,9 +1345,11 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
             "cautele_sintesi": (
                 "La stima della massa debitoria è costruita incrociando le banche dati esterne (AdER, Centrale Rischi, CRIF/CTC) "
                 "con la contabilità societaria per eliminare ogni duplicazione. "
-                "La Posizione Finanziaria Netta (PFN) è determinata secondo l'Orientamento ESMA 32-382-1138 (2021) n. 39 "
-                "e include le passività finanziarie correnti e non correnti, il Fondo TFR e le passività debt-like (tributari/previdenziali "
-                "scaduti e debiti fornitori oltre 90 giorni), al netto delle disponibilità liquide."
+                + (
+                    "La Posizione Finanziaria Netta (PFN) risulta conforme allo schema ESMA 32-382-1138."
+                    if pfn_obj.get("esma_compliant")
+                    else "Nota ESMA: dataset non completo per piena conformità ESMA 32-382-1138; il saldo indicato rappresenta una PFN gestionale basata sulle componenti documentate."
+                )
             ),
         },
         "capitolo_6_punti_verificare": punti_da_verificare,
@@ -1384,7 +1395,7 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
             "condizioni": [
                 "Acquisizione dell'indicazione del flusso di cassa annuo disponibile da parte del cliente.",
                 "Allineamento del debito a ruolo definitivo con cancellazione delle cartelle duplicate.",
-                "Rilascio dell'attestazione di veridicità dei dati contabili da parte dell'esperto.",
+                "Relazione di veridicità e completezza contabile del revisore legale (o attestazione del professionista indipendente ove richiesta ex CCII), distinta dal ruolo dell'esperto CNC.",
             ],
         },
         "capitolo_10_documentazione": {
@@ -1419,13 +1430,12 @@ def build_preanalysis_report(db: Session, case_id: str, cached_forensic: Optiona
                         if esercizi_economici
                         else "MOL / EBITDA: Non calcolabile (NULL — assenza di Conto Economico)."
                     ),
-                    f"Posizione Finanziaria Netta ex ESMA 2021 n. 39: {_fmt_eur(pfn_obj.get('pfn_totale')) if pfn_obj.get('pfn_totale') is not None else 'Non disponibile (NULL)'}.",
+                    f"Posizione Finanziaria Netta ({'ESMA 2021 conforme' if pfn_obj.get('esma_compliant') else 'gestionale semplificata'}): {_fmt_eur(pfn_obj.get('pfn_totale')) if pfn_obj.get('pfn_totale') is not None else 'Non disponibile (NULL)'}.",
                     f"Test Pratico Ministeriale per la Composizione Negoziata (art. 13 CCII): debito netto {_fmt_eur(test_pratico_obj.get('debito_netto_da_risanare')) if test_pratico_obj.get('debito_netto_da_risanare') is not None else 'Non disponibile (NULL)'}.",
                 ],
                 "INFERENZA": [
                     f"Inquadramento dimensionale CCII: {ccii_minore['qualifica_giuridica']} ({ccii_minore['motivo_superamento']}).",
-                    "Sussistenza dei presupposti soggettivi e oggettivi per l'accesso a strumenti di regolazione della crisi ex CCII.",
-                    "Necessità di accordo di ristrutturazione o transazione fiscale ex art. 63 CCII con dilazione e falcidia sanzioni/interessi.",
+                    "L'eventuale individuazione degli strumenti CCII applicabili (CNC, ADR, concordati o sovraindebitamento) è subordinata alla matrice giuridico-decisionale e alla validazione del professionista (Human Gate).",
                 ],
                 "IPOTESI": [
                     "Flusso annuo di cassa a regime destinabile al servizio del debito (in attesa di attestazione formale del cliente).",

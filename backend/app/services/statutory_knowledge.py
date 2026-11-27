@@ -505,22 +505,32 @@ def evaluate_pfn_ebitda(pfn: Optional[float], ebitda: Optional[float]) -> Dict[s
             "anni_rimborso": ratio,
             "classe_merito": "sofferenza",
             "livello_allerta": "critica",
-            "valutazione_bancaria": f"PFN/EBITDA pari a {ratio:.2f} (> 12.0): Allerta grave. Incapacità strutturale di sostenere il debito con i flussi operativi ({ratio:.1f} anni teorici). Presupposto oggettivo per accesso a strumenti di regolazione della crisi ex CCII.",
+            "valutazione_bancaria": (
+                f"PFN/EBITDA pari a {ratio:.2f} (> 12.0): Allerta finanziaria grave. Squilibrio elevato tra "
+                f"indebitamento netto e MOL operativo ({ratio:.1f} anni teorici): richiede verifica autonoma dei presupposti "
+                "giuridici e della sostenibilità prospettica a cura del professionista (Human Gate)."
+            ),
             "status": "danger",
         }
 
 
 # =============================================================================
-# 3. CODICE DELLA CRISI D'IMPRESA E DELL'INSOLVENZA (CCII - D.LGS. 14/2019 AGG. 2024)
+# 3. CODICE DELLA CRISI D'IMPRESA E DELL'INSOLVENZA (CCII - D.LGS. 14/2019 AGG. 2024/2026)
 # =============================================================================
 
 def check_ccii_soglie_impresa_minore(
     attivo_patrimoniale_triennio: List[float],
     ricavi_lordi_triennio: List[float],
     debiti_totali_attuali: Optional[float],
+    *,
+    legal_form_profile: Optional[str] = None,
+    debt_mass_verified: bool = True,
 ) -> Dict[str, Any]:
     """Verifica i parametri dimensionali di 'Impresa Minore' ex art. 2 co. 1 lett. d) CCII.
-    Evita di qualificare 'Impresa Minore' in assenza di dati contabili completi.
+
+    Separa la verifica degli esercizi rilevanti (attivo <= 300k, ricavi <= 200k) dalla verifica
+    dell'ammontare complessivo dei debiti (<= 500k). Evita qualsiasi fallback sopra soglia quando
+    i dati sono incompleti (NULL) o la massa debitoria richiede riconciliazione.
     """
     max_attivo: Optional[float] = max(attivo_patrimoniale_triennio) if attivo_patrimoniale_triennio else None
     max_ricavi: Optional[float] = max(ricavi_lordi_triennio) if ricavi_lordi_triennio else None
@@ -538,41 +548,69 @@ def check_ccii_soglie_impresa_minore(
     if supera_debiti:
         violazioni.append(f"Debiti complessivi attuali (€ {debiti_opt:,.2f}) > soglia di € 500.000")
 
-    dati_incompleti = (max_attivo is None) or (max_ricavi is None) or (debiti_opt is None)
+    esercizi_completi = (max_attivo is not None) and (max_ricavi is not None)
+    debiti_verificati = (debiti_opt is not None) and bool(debt_mass_verified)
+    dati_incompleti = (not esercizi_completi) or (not debiti_verificati)
+
     if violazioni:
         is_minore: Optional[bool] = False
-        qualifica = "Impresa Sopra Soglia (art. 2 co. 1 lett. d CCII superato)"
+        qualifica = "Impresa Sopra Soglia (art. 2 co. 1 lett. d CCII superato — non equivale a insolvenza)"
         motivo = "; ".join(violazioni)
     elif dati_incompleti:
         is_minore = None
-        qualifica = "Non verificabile (dati dimensionali assenti o parziali - NULL)"
-        motivo = "Impossibile attestare il rispetto cumulativo di tutte e 3 le soglie art. 2 CCII per mancanza di bilanci/attivo triennale."
+        qualifica = "Non verificabile (dati dimensionali assenti, parziali o massa debitoria non riconciliata - NULL)"
+        motivo = (
+            "Impossibile attestare il rispetto cumulativo di tutte e 3 le soglie art. 2 CCII "
+            "per assenza di dati contabili completi o mancata riconciliazione del passivo."
+        )
     else:
         is_minore = True
         qualifica = "Impresa Minore (ex art. 2 co. 1 lett. d CCII)"
-        motivo = "Tutti i parametri dimensionali sono rispettati"
+        motivo = "Tutti i parametri dimensionali risultano rispettati sui dati acquisiti"
+
+    is_corporate = legal_form_profile in ("societa_capitali_srl", "societa_persone", "altra_forma_giuridica")
+    if is_minore is True:
+        procedure: List[str] = [
+            "Concordato Minore (art. 74 CCII — verifica perimetro e assenza cancellazione ex art. 33 co. 4)",
+            "Composizione Negoziata della Crisi sotto soglia (art. 25-quater CCII)",
+            "Liquidazione Controllata del Sovraindebitato (art. 268 CCII)",
+        ]
+        if not is_corporate:
+            procedure.append("Esdebitazione del debitore incapiente (art. 283 CCII — riservata alla sola persona fisica)")
+    elif is_minore is False:
+        procedure = [
+            "Composizione Negoziata della Crisi (artt. 12-25 CCII)",
+            "Accordi di Ristrutturazione dei Debiti (artt. 57, 60, 61 CCII e art. 63 CCII)",
+            "Piano di Ristrutturazione Omologato (PRO, art. 64-bis CCII)",
+            "Concordato Preventivo in continuità o liquidatorio (art. 84 CCII)",
+        ]
+    else:
+        # Mai effettuare fallback automatico alle procedure sopra soglia su NULL!
+        procedure = []
 
     return {
         "e_impresa_minore": is_minore,
         "qualifica_giuridica": qualifica,
+        "verifica_esercizi": {
+            "esercizi_documentati_count": max(len(attivo_patrimoniale_triennio), len(ricavi_lordi_triennio)),
+            "attivo_max": max_attivo,
+            "ricavi_max": max_ricavi,
+            "esercizi_completi": esercizi_completi,
+        },
+        "verifica_debiti": {
+            "debiti_totali_attuali": debiti_opt,
+            "debt_mass_verified": bool(debt_mass_verified),
+            "debiti_verificati": debiti_verificati,
+        },
         "soglia_attivo_300k": {"valore": max_attivo, "superata": supera_attivo},
         "soglia_ricavi_200k": {"valore": max_ricavi, "superata": supera_ricavi},
         "soglia_debiti_500k": {"valore": debiti_opt, "superata": supera_debiti},
         "motivo_superamento": motivo,
-        "procedure_esperibili": (
-            [
-                "Concordato Minore (art. 74 CCII)",
-                "Liquidazione Controllata del Sovraindebitato (art. 268 CCII)",
-                "Esdebitazione del debitore incapiente (art. 283 CCII se privo di utilità)",
-            ]
-            if is_minore is True
-            else [
-                "Composizione Negoziata della Crisi (artt. 12-25 CCII)",
-                "Accordi di Ristrutturazione dei Debiti (art. 57, 60, 61 CCII)",
-                "Transazione Fiscale e Previdenziale (art. 63 CCII con cram-down)",
-                "Piano di Ristrutturazione Omologato (PRO, art. 64-bis CCII)",
-                "Concordato Preventivo in continuità o liquidatorio (art. 84 CCII)",
-            ]
+        "procedure_esperibili": procedure,
+        "nota_invarianza_forma": (
+            "La S.r.l./S.r.l.s. conserva il Protocollo B economico-contabile anche se qualificata impresa minore."
+            if legal_form_profile == "societa_capitali_srl"
+            else None
         ),
     }
 
@@ -587,59 +625,194 @@ def check_ccii_segnali_allarme_art3(
     totale_fidi_accordati: Optional[float],
     debiti_ader_scaduti_90gg: Optional[float],
     tipo_soggetto: str = "societa_capitali",
+    *,
+    totale_esposizioni_bancarie: Optional[float] = None,
+    debiti_inps_scaduti_90gg: Optional[float] = None,
+    contributi_inps_anno_precedente: Optional[float] = None,
+    ha_lavoratori_subordinati: Optional[bool] = None,
+    debiti_inail_scaduti_90gg: Optional[float] = None,
+    debiti_iva_lipe_scaduti: Optional[float] = None,
+    volume_affari_anno_precedente: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Rileva i segnali di allarme precoce della crisi previsti dall'art. 3 comma 4 CCII con supporto NULL."""
-    signals = []
-    ret_scad = _flt_opt(retribuzioni_scadute_30gg) or 0.0
-    monte_sal = _flt_opt(monte_salari_mensile) or 0.0
-    forn_scad = _flt_opt(debiti_fornitori_scaduti_90gg) or 0.0
-    forn_non_scad = _flt_opt(debiti_fornitori_non_scaduti) or 0.0
-    banche_scad = _flt_opt(esposizioni_banche_scadute_60gg) or 0.0
-    sconf_fidi = _flt_opt(sconfinamento_banche_fidi) or 0.0
-    tot_fidi = _flt_opt(totale_fidi_accordati) or 0.0
+    """Rileva i segnali di allarme precoce ex art. 3 co. 4 e art. 25-novies CCII con semantica tri-stato (NULL != 0)."""
+    signals: List[Dict[str, Any]] = []
+    dati_mancanti: List[str] = []
+    valutazione_per_lettera: Dict[str, str] = {}
+
+    ret_scad_opt = _flt_opt(retribuzioni_scadute_30gg)
+    monte_sal_opt = _flt_opt(monte_salari_mensile)
+    forn_scad_opt = _flt_opt(debiti_fornitori_scaduti_90gg)
+    forn_non_scad_opt = _flt_opt(debiti_fornitori_non_scaduti)
+    banche_scad_opt = _flt_opt(esposizioni_banche_scadute_60gg)
+    sconf_fidi_opt = _flt_opt(sconfinamento_banche_fidi)
+    tot_fidi_opt = _flt_opt(totale_fidi_accordati)
+    tot_exp_bank_opt = _flt_opt(totale_esposizioni_bancarie)
     ader_scad_opt = _flt_opt(debiti_ader_scaduti_90gg)
-    ader_scad = ader_scad_opt or 0.0
 
-    # a) Dipendenti
-    if monte_sal > 0 and ret_scad > (monte_sal * 0.5):
-        signals.append({
-            "codice": "art3_co4_lett_a_retribuzioni",
-            "gravita": "alta",
-            "descrizione": f"Debiti per stipendi scaduti > 30gg (€ {ret_scad:,.2f}) pari a oltre la metà del monte salari mensile (€ {monte_sal:,.2f})",
-        })
+    # a) Dipendenti (>= 30gg e > 50% monte salari mensile)
+    if ret_scad_opt is not None and monte_sal_opt is not None and monte_sal_opt > 0:
+        if ret_scad_opt > (monte_sal_opt * 0.5):
+            valutazione_per_lettera["a_retribuzioni"] = "VERIFICATO"
+            signals.append({
+                "codice": "art3_co4_lett_a_retribuzioni",
+                "gravita": "alta",
+                "descrizione": f"Debiti per stipendi scaduti > 30gg (€ {ret_scad_opt:,.2f}) pari a oltre la metà del monte salari mensile (€ {monte_sal_opt:,.2f})",
+            })
+        else:
+            valutazione_per_lettera["a_retribuzioni"] = "NON_SODDISFATTO"
+    elif ret_scad_opt == 0.0 and monte_sal_opt is not None and monte_sal_opt >= 0.0:
+        valutazione_per_lettera["a_retribuzioni"] = "NON_SODDISFATTO"
+    else:
+        valutazione_per_lettera["a_retribuzioni"] = "NON_DETERMINABILE"
+        dati_mancanti.append("Retribuzioni scadute >=30gg / monte salari mensile")
 
-    # b) Fornitori
-    if forn_scad > 0 and forn_scad > forn_non_scad:
-        signals.append({
-            "codice": "art3_co4_lett_b_fornitori",
-            "gravita": "alta",
-            "descrizione": f"Debiti verso fornitori scaduti > 90gg (€ {forn_scad:,.2f}) superiori all'ammontare dei debiti a fornitore non scaduti (€ {forn_non_scad:,.2f})",
-        })
+    # b) Fornitori (>= 90gg e > non scaduti)
+    if forn_scad_opt is not None and forn_non_scad_opt is not None:
+        if forn_scad_opt > 0 and forn_scad_opt > forn_non_scad_opt:
+            valutazione_per_lettera["b_fornitori"] = "VERIFICATO"
+            signals.append({
+                "codice": "art3_co4_lett_b_fornitori",
+                "gravita": "alta",
+                "descrizione": f"Debiti verso fornitori scaduti >= 90gg (€ {forn_scad_opt:,.2f}) superiori all'ammontare dei debiti non scaduti (€ {forn_non_scad_opt:,.2f})",
+            })
+        else:
+            valutazione_per_lettera["b_fornitori"] = "NON_SODDISFATTO"
+    else:
+        valutazione_per_lettera["b_fornitori"] = "NON_DETERMINABILE"
+        dati_mancanti.append("Partitario fornitori distinto tra scaduto >=90gg e non scaduto")
 
-    # c) Banche
-    sconfinamento_pct = (sconf_fidi / tot_fidi * 100) if tot_fidi > 0 else 0.0
-    if banche_scad > 0 or sconfinamento_pct > 5.0:
-        signals.append({
-            "codice": "art3_co4_lett_c_banche",
-            "gravita": "alta",
-            "descrizione": f"Esposizioni bancarie scadute da oltre 60gg (€ {banche_scad:,.2f}) o sconfinamento persistente pari al {sconfinamento_pct:.1f}% (> 5% degli affidamenti)",
-        })
+    # c) Banche (>60gg scaduto o >=60gg sconfinamento e >= 5% del totale delle esposizioni)
+    denom_banche = tot_exp_bank_opt if (tot_exp_bank_opt is not None and tot_exp_bank_opt > 0) else tot_fidi_opt
+    if banche_scad_opt is not None and sconf_fidi_opt is not None and denom_banche is not None and denom_banche > 0:
+        tot_anomalo = banche_scad_opt + sconf_fidi_opt
+        pct_exp = (tot_anomalo / denom_banche) * 100.0
+        if pct_exp >= 5.0 and (banche_scad_opt > 0 or sconf_fidi_opt > 0):
+            valutazione_per_lettera["c_banche"] = "VERIFICATO"
+            signals.append({
+                "codice": "art3_co4_lett_c_banche",
+                "gravita": "alta",
+                "descrizione": (
+                    f"Esposizioni bancarie scadute >60gg / sconfinamenti >=60gg (€ {tot_anomalo:,.2f}) pari al "
+                    f"{pct_exp:.1f}% (>= 5% del totale esposizioni € {denom_banche:,.2f})"
+                ),
+            })
+        else:
+            valutazione_per_lettera["c_banche"] = "NON_SODDISFATTO"
+    elif banche_scad_opt == 0.0 and sconf_fidi_opt == 0.0 and denom_banche is not None:
+        valutazione_per_lettera["c_banche"] = "NON_SODDISFATTO"
+    else:
+        valutazione_per_lettera["c_banche"] = "NON_DETERMINABILE"
+        dati_mancanti.append("Esposizioni bancarie scadute >60gg / sconfinamenti >=60gg rispetto al totale esposizioni")
 
-    # d) AdER (art. 25-novies)
-    soglia_ader = 500000.0 if "capitali" in tipo_soggetto.lower() else (200000.0 if "persone" in tipo_soggetto.lower() else 100000.0)
-    if ader_scad_opt is not None and ader_scad > soglia_ader:
+    # d) Creditori pubblici qualificati (art. 25-novies): AdER + INPS + INAIL + AdE IVA
+    ts = (tipo_soggetto or "").strip().lower()
+    if any(k in ts for k in ("individual", "ditta")):
+        soglia_ader: Optional[float] = 100000.0
+    elif any(k in ts for k in ("persone", "snc", "sas")):
+        soglia_ader = 200000.0
+    elif any(k in ts for k in ("capitali", "srl", "spa", "altra_forma")):
+        soglia_ader = 500000.0
+    else:
+        soglia_ader = None
+
+    cpq_hits = False
+    cpq_missing = False
+    if soglia_ader is None or ader_scad_opt is None:
+        cpq_missing = True
+        dati_mancanti.append("AdER scaduti >90gg o forma giuridica certa per selezione soglia (100k/200k/500k)")
+    elif ader_scad_opt > soglia_ader:
+        cpq_hits = True
         signals.append({
             "codice": "art25_novies_ader",
             "gravita": "critica",
-            "descrizione": f"Crediti AdER affidati e scaduti > 90gg pari a € {ader_scad:,.2f}, oltre la soglia di segnalazione art. 25-novies (€ {soglia_ader:,.2f})",
+            "descrizione": f"Crediti AdER affidati e scaduti > 90gg pari a € {ader_scad_opt:,.2f}, oltre la soglia di segnalazione art. 25-novies (€ {soglia_ader:,.2f})",
         })
 
+    inps_opt = _flt_opt(debiti_inps_scaduti_90gg)
+    inps_prev_opt = _flt_opt(contributi_inps_anno_precedente)
+    if inps_opt is not None and ha_lavoratori_subordinati is not None:
+        if ha_lavoratori_subordinati:
+            if inps_prev_opt is not None and inps_prev_opt > 0:
+                if inps_opt > 15000.0 and (inps_opt / inps_prev_opt * 100.0) > 30.0:
+                    cpq_hits = True
+                    signals.append({
+                        "codice": "art25_novies_inps",
+                        "gravita": "critica",
+                        "descrizione": f"Contributi INPS scaduti >90gg (€ {inps_opt:,.2f}) >30% dell'anno precedente e > € 15.000",
+                    })
+            elif inps_opt > 15000.0:
+                cpq_missing = True
+                dati_mancanti.append("Contributi INPS dovuti nell'anno precedente")
+        elif inps_opt > 5000.0:
+            cpq_hits = True
+            signals.append({
+                "codice": "art25_novies_inps",
+                "gravita": "critica",
+                "descrizione": f"Contributi INPS scaduti >90gg (€ {inps_opt:,.2f}) > € 5.000 (senza lavoratori subordinati)",
+            })
+    else:
+        cpq_missing = True
+        dati_mancanti.append("Posizione contributiva INPS (>90gg e presenza dipendenti)")
+
+    inail_opt = _flt_opt(debiti_inail_scaduti_90gg)
+    if inail_opt is not None:
+        if inail_opt > 5000.0:
+            cpq_hits = True
+            signals.append({
+                "codice": "art25_novies_inail",
+                "gravita": "critica",
+                "descrizione": f"Premi INAIL scaduti >90gg (€ {inail_opt:,.2f}) oltre la soglia di € 5.000",
+            })
+    else:
+        cpq_missing = True
+        dati_mancanti.append("Posizione assicurativa INAIL (>90gg)")
+
+    iva_opt = _flt_opt(debiti_iva_lipe_scaduti)
+    vol_opt = _flt_opt(volume_affari_anno_precedente)
+    if iva_opt is not None:
+        if iva_opt > 20000.0 or (iva_opt > 5000.0 and vol_opt is not None and vol_opt > 0 and (iva_opt / vol_opt * 100.0) >= 10.0):
+            cpq_hits = True
+            signals.append({
+                "codice": "art25_novies_ade_iva",
+                "gravita": "critica",
+                "descrizione": f"Debito IVA LIPE scaduto (€ {iva_opt:,.2f}) oltre la soglia art. 25-novies",
+            })
+        elif iva_opt > 5000.0 and (vol_opt is None or vol_opt <= 0):
+            cpq_missing = True
+            dati_mancanti.append("Volume d'affari IVA anno precedente")
+    else:
+        cpq_missing = True
+        dati_mancanti.append("Debito IVA scaduto risultante da LIPE")
+
+    if cpq_hits:
+        valutazione_per_lettera["d_creditori_pubblici"] = "VERIFICATO"
+    elif cpq_missing:
+        valutazione_per_lettera["d_creditori_pubblici"] = "NON_DETERMINABILE"
+    else:
+        valutazione_per_lettera["d_creditori_pubblici"] = "NON_SODDISFATTO"
+
     has_alert = len(signals) > 0
+    if has_alert:
+        obbligo_msg = (
+            "Segnali di allarme ex art. 3 co. 4 / art. 25-novies rilevati sulle fonti disponibili: "
+            "l'imprenditore deve valutare tempestivamente adeguati assetti e strumenti ex art. 3 CCII (Human Gate)."
+        )
+    elif dati_mancanti:
+        obbligo_msg = (
+            "Verifica parziale (NON_DETERMINABILE sulle voci non documentate): impossibile escludere segnali di allarme "
+            "ex art. 3 co. 4 CCII senza acquisire le fonti mancanti."
+        )
+    else:
+        obbligo_msg = "Nessun segnale di allarme ex art. 3 co. 4 CCII rilevato sulle fonti complete acquisite."
+
     return {
         "ha_segnali_allarme_art3": has_alert,
         "totale_segnali": len(signals),
         "segnali": signals,
-        "obbligo_adeguati_assetti": "L'imprenditore e gli organi societari hanno l'obbligo (art. 2086 c.c. e art. 3 CCII) di attivarsi senza indugio per l'adozione tempestiva di uno strumento di composizione della crisi." if has_alert else "Nessun segnale di allarme ex art. 3 co. 4 CCII attualmente rilevato sulle fonti disponibili.",
+        "valutazione_per_lettera": valutazione_per_lettera,
+        "dati_mancanti": dati_mancanti,
+        "soglia_ader_applicata": soglia_ader,
+        "obbligo_adeguati_assetti": obbligo_msg,
     }
 
 
@@ -654,7 +827,8 @@ def calculate_test_pratico_ministeriale(
     attivo_disponibile_non_strumentale: float = 0.0,
 ) -> Dict[str, Any]:
     """Calcola il Test Pratico per la ragionevole perseguibilita del risanamento (D.D. 28/09/2021, art. 13 CCII).
-    Se il debito totale da risanare è None (NULL), impedisce la classificazione ingannevole come 'Agevole'.
+
+    Restituisce esclusivamente la fascia aritmetica/diagnostica senza prescrizioni giuridiche automatiche.
     """
     deb_opt = _flt_opt(debito_totale_da_risanare)
     if deb_opt is None:
@@ -691,7 +865,7 @@ def calculate_test_pratico_ministeriale(
             "flusso_tipo": flusso_tipo,
             "esito_codice": "assenza_debito",
             "fascia_risanabilita": "Agevole",
-            "descrizione_esito": "Assenza di debito netto da ristrutturare: risanamento pienamente perseguibile.",
+            "descrizione_esito": "Assenza di debito netto da ristrutturare sui dati esaminati (verifica giuridica riservata al professionista).",
             "status": "ok",
             "normativa": "D.D. Ministero della Giustizia per la Composizione Negoziata (art. 13 CCII)",
         }
@@ -706,9 +880,9 @@ def calculate_test_pratico_ministeriale(
             "fascia_risanabilita": "Non perseguibile in continuita diretta",
             "descrizione_esito": (
                 "Flusso annuo a servizio del debito nullo o negativo. La gestione ordinaria non genera cassa "
-                "sufficiente a rimborsare il debito (€ {:,.2f}). Il risanamento richiede una profonda ristrutturazione "
-                "industriale, apporto di finanza esterna, o strumenti liquidatori/concordatari (es. Concordato Semplificato)."
-            ).format(debito_netto),
+                f"sufficiente rispetto al debito netto (€ {debito_netto:,.2f}): la valutazione di ristrutturazione o "
+                "eventuali percorsi alternativi resta riservata al professionista (Human Gate)."
+            ),
             "status": "danger",
             "normativa": "D.D. Ministero della Giustizia per la Composizione Negoziata (art. 13 CCII)",
         }
@@ -716,23 +890,23 @@ def calculate_test_pratico_ministeriale(
     ratio = round(debito_netto / flusso, 2)
 
     if ratio <= 1.0:
-        esito = "Agevole (R <= 1.0): Debito riassorbibile in meno di un anno di flussi operativi."
+        esito = "Agevole (R <= 1.0): indicatore aritmetico contenuto rispetto ai flussi stimati (verifica continuita/cassa riservata al professionista)."
         fascia = "Favorevole"
         st = "ok"
     elif ratio <= 2.0:
-        esito = f"Contenuta (R={ratio:.2f}): Debito riassorbibile in circa {ratio:.1f} anni mediante dilazioni ordinarie."
+        esito = f"Contenuta (R={ratio:.2f}): rapporto debito netto / flusso pari a circa {ratio:.1f} anni (valutazione di fattibilità riservata al professionista)."
         fascia = "Favorevole"
         st = "ok"
     elif ratio <= 3.0:
-        esito = f"Tensione significativa (R={ratio:.2f}): Necessita di moratorie o accordi di ristrutturazione a medio termine (3-4 anni)."
+        esito = f"Tensione significativa (R={ratio:.2f}): il rapporto di {ratio:.1f} anni richiede approfondimento finanziario e verifica dei flussi di cassa (Human Gate)."
         fascia = "Incerta"
         st = "warn"
     elif ratio <= 5.0:
-        esito = f"Crisi conclamata (R={ratio:.2f}): Risanamento complesso. Richiede misure protettive, transazione fiscale ex art. 63 CCII o dilazione a lungo termine (5-8 anni)."
+        esito = f"Squilibrio elevato (R={ratio:.2f}): il rapporto di {ratio:.1f} anni segnala complessità finanziaria da valutare professionalmente nella matrice CCII."
         fascia = "Critica"
         st = "danger"
     else:
-        esito = f"Squilibrio strutturale grave (R={ratio:.2f} > 5.0): Risanamento possibile solo previa rilevante falcidia del debito (stralcio fiscale/bancario) o finanza straordinaria/esterna."
+        esito = f"Squilibrio strutturale grave (R={ratio:.2f} > 5.0): rapporto superiore a 5 anni tra debito netto e flusso considerato; valutazione giuridico-strategica riservata al professionista."
         fascia = "Critica"
         st = "danger"
 
@@ -836,25 +1010,40 @@ def classify_cinque_criticita(
     ha_dati_infrannuali: bool,
     ha_sofferenze_cr: bool,
     procedure_ader_attive: int = 0,
+    tipo_soggetto: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Identifica e ordina rigorosamente per gravita decrescente le 5 Principali Criticita della posizione."""
     items = []
 
-    # 1. Debito Fiscale / AdER
-    if debito_ader_scaduto > 50000.0 or procedure_ader_attive > 0:
+    eff_subj = (tipo_soggetto or ("impresa_individuale" if is_ditta_individuale else "societa_capitali")).lower()
+    if any(k in eff_subj for k in ("individual", "ditta")):
+        soglia_ader_25nov = 100000.0
+    elif any(k in eff_subj for k in ("persone", "snc", "sas")):
+        soglia_ader_25nov = 200000.0
+    else:
+        soglia_ader_25nov = 500000.0
+
+    # 1. Debito Fiscale / AdER (con confronto esatto vs soglia art. 25-novies per forma giuridica)
+    if debito_ader_scaduto > 0.0 or procedure_ader_attive > 0:
         desc = (
             f"Esposizione debitoria tributaria ed esattoriale verso Agenzia delle Entrate - Riscossione "
             f"pari a € {debito_ader_scaduto:,.2f}"
         )
         if procedure_ader_attive > 0:
             desc += f", con {procedure_ader_attive} procedure esecutive/cautelari (fermi/ipoteche) formalizzate"
-        desc += ". Tale passivita supera le soglie di allarme ex art. 25-novies CCII e richiede un intervento di regolazione immediato."
+        if debito_ader_scaduto > soglia_ader_25nov:
+            desc += f". L'ammontare supera la soglia AdER di € {soglia_ader_25nov:,.2f} (verifica anzianità >90gg ex art. 25-novies CCII)."
+        else:
+            desc += f". Importo da verificare per anzianità rispetto alla soglia AdER ex art. 25-novies (€ {soglia_ader_25nov:,.2f} per questo profilo)."
         items.append({
             "priorita": 1,
             "titolo": "Esposizione debitoria erariale e procedure AdER",
-            "gravita": "Critica",
+            "gravita": "Critica" if (debito_ader_scaduto > soglia_ader_25nov or procedure_ader_attive > 0) else "Alta",
             "descrizione": desc,
-            "rimedio_consigliato": "Accesso tempestivo a misure protettive ex art. 18 CCII e formulazione di Transazione Fiscale con rateizzazione straordinaria ex art. 63 CCII.",
+            "rimedio_consigliato": (
+                "Verifica istruttoria dello strumento CCII pertinente (CNC / accordi tributari ex art. 23 co. 2-bis "
+                "o ADR/transazione ex art. 63 ove ammissibile) ed eventuale istanza di misure protettive giudiziali ex artt. 18-19 (Human Gate)."
+            ),
         })
 
     # 2. Inversione Marginalita / Perdita d'Esercizio
@@ -898,7 +1087,7 @@ def classify_cinque_criticita(
             "titolo": "Responsabilita patrimoniale personale illimitata (art. 2740 c.c.)",
             "gravita": "Alta",
             "descrizione": desc_resp,
-            "rimedio_consigliato": "Attivazione di misure protettive del patrimonio individuale tramite la Composizione Negoziata della Crisi o istituti CCII a tutela del patrimonio personale.",
+            "rimedio_consigliato": "Valutazione professionale degli strumenti CCII idonei a tutelare il patrimonio personale (CNC con eventuale istanza misure ex artt. 18-19 o procedure da sovraindebitamento ove applicabili).",
         })
     else:
         items.append({

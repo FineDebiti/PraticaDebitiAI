@@ -279,9 +279,13 @@ def compute_case_indicators(db, case_id: str) -> dict:
     ) if (fs and liq_num is not None) else None
 
     pfn_val = pfn_calc["pfn_totale"] if pfn_calc else None
-    out.append(_ind("imp_pfn", "Posizione finanziaria netta (ESMA 2021)", "impresa",
+    pfn_esma_ok = bool(pfn_calc and pfn_calc.get("esma_compliant"))
+    out.append(_ind("imp_pfn",
+                    "Posizione finanziaria netta (ESMA 2021)" if pfn_esma_ok else "Posizione finanziaria netta gestionale (non pienamente ESMA)",
+                    "impresa",
                     pfn_val, "eur",
-                    "Debiti finanziari + debt-like (TFR, erario, soci) - liquidità", section="impresa",
+                    "PFN conforme ESMA 32-382-1138" if pfn_esma_ok else "Saldo gestionale basato su voci disponibili (schema ESMA completo non documentato)",
+                    section="impresa",
                     status=("ok" if (pfn_val or 0) <= 0 else ("warn" if (pfn_val or 0) < 500000 else "danger")) if pfn_val is not None else "na"))
 
     pfn_eb_eval = evaluate_pfn_ebitda(pfn_val, eb_val) if (pfn_val is not None and eb_val is not None) else None
@@ -294,13 +298,20 @@ def compute_case_indicators(db, case_id: str) -> dict:
                     criterion=pfn_eb_eval["valutazione_bancaria"] if pfn_eb_eval else None,
                     status=pfn_eb_eval["status"] if pfn_eb_eval else "na"))
 
+    debt_mass_verified = bool(debt_ledger and debt_ledger.get("stato_dato") == "VERIFICATO")
     reconciled_debt = (
         debt_ledger["totals"].get("esposizioni_per_cassa_certe")
         if debt_ledger and debt_ledger.get("stato_dato") in ("VERIFICATO", "RICONCILIAZIONE_NECESSARIA")
         else None
     )
 
-    # Verifica soglie CCII Impresa Minore (art. 2 co. 1 lett. d) — senza doppia somma
+    soc_indiv = any("individuale" in (c.legal_form or "").lower() or "ditta" in (c.legal_form or "").lower() or (c.company_type == "individuale") for c in cliente)
+    soc_persone = any((c.company_type == "persone") or
+                      (c.legal_form or "").lower().startswith(("s.n.c", "snc", "s.a.s", "sas", "società semplice", "ss"))
+                      for c in cliente)
+    legal_prof = "impresa_individuale" if soc_indiv else ("societa_persone" if soc_persone else "societa_capitali_srl")
+
+    # Verifica soglie CCII Impresa Minore (art. 2 co. 1 lett. d) — con flag riconciliazione passivo
     all_fss = [f for c in cliente for f in c.financial_statements]
     attivi_triennio = [float(f.total_assets or 0.0) for f in all_fss if f.total_assets]
     ricavi_triennio = [float(f.revenues or 0.0) for f in all_fss if f.revenues]
@@ -308,36 +319,35 @@ def compute_case_indicators(db, case_id: str) -> dict:
         attivo_patrimoniale_triennio=attivi_triennio,
         ricavi_lordi_triennio=ricavi_triennio,
         debiti_totali_attuali=reconciled_debt if reconciled_debt is not None else imp_debiti,
+        legal_form_profile=legal_prof,
+        debt_mass_verified=debt_mass_verified if debt_ledger else False,
     ) if (all_fss or imp_debiti or aer_total) else None
 
     if ccii_minore:
+        proc_txt = ", ".join(ccii_minore["procedure_esperibili"][:2]) if ccii_minore["procedure_esperibili"] else "Sospese (dati/riconciliazione insufficienti)"
         out.append(_ind("ccii_qualifica_impresa", "Inquadramento CCII (art. 2)", "impresa",
                         ccii_minore["qualifica_giuridica"], "text",
                         "Attivo <= 300k, Ricavi <= 200k, Debiti <= 500k",
                         kind="signal",
                         section="impresa",
-                        criterion=f"Presupposto di accesso agli strumenti di regolazione: {ccii_minore['motivo_superamento']}. Procedure indicate: {', '.join(ccii_minore['procedure_esperibili'][:2])}.",
+                        criterion=f"Presupposti dimensionali: {ccii_minore['motivo_superamento']}. Aree di verifica: {proc_txt}.",
                         status="neutral"))
-
-    soc_indiv = any("individuale" in (c.legal_form or "").lower() or "ditta" in (c.legal_form or "").lower() or (c.company_type == "individuale") for c in cliente)
-    soc_persone = any((c.company_type == "persone") or
-                      (c.legal_form or "").lower().startswith(("s.n.c", "snc", "s.a.s", "sas", "società semplice", "ss"))
-                      for c in cliente)
 
     has_art3_inputs = bool(has_aer or cr is not None or fs is not None)
     if has_art3_inputs:
         ccii_alert = check_ccii_segnali_allarme_art3(
-            retribuzioni_scadute_30gg=0.0,
-            monte_salari_mensile=0.0,
-            debiti_fornitori_scaduti_90gg=0.0,
-            debiti_fornitori_non_scaduti=0.0,
-            esposizioni_banche_scadute_60gg=cr_esp or 0.0 if (cr and cr.has_sofferenze) else 0.0,
-            sconfinamento_banche_fidi=0.0,
-            totale_fidi_accordati=0.0,
-            debiti_ader_scaduti_90gg=aer_total or 0.0,
-            tipo_soggetto="societa_capitali" if not soc_indiv and not soc_persone else "persone",
+            retribuzioni_scadute_30gg=None,
+            monte_salari_mensile=None,
+            debiti_fornitori_scaduti_90gg=None,
+            debiti_fornitori_non_scaduti=None,
+            esposizioni_banche_scadute_60gg=cr_esp if (cr and cr.has_sofferenze) else None,
+            sconfinamento_banche_fidi=None,
+            totale_fidi_accordati=None,
+            debiti_ader_scaduti_90gg=aer_total,
+            tipo_soggetto=legal_prof,
+            totale_esposizioni_bancarie=cr_esp if cr_esp else None,
         )
-        art3_val = "Presenti (" + str(ccii_alert["totale_segnali"]) + ")" if ccii_alert["ha_segnali_allarme_art3"] else "Parziale (AdER/CR verificati; retribuzioni e fornitori non censiti)"
+        art3_val = "Presenti (" + str(ccii_alert["totale_segnali"]) + ")" if ccii_alert["ha_segnali_allarme_art3"] else "Parziale (NULL su voci prive di partitario/anzianità)"
         art3_crit = ccii_alert["obbligo_adeguati_assetti"]
         art3_status = "danger" if ccii_alert["ha_segnali_allarme_art3"] else "warn"
     else:

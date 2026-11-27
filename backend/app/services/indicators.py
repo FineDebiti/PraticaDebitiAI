@@ -219,11 +219,18 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
             debiti_fornitori_scaduti_90gg=forn_scad,
         )
         pfn_c: Optional[float] = pfn_esma_res["pfn_totale"]
+        pfn_esma_compliant = bool(pfn_esma_res.get("esma_compliant"))
         pfn_status = "green" if (pfn_c is not None and pfn_c <= 0) else ("amber" if (pfn_c is not None and pfn_c < 500000) else ("red" if pfn_c is not None else "na"))
-        pfn_note = "Debiti Finanziari + Debt-like items (TFR, tributi, soci) - Liquidità [ESMA / CNDCEC]"
+        pfn_label = "Posizione finanziaria netta (ESMA 2021)" if pfn_esma_compliant else "Posizione finanziaria netta gestionale (non pienamente ESMA)"
+        pfn_note = (
+            "Debiti Finanziari + Debt-like items - Liquidità [Schema ESMA 32-382-1138 conforme]"
+            if pfn_esma_compliant
+            else "Saldo gestionale su voci documentate (schema ESMA completo non documentato)"
+        )
     else:
         pfn_c = None
         pfn_status = "na"
+        pfn_label = "Posizione finanziaria netta (ESMA 2021)"
         pfn_note = "Non calcolabile: assenza di Stato Patrimoniale / liquidità e debiti contabili (mai zero automatico)"
 
     pfn_p = (
@@ -232,7 +239,7 @@ def compute_indicators(sp: Dict[str, Any], ce: Dict[str, Any], deb: Dict[str, An
         else None
     )
 
-    add("pfn", "Posizione finanziaria netta (ESMA 2021)", "debito", pfn_c, pfn_p, "eur",
+    add("pfn", pfn_label, "debito", pfn_c, pfn_p, "eur",
         pfn_note,
         status_cur=pfn_status)
 

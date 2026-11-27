@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.entities import Case, Company, FieldEdit, FinancialStatement
+from app.services.protocols.ccii_matrix import (
+    evaluate_ccii_matrix,
+    parse_assessment_date,
+)
 from app.services.protocols.classifier import (
     ACCOUNTING_REGIME_LABELS,
     ACCOUNTING_REGIMES,
@@ -205,4 +209,45 @@ def get_deterministic_analysis(db: Session, case_id: str) -> dict[str, Any]:
         "protocol_assessment": assessment,
         "debt_ledger": debt_ledger,
         "formula_engine": formula_engine,
+    }
+
+
+def get_ccii_matrix_simulation(
+    db: Session,
+    case_id: str,
+    *,
+    assessment_date: date | str,
+    procedural_facts: Optional[list[dict[str, Any]]] = None,
+    simulation_mode: bool = True,
+    catalog_path: Optional[str] = None,
+) -> dict[str, Any]:
+    """Esegue la matrice giuridico-decisionale CCII in sola lettura e modalità simulazione."""
+    eval_date = parse_assessment_date(assessment_date)
+    case = _load_case_or_404(db, case_id)
+    client_companies, statements = _load_client_statements(db, case)
+    cls = classify_case_dimensions(
+        db,
+        case,
+        effective_profile_override=case.debtor_profile_confirmed,
+        effective_regime_override=case.accounting_regime_confirmed,
+    )
+    gate0 = evaluate_gate0(case, cls, statements, client_companies)
+    debt_ledger = build_debt_ledger(db, case)
+    formula_engine = run_formula_engine(db, case, cls, debt_ledger)
+
+    matrix = evaluate_ccii_matrix(
+        cls,
+        gate0,
+        debt_ledger,
+        formula_engine,
+        assessment_date=eval_date,
+        effective_legal_form=gate0.effective_legal_form_profile,
+        effective_accounting_regime=gate0.effective_accounting_regime,
+        procedural_facts=procedural_facts,
+        simulation_mode=simulation_mode,
+        catalog_path=catalog_path,
+    )
+    return {
+        "case_id": case.id,
+        "ccii_matrix": matrix,
     }

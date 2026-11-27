@@ -19,11 +19,13 @@ from app.schemas.debtor import (
 from app.schemas.dto import (
     IncomeDocumentOut, RelatedCaseOut, CaseIndicatorsOut, FieldEditOut, EnrichmentRequestOut,
     CaseCrossAnalysisOut, ProtocolConfirmationIn, ProtocolAssessmentOut, DeterministicAnalysisOut,
+    CciiMatrixSimulationOut,
 )
 from app.services.protocols.service import (
     get_protocol_assessment,
     confirm_case_protocol,
     get_deterministic_analysis,
+    get_ccii_matrix_simulation,
 )
 from app.services import fiscal_code as fc
 from app.services.cross_analysis import execute_cross_analysis
@@ -929,6 +931,24 @@ def confirm_case_protocol_endpoint(
 def get_deterministic_analysis_endpoint(case_id: str, db: Session = Depends(get_db)):
     """Motore deterministico Fase 2 (Formula Engine + DebtLedger riconciliato) in sola lettura."""
     return get_deterministic_analysis(db, case_id)
+
+
+@router.get("/cases/{case_id}/ccii-matrix-simulation", response_model=CciiMatrixSimulationOut)
+def get_ccii_matrix_simulation_endpoint(
+    case_id: str,
+    assessment_date: str = Query(..., description="Data di valutazione normativa (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+):
+    """Matrice giuridico-decisionale CCII Fase 3 in sola lettura e modalità simulazione (non attiva in produzione)."""
+    try:
+        return get_ccii_matrix_simulation(
+            db,
+            case_id,
+            assessment_date=assessment_date,
+            simulation_mode=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
 
 
 

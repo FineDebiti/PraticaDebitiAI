@@ -1,0 +1,811 @@
+{
+  "catalog_version": "CCII-2026.11-v2",
+  "normative_snapshot_date": "2026-11-27",
+  "default_execution_mode": "SIMULAZIONE_NON_ATTIVA_IN_PRODUZIONE",
+  "official_sources_registry": {
+    "dlgs_14_2019": {
+      "title": "D.Lgs. 12 gennaio 2019, n. 14 — Codice della crisi d'impresa e dell'insolvenza (CCII)",
+      "publication": "G.U. Serie Generale n. 38 del 14/02/2019, S.O. n. 6",
+      "url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~vig=2026-11-27"
+    },
+    "dlgs_136_2024": {
+      "title": "D.Lgs. 13 settembre 2024, n. 136 — Disposizioni integrative e correttive al CCII (Correttivo-ter)",
+      "publication": "G.U. Serie Generale n. 227 del 27/09/2024",
+      "url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2024-09-13;136"
+    },
+    "dlgs_147_2026_art4": {
+      "title": "D.Lgs. 7 agosto 2026, n. 147, art. 4 — Estensione della transazione fiscale ai tributi regionali e locali nel CCII",
+      "publication": "G.U. Serie Generale n. 185 dell'11/08/2026, S.O. n. 30",
+      "url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2026-08-07;147~art4"
+    },
+    "dd_giustizia_2021": {
+      "title": "Decreto Dirigenziale Ministero della Giustizia 28 settembre 2021 (e succ. agg.) — Test pratico ragionevole perseguibilità del risanamento",
+      "publication": "Ministero della Giustizia — Composizione negoziata della crisi",
+      "url": "https://www.giustizia.it/giustizia/it/mg_1_36_0.page?contentId=COS346251"
+    },
+    "ade_circ_5e_2026": {
+      "title": "Agenzia delle Entrate — Circolare n. 5/E del 2026 (rateazione misure premiali art. 25-bis CCII)",
+      "publication": "Agenzia delle Entrate — Prassi 2026",
+      "url": "https://www.agenziaentrate.gov.it/portale/web/guest/normativa-e-prassi/circolari"
+    },
+    "ade_circ_9e_2026": {
+      "title": "Agenzia delle Entrate — Circolare n. 9/E del 21 ottobre 2026 (Parte II — Sovraindebitamento CCII)",
+      "publication": "Agenzia delle Entrate — Prassi 2026",
+      "url": "https://www.agenziaentrate.gov.it/portale/web/guest/normativa-e-prassi/circolari"
+    }
+  },
+  "rules": [
+    {
+      "rule_code": "CCII-DIM-01",
+      "procedure_or_instrument": "Qualificazione dimensionale Impresa Minore vs Impresa Non Minore",
+      "normative_reference": "Art. 2, comma 1, lettera d), D.Lgs. 14/2019",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, art. 2, co. 1, lett. d) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art2",
+      "normative_text_summary": "E' impresa minore l'impresa che presenta congiuntamente: attivo patrimoniale annuo <= EUR 300.000 nei tre esercizi antecedenti (o dall'inizio attivita se inferiore), ricavi <= EUR 200.000 nei medesimi esercizi, e ammontare di debiti anche non scaduti <= EUR 500.000. La verifica degli esercizi rilevanti resta distinta dalla verifica dell'ammontare complessivo dei debiti.",
+      "effective_from": "2022-07-15",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Soggetto qualificabile come imprenditore (escluso il consumatore puro)",
+        "Possesso congiunto delle tre soglie dimensionali (3 esercizi per attivo/ricavi + debito attuale complessivo anche non scaduto)",
+        "Invarianza della forma giuridica e del regime economico-contabile (una S.r.l. sotto soglia resta Protocollo B)"
+      ],
+      "required_data": [
+        "Bilanci o dichiarazioni fiscali dei 3 esercizi antecedenti (o dall'inizio attivita)",
+        "Data di costituzione / inizio attivita d'impresa",
+        "DebtLedger riconciliato con stato_dato == VERIFICATO (inclusi debiti non scaduti)"
+      ],
+      "deterministic_checks": [
+        "Valuta separatamente la componente 3 esercizi (attivo <= 300.000 e ricavi <= 200.000) e la componente debiti attuali (<= 500.000)",
+        "Se almeno una soglia e certamente superata su fonte documentata -> impresa NON_MINORE",
+        "Se DebtLedger.stato_dato in (RICONCILIAZIONE_NECESSARIA, NON_VERIFICABILE_NULL) e nessuna soglia gia certamente superata -> NON_DETERMINABILE"
+      ],
+      "interpretive_considerations": [
+        "Verifica della pertinenza contabile dei ricavi straordinari/non ricorrenti e dei debiti contestati o postergati ex art. 2467 c.c.",
+        "Il superamento delle soglie dimensionali non equivale in alcun caso a stato di insolvenza (art. 2 co. 1 lett. b CCII)"
+      ],
+      "blocking_conditions": [
+        "Mancanza di 3 esercizi contabili/fiscali senza evidenza di costituzione piu recente",
+        "Massa debitoria non riconciliata o priva di stato VERIFICATO nel DebtLedger"
+      ],
+      "exceptions_and_transitional": [
+        "Periodo inferiore ai 3 esercizi ammissibile solo se documentata data di inizio attivita inferiore a 3 anni",
+        "Aggiornamento monetario periodico eventuale ex art. 2 co. 1 lett. d) gestibile tramite i parametri di questa scheda"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "attivo_max_eur": 300000.0,
+        "ricavi_max_eur": 200000.0,
+        "debiti_max_eur": 500000.0,
+        "anni_rilevanti": 3
+      }
+    },
+    {
+      "rule_code": "CCII-ALL-01",
+      "procedure_or_instrument": "Segnali di allarme precoce per gli adeguati assetti (Art. 3 co. 4 CCII)",
+      "normative_reference": "Art. 3, comma 4, lettere a), b), c), d), D.Lgs. 14/2019 (mod. D.Lgs. 136/2024)",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, art. 3, co. 4 (come mod. da D.Lgs. 136/2024) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art3",
+      "normative_text_summary": "Costituiscono segnali per la previsione della crisi/insolvenza (anche prima della loro emersione): (a) debiti per retribuzioni scaduti da almeno 30gg > meta del monte salari mensile; (b) debiti fornitori scaduti da almeno 90gg > debiti non scaduti; (c) esposizioni bancarie/finanziarie scadute >60gg o sconfinate da almeno 60gg >= 5% del totale esposizioni; (d) superamento soglie creditori pubblici qualificati ex art. 25-novies.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Imprenditore individuale o collettivo soggetto ad obbligo di adeguati assetti (art. 2086 c.c. e art. 3 CCII)",
+        "Rilevazione separata ed autonoma delle quattro fattispecie di allarme (a, b, c, d)"
+      ],
+      "required_data": [
+        "Scadenzario retribuzioni (>=30gg) e monte salari mensile",
+        "Partitario fornitori (scaduto >=90gg vs non scaduto)",
+        "Centrale Rischi omogenea con dettaglio scaduti/sconfinamenti (>60gg / >=60gg) e totale esposizioni bancarie",
+        "Esposizioni scadute verso INPS, INAIL, Agenzia delle Entrate e AdER"
+      ],
+      "deterministic_checks": [
+        "Valuta separatamente ciascuna lettera (a, b, c, d) preservando NULL -> NON_DETERMINABILE per le lettere prive di dati",
+        "Non dichiara mai assenza di segnali se almeno una lettera e NON_DETERMINABILE"
+      ],
+      "interpretive_considerations": [
+        "Valutazione organica degli assetti organizzativi, amministrativi e contabili ex art. 2086 c.c. e art. 3 CCII",
+        "Distinzione tra ritardi episodici e squilibrio strutturale sui flussi prospettici a 12 mesi"
+      ],
+      "blocking_conditions": [
+        "Mancanza di partitari paghe/fornitori o CR non omogenea per attestare l'assenza di segnali"
+      ],
+      "exceptions_and_transitional": [
+        "Il D.Lgs. 136/2024 ha chiarito che i segnali operano anche prima della emersione conclamata della crisi o insolvenza",
+        "La presenza di segnali d'allarme non equivale automaticamente a stato di insolvenza"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "retribuzioni_ritardo_min_gg": 30,
+        "retribuzioni_pct_monte_salari": 50.0,
+        "fornitori_ritardo_min_gg": 90,
+        "banche_scaduto_gg": 60,
+        "banche_sconfinamento_gg": 60,
+        "banche_pct_esposizioni_min": 5.0
+      }
+    },
+    {
+      "rule_code": "CCII-CPQ-01",
+      "procedure_or_instrument": "Soglie di segnalazione dei creditori pubblici qualificati (Art. 25-novies CCII)",
+      "normative_reference": "Art. 25-novies, comma 1, lettere a), b), c), d), D.Lgs. 14/2019",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, art. 25-novies, co. 1 — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art25novies",
+      "normative_text_summary": "Segnalazioni PEC all'imprenditore e organo di controllo: INPS >90gg (>30% anno prec. e >EUR 15.000 con dipendenti; >EUR 5.000 senza dipendenti); INAIL >90gg (>EUR 5.000); Agenzia delle Entrate IVA LIPE (>EUR 5.000 e >=10% volume d'affari, comunque >EUR 20.000); AdER affidati autodichiarati/definitivi >90gg (>EUR 100.000 impresa individuale, >EUR 200.000 societa di persone, >EUR 500.000 altre societa).",
+      "effective_from": "2022-07-15",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Forma giuridica certa ai fini dell'individuazione della soglia AdER (100k / 200k / 500k)",
+        "Verifica autonoma per singolo creditore pubblico qualificato rispetto ad assessment_date"
+      ],
+      "required_data": [
+        "Forma giuridica confermata/documentata",
+        "Estratti AdER con data notifica/affidamento, anzianita >90gg, stato attivo/rateizzato/sospeso",
+        "Estratto INPS (>90gg, contributi anno precedente, presenza lavoratori subordinati/parasubordinati)",
+        "Estratto INAIL (premi scaduti >90gg)",
+        "LIPE e volume d'affari anno precedente per soglia IVA Agenzia Entrate"
+      ],
+      "deterministic_checks": [
+        "Applica soglia AdER differenziata per forma giuridica (mai soglia unica EUR 50.000)",
+        "Verifica l'anzianita >90gg delle cartelle rispetto ad assessment_date quando le date risultano documentate",
+        "Mantiene indipendenti gli enti INPS/INAIL/AdE/AdER evitando il doppio conteggio di carichi gia affidati ad AdER"
+      ],
+      "interpretive_considerations": [
+        "Verifica della sussistenza di rateizzazioni in bonis, definizioni agevolate o sospensioni giudiziali escludenti la segnalabilita",
+        "Valutazione della tempestivita delle segnalazioni PEC ricevute dall'organo di controllo/imprenditore"
+      ],
+      "blocking_conditions": [
+        "Forma giuridica incerta per la soglia AdER",
+        "Assenza di anzianita delle scadenze >90gg o di estratti INPS/INAIL/AdE"
+      ],
+      "exceptions_and_transitional": [
+        "Il superamento di una soglia ex art. 25-novies impone valutazione tempestiva degli assetti ma non costituisce prova automatica di insolvenza"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "inps_delay_days_gt": 90,
+        "inps_with_employees_pct_prev_gt": 30.0,
+        "inps_with_employees_eur_gt": 15000.0,
+        "inps_without_employees_eur_gt": 5000.0,
+        "inail_delay_days_gt": 90,
+        "inail_eur_gt": 5000.0,
+        "ade_iva_eur_gt": 5000.0,
+        "ade_iva_pct_turnover_gte": 10.0,
+        "ade_iva_absolute_eur_gt": 20000.0,
+        "ader_delay_days_gt": 90,
+        "ader_thresholds_eur": {
+          "impresa_individuale": 100000.0,
+          "societa_persone": 200000.0,
+          "societa_capitali_srl": 500000.0,
+          "altra_forma_giuridica": 500000.0
+        }
+      }
+    },
+    {
+      "rule_code": "CCII-CNC-01",
+      "procedure_or_instrument": "Composizione Negoziata della Crisi — Imprese sopra soglia (Artt. 12-17 e 25-quinquies CCII)",
+      "normative_reference": "Artt. 12, 13, 17 e 25-quinquies, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024)",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, artt. 12-17 e 25-quinquies (mod. D.Lgs. 136/2024) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art12",
+      "normative_text_summary": "Accesso volontario e stragiudiziale alla nomina dell'esperto indipendente per l'imprenditore commerciale o agricolo in squilibrio patrimoniale o economico-finanziario (crisi o insolvenza reversibile) quando risulta ragionevolmente perseguibile il risanamento. Precluso ex art. 25-quinquies in pendenza di domande di regolazione presentate dall'imprenditore o entro 4 mesi dalla rinuncia.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Profilo imprenditoriale iscritto al Registro delle Imprese (non cancellato)",
+        "Qualifica dimensionale NON_MINORE (se IMPRESA_MINORE si applica CCII-CNC-02 ex art. 25-quater)",
+        "Stato di squilibrio patrimoniale/economico-finanziario e ragionevole perseguibilita del risanamento",
+        "Assenza cause ostative ex art. 25-quinquies rispetto ad assessment_date"
+      ],
+      "required_data": [
+        "Visura CCIAA aggiornata attestante iscrizione attiva",
+        "Classificazione 3D con qualifica non_minore",
+        "Fatti procedurali verificati su domande ex artt. 44 co. 1 lett. a), 74, 54 co. 3 o rinunce nei 4 mesi antecedenti assessment_date",
+        "Bilanci / situazioni contabili, DebtLedger e Test pratico ex art. 13"
+      ],
+      "deterministic_checks": [
+        "Verifica profilo imprenditoriale e non appartenenza al perimetro sotto soglia",
+        "Verifica pendenze proprie del debitore e finestra di 4 mesi solari dalla rinuncia rispetto ad assessment_date",
+        "Non preclude l'accesso in caso di sola istanza di liquidazione giudiziale promossa da terzi (creditori/PM)"
+      ],
+      "interpretive_considerations": [
+        "Valutazione di ragionevole perseguibilita del risanamento e tenuta della continuita aziendale (EBITDA positivo non prova automaticamente risanabilita ne generazione di cassa)",
+        "Scelta strategica tra percorso stragiudiziale CNC e strumenti giudiziali (ADR/PRO/CP)"
+      ],
+      "blocking_conditions": [
+        "Domanda di regolazione pendente presentata dall'imprenditore (artt. 44 co. 1 lett. a, 74, 54 co. 3)",
+        "Rinuncia dell'imprenditore alle predette domande nei 4 mesi precedenti assessment_date",
+        "Cancellazione dal Registro delle Imprese"
+      ],
+      "exceptions_and_transitional": [
+        "Con il D.Lgs. 136/2024 l'istanza di liquidazione giudiziale proposta da terzi non impedisce la presentazione dell'istanza CNC"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "cooling_off_months_after_waiver": 4,
+        "requires_non_minor_size": true
+      }
+    },
+    {
+      "rule_code": "CCII-CNC-02",
+      "procedure_or_instrument": "Composizione Negoziata della Crisi — Imprese sotto soglia (Art. 25-quater CCII)",
+      "normative_reference": "Art. 25-quater e art. 25-quinquies, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024)",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, art. 25-quater (mod. D.Lgs. 136/2024) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art25quater",
+      "normative_text_summary": "L'imprenditore commerciale e agricolo che possiede i requisiti di impresa minore puo chiedere la nomina dell'esperto indipendente in condizioni di squilibrio che rendono probabile la crisi o l'insolvenza se risulta ragionevolmente perseguibile il risanamento. Il co. 4 disciplina gli esiti possibili (inclusi concordato minore, liquidazione controllata, concordato semplificato; ADR per sola impresa agricola); il co. 5 estende in quanto compatibili le norme della CNC incluso art. 23 co. 2-bis.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Profilo imprenditoriale iscritto al Registro delle Imprese (inclusa S.r.l. sotto soglia, che resta Protocollo B economico-contabile)",
+        "Qualifica dimensionale IMPRESA_MINORE verificata su esercizi rilevanti e DebtLedger VERIFICATO",
+        "Squilibrio / crisi / insolvenza reversibile e ragionevole perseguibilita del risanamento",
+        "Assenza preclusioni ex art. 25-quinquies rispetto ad assessment_date"
+      ],
+      "required_data": [
+        "Classificazione 3D con impresa_minore accertata",
+        "Visura CCIAA attestante iscrizione attiva",
+        "Fatti procedurali verificati ex art. 25-quinquies rispetto ad assessment_date",
+        "Qualifica camerale/documentale eventuale di impresa agricola (non solo ATECO)"
+      ],
+      "deterministic_checks": [
+        "Se ccii_size_qualification == non_determinabile -> NON_DETERMINABILE (bivio aperto fra CCII-CNC-01 e CCII-CNC-02)",
+        "Mantiene invariato il Protocollo B per S.r.l./S.r.l.s. sotto soglia",
+        "Verifica i limiti art. 25-quinquies su fatti procedurali verificati rispetto ad assessment_date"
+      ],
+      "interpretive_considerations": [
+        "Valutazione comparata tra CNC sotto soglia (art. 25-quater) e accesso diretto al Concordato Minore (art. 74) o Liquidazione Controllata (art. 268)",
+        "Verifica della ragionevole perseguibilita del risanamento oltre ai soli margini storici"
+      ],
+      "blocking_conditions": [
+        "Soggetto non imprenditore (consumatore puro o professionista non imprenditore)",
+        "Preclusioni temporali ex art. 25-quinquies o cancellazione dal R.I."
+      ],
+      "exceptions_and_transitional": [
+        "Gli accordi di ristrutturazione dei debiti ex art. 57 quale esito di art. 25-quater co. 4 sono riservati alla sola impresa agricola (con qualifica camerale/giuridica accertata, mai desunta dal solo ATECO)"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "cooling_off_months_after_waiver": 4,
+        "requires_minor_enterprise": true
+      }
+    },
+    {
+      "rule_code": "CCII-CNC-MP",
+      "procedure_or_instrument": "Misure protettive e cautelari nella Composizione Negoziata (Artt. 18-19 CCII)",
+      "normative_reference": "Artt. 18 e 19, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024)",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, artt. 18 e 19 (mod. D.Lgs. 136/2024) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art18",
+      "normative_text_summary": "Le misure protettive non conseguono automaticamente all'avvio della CNC: richiedono espressa istanza pubblicata nel R.I. unitamente all'accettazione dell'esperto, deposito di ricorso al Tribunale entro il giorno successivo alla pubblicazione (art. 19 co. 1, a pena di inefficacia) e ordinanza di conferma/modifica per una durata da 30 a 120 giorni, prorogabile fino a un massimo di 240 giorni.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Ammissibilita/pendenza di Composizione Negoziata (CCII-CNC-01 o CCII-CNC-02)",
+        "Istanza espressa pubblicata nel R.I. + ricorso giudiziale entro il giorno successivo alla pubblicazione",
+        "Conferma giudiziale del Tribunale (durata 30-120gg, tetto massimo 240gg)"
+      ],
+      "required_data": [
+        "Fatti procedurali verificati su pubblicazione R.I., deposito ricorso in Tribunale e durata decorsa rispetto ad assessment_date",
+        "Elenco azioni esecutive/cautelari pendenti e affidamenti bancari (art. 18 co. 5 e 5-bis)"
+      ],
+      "deterministic_checks": [
+        "Verifica il termine perentorio di 1 giorno dalla pubblicazione R.I. al deposito del ricorso e il limite massimo di 240 giorni rispetto ad assessment_date",
+        "Impedisce qualunque qualificazione automatica o concessione attribuita all'esperto"
+      ],
+      "interpretive_considerations": [
+        "Opportunita di misure protettive selettive vs erga omnes e rischio di revoca giudiziale per sproporzione o assenza di trattative serie",
+        "Effetti sugli affidamenti e sui contratti bancari ex art. 18 co. 5 e 5-bis CCII"
+      ],
+      "blocking_conditions": [
+        "Mancato deposito del ricorso al Tribunale entro il giorno successivo alla pubblicazione nel R.I.",
+        "Diniego/revoca del Tribunale o superamento della durata massima di 240 giorni rispetto ad assessment_date",
+        "Inapplicabilita ai diritti di credito dei lavoratori (art. 18 co. 3 CCII)"
+      ],
+      "exceptions_and_transitional": [
+        "I diritti di credito dei lavoratori sono esclusi ex lege dalle misure protettive (art. 18 co. 3)"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "tribunal_petition_max_days": 1,
+        "initial_duration_min_days": 30,
+        "initial_duration_max_days": 120,
+        "total_duration_max_days": 240
+      }
+    },
+    {
+      "rule_code": "CCII-CNC-PREM",
+      "procedure_or_instrument": "Misure premiali fiscali e rateazione 72/120 rate in CNC (Art. 25-bis CCII)",
+      "normative_reference": "Art. 25-bis, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024); Circolare AdE 5/E 2026",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, art. 25-bis (mod. D.Lgs. 136/2024) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art25bis",
+      "normative_text_summary": "Subordinatamente a un esito idoneo della CNC (contratto/accordi pubblicati nel R.I.), l'Agenzia delle Entrate (e NON l'esperto) concede riduzione di interessi/sanzioni e un piano di rateazione fino a 72 rate mensili (estendibile fino a 120 rate in caso di comprovata e grave situazione di difficolta con istanza sottoscritta anche dall'esperto) per le somme dovute e non ancora iscritte a ruolo.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "CNC attivata e conclusa con una delle soluzioni idonee previste dall'art. 25-bis (o art. 25-quater per sotto soglia)",
+        "Sussistenza di debiti tributari dovuti e NON ancora iscritti a ruolo AdER",
+        "Istanza formale rivolta all'Agenzia delle Entrate (con firma dell'esperto solo per l'estensione fino a 120 rate)"
+      ],
+      "required_data": [
+        "DebtLedger riconciliato con distinzione tra tributi non ancora iscritti a ruolo e carichi affidati ad AdER",
+        "Fatti procedurali su esito CNC e pubblicazione nel Registro delle Imprese"
+      ],
+      "deterministic_checks": [
+        "Verifica se risultino debiti tributari non ancora affidati ad AdER",
+        "Se tutti i tributi documentati risultano gia iscritti a ruolo AdER -> NON_SODDISFATTO per la rateazione straordinaria art. 25-bis co. 4",
+        "Esplicita sempre che la concessione spetta all'Agenzia delle Entrate e non all'esperto"
+      ],
+      "interpretive_considerations": [
+        "Verifica della 'comprovata e grave situazione di difficolta' e valutazione discrezionale di AdE sulla solvibilita prospettica (Circ. AdE 5/E 2026)",
+        "Rischio di decadenza automatica in caso di omesso versamento rateale o apertura liquidazione giudiziale"
+      ],
+      "blocking_conditions": [
+        "Debiti fiscali interamente gia iscritti a ruolo AdER (per la misura rateale ex art. 25-bis co. 4)",
+        "Mancato raggiungimento di una soluzione idonea pubblicata nel R.I."
+      ],
+      "exceptions_and_transitional": [
+        "Per i carichi gia iscritti a ruolo occorre verificare gli strumenti ordinari di rateazione ex art. 19 D.P.R. 602/1973 o la transazione fiscale ove ammissibile"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "standard_installments_max": 72,
+        "extended_installments_max": 120
+      }
+    },
+    {
+      "rule_code": "CCII-CNC-TF",
+      "procedure_or_instrument": "Accordo transattivo sui debiti tributari nella CNC (Art. 23 co. 2-bis CCII e Art. 4 D.Lgs. 147/2026)",
+      "normative_reference": "Art. 23, comma 2-bis, D.Lgs. 14/2019 (introd. D.Lgs. 136/2024; mod. Art. 4 D.Lgs. 7 agosto 2026, n. 147)",
+      "official_source_citation": "D.Lgs. 14/2019, art. 23, co. 2-bis (D.Lgs. 136/2024) e D.Lgs. 7 agosto 2026, n. 147, art. 4 (G.U. n. 185 dell'11/08/2026, S.O. n. 30) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art23",
+      "normative_text_summary": "Nel corso della CNC l'imprenditore puo formulare alle agenzie fiscali, ad AdER e (dal 12/08/2026 ex art. 4 D.Lgs. 147/2026) alle Regioni e agli enti locali una proposta di accordo transattivo per il pagamento parziale o dilazionato dei debiti tributari e accessori. Esclusi i tributi costituenti risorse proprie UE e i contributi INPS/INAIL. Non opera il cram-down. Richiede relazione del professionista indipendente sulla convenienza rispetto alla liquidazione giudiziale e relazione del revisore legale sulla completezza e veridicita dei dati.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Pendenza / accesso ammissibile a CNC (estesa in quanto compatibile sotto soglia ex art. 25-quater co. 5)",
+        "Debiti tributari erariali e/o (se assessment_date >= 2026-08-12) regionali e locali diversi dalle risorse proprie UE",
+        "Relazione del professionista indipendente sulla convenienza rispetto alla liquidazione giudiziale",
+        "Relazione sulla completezza e veridicita dei dati aziendali redatta dal revisore legale (o revisore incaricato)",
+        "Adesione espressa dell'ente creditore (assenza di cram-down)"
+      ],
+      "required_data": [
+        "DebtLedger riconciliato con separazione netta tra tributi erariali, tributi regionali/locali, contributi INPS/INAIL e risorse proprie UE",
+        "Data di valutazione assessment_date (>= 2026-08-12 per applicabilita Art. 4 D.Lgs. 147/2026)",
+        "Stima dell'attivo liquidatorio per valutazione preliminare del test di convenienza"
+      ],
+      "deterministic_checks": [
+        "Blocca ogni estensione ai contributi previdenziali/assistenziali INPS/INAIL e alle risorse proprie UE",
+        "Applica l'estensione ai tributi regionali/locali solo quando assessment_date >= 2026-08-12",
+        "Se DebtLedger.stato_dato != VERIFICATO -> base tributaria NON_DETERMINABILE"
+      ],
+      "interpretive_considerations": [
+        "Convenienza della proposta rispetto allo scenario di liquidazione giudiziale",
+        "Probabilita negoziale di adesione volontaria dell'Amministrazione Finanziaria o dell'ente territoriale (assenza di omologazione forzosa)",
+        "Verifica dell'organo competente alla sottoscrizione per Comuni, Province, Citta metropolitane e Regioni e del profilo temporale per CNC pendenti ante 12/08/2026"
+      ],
+      "blocking_conditions": [
+        "Assenza di cram-down: l'eventuale diniego dell'ente preclude l'accordo ex art. 23 co. 2-bis",
+        "Debiti costituiti esclusivamente da contributi INPS/INAIL o da risorse proprie UE",
+        "Mancanza delle relazioni obbligatorie di convenienza e veridicita contabile",
+        "Massa debitoria non riconciliata"
+      ],
+      "exceptions_and_transitional": [
+        "Art. 4 D.Lgs. 147/2026 in vigore dal 12/08/2026 senza differimenti al 2027; se la CNC risulta gia pendente ante 12/08/2026 e richiesta verifica professionale sul regime temporale e sull'organo deliberante dell'ente locale"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "local_tax_extension_effective_from": "2026-08-12",
+        "cram_down_available": false,
+        "inps_inail_included": false,
+        "eu_own_resources_included": false
+      }
+    },
+    {
+      "rule_code": "CCII-CS-01",
+      "procedure_or_instrument": "Concordato semplificato per la liquidazione del patrimonio (Art. 25-sexies CCII)",
+      "normative_reference": "Art. 25-sexies e art. 25-quater, comma 4, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024)",
+      "official_source_citation": "D.Lgs. 12 gennaio 2019, n. 14, art. 25-sexies (mod. D.Lgs. 136/2024) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art25sexies",
+      "normative_text_summary": "Quando l'esperto nella relazione finale dichiara che le trattative si sono svolte secondo correttezza e buona fede e che le soluzioni ex art. 23, co. 1 e 2, lett. a) e b) non sono praticabili, l'imprenditore puo presentare nei 60 giorni perentori successivi alla comunicazione ex art. 17 co. 8 una proposta di concordato per cessione dei beni con piano di liquidazione e documenti art. 39. Senza voto dei creditori; richiede assenza di pregiudizio rispetto alla liquidazione giudiziale e utilita per ciascun creditore.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Previa Composizione Negoziata effettivamente svolta e conclusa (mai accesso diretto autonomo)",
+        "Relazione finale dell'esperto attestante correttezza e buona fede nelle trattative",
+        "Attestazione dell'impraticabilita delle soluzioni di cui all'art. 23 co. 1 e 2 lett. a) e b)",
+        "Rispetto del termine perentorio di 60 giorni dalla comunicazione ex art. 17 co. 8 rispetto ad assessment_date",
+        "Proposta di cessione dei beni che assicuri utilita a ciascun creditore senza pregiudizio rispetto alla LG"
+      ],
+      "required_data": [
+        "Fatto procedurale verificato su CNC conclusa e relazione finale dell'esperto",
+        "Data della comunicazione della relazione finale dell'esperto ex art. 17 co. 8 rispetto ad assessment_date",
+        "Esito esplicito su correttezza/buona fede e impraticabilita soluzioni art. 23",
+        "Inventario/perizia attivo liquidatorio e DebtLedger"
+      ],
+      "deterministic_checks": [
+        "Blocco rigido: senza CNC conclusa + attestazione buona fede/correttezza + impraticabilita soluzioni art. 23 + termine <= 60 giorni rispetto ad assessment_date -> MAI VERIFICATO",
+        "Se decorrenza > 60 giorni dalla comunicazione -> NON_SODDISFATTO (decadenza termine perentorio)"
+      ],
+      "interpretive_considerations": [
+        "Sussistenza di un'effettiva utilita per ciascun creditore (anche chirografario)",
+        "Test comparativo di non deteriore trattamento rispetto alla liquidazione giudiziale o controllata"
+      ],
+      "blocking_conditions": [
+        "Assenza di precedente CNC conclusa (accesso diretto vietato)",
+        "Mancata attestazione di correttezza e buona fede nella relazione finale dell'esperto",
+        "Superamento del termine perentorio di 60 giorni alla data di valutazione",
+        "Assenza di utilita ritraibile per ciascun creditore"
+      ],
+      "exceptions_and_transitional": [
+        "Accessibile anche alle imprese sotto soglia all'esito negativo della CNC ex art. 25-quater co. 4"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "peremptory_filing_days": 60,
+        "requires_good_faith_attestation": true,
+        "requires_prior_cnc": true
+      }
+    },
+    {
+      "rule_code": "CCII-ADR-01",
+      "procedure_or_instrument": "Accordi di ristrutturazione dei debiti e Transazione fiscale/contributiva (Artt. 57, 60, 61, 63 CCII e Art. 4 D.Lgs. 147/2026)",
+      "normative_reference": "Artt. 57, 60, 61 e 63, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024 e Art. 4 D.Lgs. 147/2026)",
+      "official_source_citation": "D.Lgs. 14/2019, artt. 57, 60, 61, 63 (D.Lgs. 136/2024) e D.Lgs. 147/2026, art. 4 (G.U. n. 185/2026) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art57",
+      "normative_text_summary": "Accordi stipulati con creditori rappresentanti almeno il 60% dei crediti (30% negli ADR agevolati ex art. 60; efficacia estesa ex art. 61) con integrale pagamento dei creditori estranei nei termini di legge e attestazione di un professionista indipendente. Ex art. 63 CCII e ammessa la transazione su tributi erariali, contributi previdenziali/assistenziali (INPS/INAIL) e — dal 12/08/2026 ex Art. 4 D.Lgs. 147/2026 — tributi regionali e locali, anche mediante omologazione forzosa (cram-down) al ricorrere dei requisiti di legge.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Imprenditore commerciale NON_MINORE oppure imprenditore agricolo (anche sotto soglia ex artt. 57 co. 1 e 25-quater co. 4) con qualifica camerale/documentale verificata",
+        "Iscrizione attiva nel R.I. (art. 33 co. 4 preclude l'imprenditore cancellato)",
+        "Adesione creditori >= 60% (o 30% ex art. 60) ed integrale pagamento dei creditori estranei",
+        "Attestazione del professionista indipendente su veridicita dei dati e fattibilita economico-giuridica",
+        "Per art. 63 e cram-down (co. 4): attestazione di convenienza rispetto alla liquidazione giudiziale, determinanza dell'adesione e specifiche condizioni di legge"
+      ],
+      "required_data": [
+        "Classificazione 3D (non_minore o impresa agricola verificata con documento idoneo, mai da solo ATECO)",
+        "DebtLedger riconciliato con dettaglio per classi/creditori (AdE/AdER, Enti locali, INPS/INAIL, banche, fornitori)",
+        "FormulaEngine (PFN ESMA/gestionale, EBITDA) + piano finanziario con pagamento integrale estranei + stima attivo liquidatorio"
+      ],
+      "deterministic_checks": [
+        "Se impresa_minore non agricola (o agricola non documentata) -> NON_SODDISFATTO (salvo indizio agricolo da verificare -> NON_DETERMINABILE per l'eccezione agricola)",
+        "Se cancellato dal R.I. (art. 33 co. 4) -> NON_SODDISFATTO",
+        "Se DebtLedger non verificato -> NON_DETERMINABILE su maggioranze e base transazione art. 63"
+      ],
+      "interpretive_considerations": [
+        "Raggiungibilita delle adesioni (60% / 30% / categorie omogenee art. 61) e sostenibilita del pagamento integrale degli estranei entro 120 giorni",
+        "Sussistenza delle condizioni cumulative per il cram-down fiscale, contributivo e locale ex art. 63 co. 4 (determinanza, assenza finalita elusiva, convenienza vs LG)"
+      ],
+      "blocking_conditions": [
+        "Imprenditore commerciale minore (non agricolo)",
+        "Cancellazione dal Registro delle Imprese (art. 33 co. 4 CCII)",
+        "Incapienza a pagare integralmente gli estranei o massa debitoria non accertata"
+      ],
+      "exceptions_and_transitional": [
+        "Art. 4 D.Lgs. 147/2026 estende l'art. 63 e il relativo cram-down ai tributi regionali e locali dal 12/08/2026 (con verifica regime pendenti ante 12/08/2026)"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "ordinary_majority_pct": 60.0,
+        "facilitated_majority_pct": 30.0,
+        "local_tax_extension_effective_from": "2026-08-12",
+        "agricultural_enterprise_admitted": true
+      }
+    },
+    {
+      "rule_code": "CCII-PRO-CP",
+      "procedure_or_instrument": "Piano di ristrutturazione omologato (PRO) e Concordato preventivo (Artt. 64-bis, 84, 88, 112 CCII e Art. 4 D.Lgs. 147/2026)",
+      "normative_reference": "Artt. 64-bis, 84, 88 e 112, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024 e Art. 4 D.Lgs. 147/2026)",
+      "official_source_citation": "D.Lgs. 14/2019, artt. 64-bis, 84, 88, 112 (D.Lgs. 136/2024) e D.Lgs. 147/2026, art. 4 (G.U. n. 185/2026) — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art84",
+      "normative_text_summary": "Strumenti giudiziali riservati agli imprenditori commerciali soggetti a liquidazione giudiziale (sopra soglia): PRO ex art. 64-bis (approvazione unanime delle classi, libera distribuzione) e Concordato Preventivo ex art. 84 (in continuita aziendale diretta/indiretta ovvero liquidatorio con apporto risorse esterne >=10% e soddisfazione >=20% dei chirografari). Artt. 64-bis, 88 e 112 disciplinano il trattamento dei crediti tributari (inclusi regionali e locali dal 12/08/2026 ex Art. 4 D.Lgs. 147/2026) e contributivi e la ristrutturazione trasversale.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Imprenditore commerciale NON_MINORE iscritto al R.I. (art. 33 co. 4 preclude il cancellato)",
+        "Stato di crisi o insolvenza + piano di risanamento/liquidazione ex art. 87 attestato da professionista indipendente",
+        "Per concordato liquidatorio: risorse esterne incrementali >= 10% attivo e pagamento >= 20% crediti chirografari",
+        "Per PRO: approvazione unanime di tutte le classi ex art. 64-bis (fatti salvi i limiti ex co. 1-bis)"
+      ],
+      "required_data": [
+        "Classificazione 3D con non_minore e assenza qualifica esclusivamente agricola",
+        "DebtLedger riconciliato per formazione classi e privilegio/chirografo",
+        "FormulaEngine (EBITDA, PFN, patrimonio) + piano industriale/finanziario + perizia attivo"
+      ],
+      "deterministic_checks": [
+        "Esclude imprenditori minori, imprenditori agricoli e consumatori (NON_SODDISFATTO)",
+        "Esclude imprenditori cancellati dal R.I. (art. 33 co. 4 -> NON_SODDISFATTO)",
+        "Non inferisce mai la continuita aziendale dal solo EBITDA positivo"
+      ],
+      "interpretive_considerations": [
+        "Scelta giuridico-strategica tra continuita diretta/indiretta, concordato liquidatorio e PRO",
+        "Sostenibilita delle classi, rispetto del miglior soddisfacimento rispetto alla LG e presupposti ex artt. 88 e 112 CCII"
+      ],
+      "blocking_conditions": [
+        "Soggetto non assoggettabile a liquidazione giudiziale (impresa minore, agricolo, consumatore)",
+        "Cancellazione dal Registro delle Imprese (art. 33 co. 4)"
+      ],
+      "exceptions_and_transitional": [
+        "Art. 4 D.Lgs. 147/2026 estende artt. 64-bis, 88 e 245 ai tributi regionali e locali dal 12/08/2026"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "liquidatorio_external_finance_min_pct": 10.0,
+        "liquidatorio_unsecured_min_pct": 20.0,
+        "local_tax_extension_effective_from": "2026-08-12"
+      }
+    },
+    {
+      "rule_code": "CCII-PERI-CM",
+      "procedure_or_instrument": "[PERIMETRO NON SUPPORTATO A/B] Concordato minore (Artt. 74 ss. e Art. 33 co. 4 CCII)",
+      "normative_reference": "Art. 74 ss. e Art. 33, comma 4, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024; Cass. Sez. I n. 20141/2026)",
+      "official_source_citation": "D.Lgs. 14/2019, artt. 33 co. 4 e 74 ss. (mod. D.Lgs. 136/2024); Circolare AdE 9/E del 21/10/2026 — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art74",
+      "normative_text_summary": "Procedura da sovraindebitamento riservata ai debitori sovraindebitati diversi dal consumatore (imprenditore minore, imprenditore agricolo, professionista, start-up innovativa) in continuita (liquidatorio solo con apporto esterno apprezzabile). Ai sensi dell'art. 33 co. 4 CCII la domanda presentata dall'imprenditore cancellato dal Registro delle Imprese e inammissibile in ogni caso (anche individuale e liquidatorio).",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Soggetto sovraindebitato diverso dal consumatore non assoggettabile a liquidazione giudiziale (impresa_minore, agricolo, professionista o startup innovativa camerale)",
+        "Iscrizione attiva nel Registro delle Imprese per gli imprenditori (art. 33 co. 4)",
+        "Continuita aziendale/professionale oppure apporto risorse esterne incrementali nel concordato liquidatorio",
+        "Assenza di condizioni ostative ex art. 77 (atti in frode, precedente esdebitazione nei termini)"
+      ],
+      "required_data": [
+        "Classificazione 3D (impresa_minore o qualifica documentata non fallibile)",
+        "Stato di iscrizione/cancellazione dal Registro delle Imprese (fatto procedurale verificato)",
+        "Evidenza camerale specifica per eventuale startup innovativa o impresa agricola"
+      ],
+      "deterministic_checks": [
+        "Solo delimitazione di perimetro: se soggetto NON_MINORE commerciale o consumatore puro -> NON_SODDISFATTO",
+        "Se imprenditore cancellato dal R.I. (art. 33 co. 4 verificato) -> NON_SODDISFATTO",
+        "Non presume startup innovativa o impresa agricola da denominazione o solo codice ATECO"
+      ],
+      "interpretive_considerations": [
+        "Valutazione comparata tra CNC sotto soglia (art. 25-quater) e Concordato Minore (art. 74)",
+        "Verifica meritevolezza, assenza atti in frode (art. 77) e apporto risorse esterne"
+      ],
+      "blocking_conditions": [
+        "Imprenditore commerciale NON_MINORE",
+        "Consumatore puro ex art. 2 co. 1 lett. e)",
+        "Cancellazione dal Registro delle Imprese ex art. 33 co. 4 CCII",
+        "Atti diretti a frodare le ragioni dei creditori (art. 77)"
+      ],
+      "exceptions_and_transitional": [
+        "Perimetro delimitato informativo: DossierLex non attiva un motore completo di piani ex art. 74 in Fase 3 ed evita assimilazioni ai Protocolli A/B"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "perimeter_only": true,
+        "registry_cancellation_blocks": true
+      }
+    },
+    {
+      "rule_code": "CCII-PERI-CONS",
+      "procedure_or_instrument": "[PERIMETRO NON SUPPORTATO A/B] Ristrutturazione dei debiti del consumatore (Art. 67 ss. CCII)",
+      "normative_reference": "Art. 67 ss. e Art. 2, comma 1, lettera e), D.Lgs. 14/2019 (mod. D.Lgs. 136/2024)",
+      "official_source_citation": "D.Lgs. 14/2019, artt. 2 co. 1 lett. e) e 67 ss. (mod. D.Lgs. 136/2024); Circolare AdE 9/E del 21/10/2026 — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art67",
+      "normative_text_summary": "Procedura riservata esclusivamente alla persona fisica che agisce per scopi estranei all'attivita imprenditoriale, commerciale, artigiana o professionale eventualmente svolta (consumatore ex art. 2 co. 1 lett. e), incluse le obbligazioni del socio estranee ai debiti sociali. Prevista moratoria fino a 2 anni sui privilegiati e assenza di voto dei creditori.",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "persona_fisica_non_imprenditore"
+      ],
+      "objective_and_subjective_requirements": [
+        "Qualifica esclusiva di persona fisica consumatore (debiti consumeristici estranei a impresa/professione)",
+        "Stato di sovraindebitamento ed ausilio obbligatorio di OCC",
+        "Assenza condizioni soggettive ostative ex art. 69 (colpa grave, malafede o frode nel determinare il sovraindebitamento)"
+      ],
+      "required_data": [
+        "Classificazione 3D con persona_fisica_non_imprenditore",
+        "Origine e natura di tutte le passivita nel DebtLedger (verifica assenza debiti d'impresa/promiscui)"
+      ],
+      "deterministic_checks": [
+        "Solo delimitazione di perimetro: per tutte le forme societarie e per l'impresa individuale con debiti d'impresa -> NON_SODDISFATTO",
+        "Per persona_fisica_non_imprenditore -> segnala perimetro OCC riservato senza assimilazione ai Protocolli A/B"
+      ],
+      "interpretive_considerations": [
+        "Qualificazione di eventuali debiti promiscui o fideiussioni rilasciate a favore di societa partecipate/amministrate",
+        "Verifica della meritevolezza ex art. 69 CCII"
+      ],
+      "blocking_conditions": [
+        "Societa di capitali, societa di persone o debiti imprenditoriali/professionali",
+        "Colpa grave, malafede o frode ex art. 69 CCII"
+      ],
+      "exceptions_and_transitional": [
+        "Perimetro delimitato informativo per separare rigorosamente i consumatori dai Protocolli A/B"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "perimeter_only": true,
+        "privileged_moratorium_max_years": 2
+      }
+    },
+    {
+      "rule_code": "CCII-PERI-LC",
+      "procedure_or_instrument": "[PERIMETRO NON SUPPORTATO A/B] Liquidazione controllata del sovraindebitato (Art. 268 ss. e Art. 33 co. 1-bis CCII)",
+      "normative_reference": "Art. 268 ss. e Art. 33, comma 1-bis, D.Lgs. 14/2019 (mod. D.Lgs. 136/2024)",
+      "official_source_citation": "D.Lgs. 14/2019, artt. 33 co. 1-bis e 268 ss. (mod. D.Lgs. 136/2024); Circolare AdE 9/E del 21/10/2026 — Normattiva",
+      "official_source_url": "https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2019-01-12;14~art268",
+      "normative_text_summary": "Procedura liquidatoria per debitori sovraindebitati non soggetti a liquidazione giudiziale (consumatore, professionista, impresa minore, imprenditore agricolo), distinguendo nettamente: (1) istanza del debitore (co. 1: stato di sovraindebitamento, nessuna soglia minima di debito, accessibile anche all'imprenditore individuale cancellato ex art. 33 co. 1-bis); (2) istanza di creditore/PM (co. 2-3: richiede insolvenza, debiti scaduti e non pagati >= EUR 50.000, e non si apre contro persona fisica se l'OCC attesta impossibilita di acquisire attivo distribuibile).",
+      "effective_from": "2024-09-28",
+      "admitted_subjects": [
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "societa_persone",
+        "persona_fisica_non_imprenditore",
+        "altra_forma_giuridica"
+      ],
+      "objective_and_subjective_requirements": [
+        "Debitore non assoggettabile a liquidazione giudiziale (impresa_minore, consumatore, agricolo verificato, professionista)",
+        "Su istanza del debitore (art. 268 co. 1): stato di sovraindebitamento senza soglia minima di debito",
+        "Su istanza del creditore/PM (art. 268 co. 2-3): stato di insolvenza, debiti scaduti e non pagati >= EUR 50.000, ed assenza di attestazione OCC di totale incapienza di attivo distribuibile per la persona fisica"
+      ],
+      "required_data": [
+        "Classificazione 3D (esclusione qualifica non_minore commerciale)",
+        "Fatto procedurale su soggetto istante (debitore vs creditore/PM) e eventuale attestazione OCC ex co. 3",
+        "DebtLedger con quota debiti scaduti per la sola verifica su istanza del creditore"
+      ],
+      "deterministic_checks": [
+        "Solo delimitazione di perimetro: se imprenditore commerciale NON_MINORE -> NON_SODDISFATTO (l'alternativa liquidatoria e la Liquidazione Giudiziale ex art. 121)",
+        "Distingue espressamente il ramo istanza del debitore (senza soglia EUR 50.000 e ammesso anche post-cancellazione persona fisica ex art. 33 co. 1-bis) dal ramo istanza del creditore (soglia >= EUR 50.000 di debiti scaduti + difesa OCC)"
+      ],
+      "interpretive_considerations": [
+        "Valutazione comparativa rispetto a CNC sotto soglia / Concordato Minore / Ristrutturazione del consumatore",
+        "Verifica delle prospettive di esdebitazione (art. 282; art. 283 riservato alla sola persona fisica meritevole incapiente, mai alle S.r.l.)"
+      ],
+      "blocking_conditions": [
+        "Imprenditore commerciale NON_MINORE (assoggettabile a liquidazione giudiziale)",
+        "Per la sola istanza del creditore: debiti scaduti e non pagati < EUR 50.000 ovvero attestazione OCC ex art. 268 co. 3"
+      ],
+      "exceptions_and_transitional": [
+        "Eventuali interventi normativi di fine 2026 in sede di conversione (es. D.L. 168/2026 su artt. 272 e 283 CCII) restano isolati nella sezione SUSPENDED finche non definitivi e approvati"
+      ],
+      "possible_outcomes": ["VERIFICATO", "NON_SODDISFATTO", "NON_DETERMINABILE"],
+      "professional_approval_status": "PENDING_APPROVAL",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "rule_version": "1.0.0",
+      "verified_at": "2026-11-27",
+      "parameters": {
+        "perimeter_only": true,
+        "creditor_petition_min_overdue_debt_eur": 50000.0,
+        "debtor_petition_min_debt_eur": null
+      }
+    }
+  ],
+  "suspended_legislative_rules": [
+    {
+      "rule_code": "CCII-SUSP-DL168-2026",
+      "title": "Interventi su esdebitazione incapiente senza patrocinio legale e tutela unica autovettura (Artt. 272 e 283 CCII — D.L. 168/2026)",
+      "normative_reference": "D.L. n. 168/2026 (in iter di conversione) su artt. 272 e 283, D.Lgs. 14/2019",
+      "official_source_citation": "Provvedimenti d'urgenza giustizia fine 2026 (D.L. 168/2026 — iter conversione parlamentare)",
+      "official_source_url": "https://www.normattiva.it/ricerca/semplice",
+      "professional_approval_status": "SUSPENDED",
+      "active_in_production": false,
+      "normative_version": "CCII-2026.11-v2",
+      "verified_at": "2026-11-27",
+      "suspension_reason": "Novita legislativa non ancora verificata su legge di conversione definitiva al 27/11/2026: sospesa dall'operativita fino a verifica ufficiale e approvazione professionale."
+    }
+  ]
+}
