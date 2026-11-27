@@ -296,7 +296,7 @@ def compute_case_indicators(db, case_id: str) -> dict:
 
     reconciled_debt = (
         debt_ledger["totals"].get("esposizioni_per_cassa_certe")
-        if debt_ledger and debt_ledger.get("stato_dato") == "VERIFICATO"
+        if debt_ledger and debt_ledger.get("stato_dato") in ("VERIFICATO", "RICONCILIAZIONE_NECESSARIA")
         else None
     )
 

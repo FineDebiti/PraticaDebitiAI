@@ -353,9 +353,9 @@ def test_ccii_distingue_cassa_firma_sospesi_e_riconciliazione(db_session):
 
     # CR: cassa 150k, accordato 600k (margine non usato 450k), garanzia firma 450k -> cassa effettiva 150k
     db_session.add(CreditExposure(case_id=case.id, intermediary="Banca Alpha", category="rischi a scadenza",
-                                  accordato=600000, utilizzato=150000))
+                                  accordato=600000, utilizzato=150000, reference_month="2026-02"))
     db_session.add(CreditExposure(case_id=case.id, intermediary="Banca Alpha", category="rischi di firma / garanzie",
-                                  accordato=450000, utilizzato=450000))
+                                  accordato=450000, utilizzato=450000, reference_month="2026-02"))
     db_session.add(GuaranteeGiven(case_id=case.id, intermediary="Banca Alpha", valore_garanzia=450000))
     db_session.commit()
 

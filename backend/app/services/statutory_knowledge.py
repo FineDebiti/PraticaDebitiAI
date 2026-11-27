@@ -176,16 +176,41 @@ def calculate_ebitda_oic12(
     b10a_opt = _flt_opt(ce.get("ammortamento_immateriali") if "ammortamento_immateriali" in ce else ce.get("B10a"))
     b10b_opt = _flt_opt(ce.get("ammortamento_materiali") if "ammortamento_materiali" in ce else ce.get("B10b"))
     b10c_opt = _flt_opt(ce.get("svalutazioni_immobilizzazioni") if "svalutazioni_immobilizzazioni" in ce else ce.get("B10c"))
+    has_b10_analytical = any(x is not None for x in (b10a_opt, b10b_opt, b10c_opt))
     b10a_dec = _dec2(b10a_opt)
     b10b_dec = _dec2(b10b_opt)
     b10c_dec = _dec2(b10c_opt)
     b10_subtotal_dec = b10a_dec + b10b_dec + b10c_dec
 
     b10_gen_opt = _flt_opt(ce.get("ammortamenti") if "ammortamenti" in ce else ce.get("B10"))
-    if b10_subtotal_dec == Decimal("0.00"):
-        ammortamenti_dec = _dec2(b10_gen_opt)
-    else:
+    b10_aggregato_usato = False
+    b10d_escludibile = True
+    b10_missing_fields: List[str] = []
+
+    if has_b10_analytical:
         ammortamenti_dec = b10_subtotal_dec
+        for lbl, val_opt in (("B10a", b10a_opt), ("B10b", b10b_opt), ("B10c", b10c_opt)):
+            if val_opt is None:
+                b10_missing_fields.append(lbl)
+        stato_ebitda = "VERIFICATO"
+    elif b10_gen_opt is not None:
+        b10_aggregato_usato = True
+        b10_missing_fields.extend(["B10a", "B10b", "B10c"])
+        if b10d_opt is not None:
+            # Solo se B10d è noto si può isolare (B10 - B10d), ma resta comunque privo di split analitico a/b/c
+            ammortamenti_dec = max(Decimal("0.00"), _dec2(b10_gen_opt) - _dec2(b10d_opt))
+            b10d_escludibile = True
+            stato_ebitda = "PARZIALE_CON_AVVISO"
+        else:
+            # B10 aggregato senza B10a/b/c né B10d: impossibile escludere B10d
+            ammortamenti_dec = _dec2(b10_gen_opt)
+            b10d_escludibile = False
+            b10_missing_fields.append("B10d")
+            stato_ebitda = "PARZIALE_B10_NON_DISAGGREGATO"
+    else:
+        ammortamenti_dec = Decimal("0.00")
+        b10_missing_fields.extend(["B10a", "B10b", "B10c"])
+        stato_ebitda = "PARZIALE_CON_AVVISO"
 
     ammortamenti_reintegrati = float(ammortamenti_dec)
     b10d = _flt(b10d_opt)
@@ -196,7 +221,7 @@ def calculate_ebitda_oic12(
     ebitda_rettificato = float(ebitda_dec + _dec2(b8_val) + _dec2(poste_straordinarie))
     ebitda_margin_pct = round((ebitda_standard / val_prod * 100), 2) if val_prod > 0 else None
 
-    b10_dettaglio = any(x is not None for x in (b10a_opt, b10b_opt, b10c_opt, b10_gen_opt))
+    b10_dettaglio = has_b10_analytical
 
     return {
         "valore_produzione_a": val_prod,
@@ -204,10 +229,14 @@ def calculate_ebitda_oic12(
         "costi_produzione_b": costi_prod,
         "ebit_differenza_a_b": ebit,
         "ammortamenti_b10a_b10b_b10c": ammortamenti_reintegrati,
-        "svalutazione_crediti_b10d": b10d,
+        "svalutazione_crediti_b10d": b10d_opt if b10d_opt is not None else b10d,
         "accantonamenti_rischi_b12": b12_opt,
         "altri_accantonamenti_b13": b13_opt,
         "b10_dettaglio_disponibile": b10_dettaglio,
+        "b10_aggregato_usato": b10_aggregato_usato,
+        "b10_aggregato_valore": b10_gen_opt,
+        "b10d_escludibile": b10d_escludibile,
+        "b10_missing_fields": b10_missing_fields,
         "canoni_leasing_b8": b8_val,
         "ebitda_standard": ebitda_standard,
         "ebitda_rettificato": ebitda_rettificato,
@@ -219,14 +248,15 @@ def calculate_ebitda_oic12(
             "B10a_ammortamenti_immateriali": b10a_opt,
             "B10b_ammortamenti_materiali": b10b_opt,
             "B10c_svalutazioni_immobilizzazioni": b10c_opt,
-            "EBITDA_ordinario_CNDCEC_2024": ebitda_standard,
+            "B10_aggregato_grezzo": b10_gen_opt,
+            "EBITDA_ordinario_CNDCEC_2024": ebitda_standard if (has_b10_analytical or b10d_escludibile) else None,
             "voci_visibili_non_neutralizzate": {
                 "B10d_svalutazione_crediti": b10d_opt,
                 "B12_accantonamenti_rischi": b12_opt,
                 "B13_altri_accantonamenti": b13_opt,
             },
         },
-        "stato_dato": "VERIFICATO",
+        "stato_dato": stato_ebitda,
         "formula_applicata": "EBITDA = (A - B) + B10a (Amm. Immat.) + B10b (Amm. Mat.) + B10c (Sval. Immob.) [CNDCEC marzo 2024 / OIC 12]",
     }
 
@@ -239,19 +269,37 @@ def calculate_pfn_esma(
     debiti_bancari_breve: Optional[float],
     debiti_bancari_medio_lungo: Optional[float],
     disponibilita_liquide: Optional[float],
-    tfr_fondo: float = 0.0,
-    finanziamenti_soci: float = 0.0,
-    altri_debiti_finanziari: float = 0.0,
-    debiti_tributari_scaduti: float = 0.0,
-    debiti_fornitori_scaduti_90gg: float = 0.0,
-    titoli_e_crediti_finanziari_correnti: float = 0.0,
+    tfr_fondo: Optional[float] = 0.0,
+    finanziamenti_soci: Optional[float] = 0.0,
+    altri_debiti_finanziari: Optional[float] = 0.0,
+    debiti_tributari_scaduti: Optional[float] = 0.0,
+    debiti_fornitori_scaduti_90gg: Optional[float] = 0.0,
+    titoli_e_crediti_finanziari_correnti: Optional[float] = 0.0,
+    *,
+    mezzi_equivalenti_cassa: Optional[float] = None,
+    debiti_leasing_breve: Optional[float] = None,
+    debiti_leasing_ml: Optional[float] = None,
+    debiti_commerciali_non_correnti: Optional[float] = None,
+    finanziamenti_soci_in_debito_finanziario: bool = False,
+    esma_schema_completo: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """Calcola la Posizione Finanziaria Netta (PFN) secondo ESMA 32-382-1138 (2021) e CNDCEC marzo 2024.
-    Se disponibilita_liquide o entrambi i debiti finanziari primari sono None (NULL), impedisce lo zero silenzioso.
+    """Calcola la Posizione Finanziaria Netta (PFN) distinguendo lo schema ESMA 32-382-1138
+    completo dalla PFN finanziaria gestionale semplificata ed evitando ogni duplicazione
+    tra debito finanziario e voci debt-like (inclusi i finanziamenti soci).
     """
     liq_opt = _flt_opt(disponibilita_liquide)
     deb_breve_opt = _flt_opt(debiti_bancari_breve)
     deb_ml_opt = _flt_opt(debiti_bancari_medio_lungo)
+    tfr_opt = _flt_opt(tfr_fondo)
+    fin_soci_opt = _flt_opt(finanziamenti_soci)
+    altri_fin_opt = _flt_opt(altri_debiti_finanziari)
+    trib_opt = _flt_opt(debiti_tributari_scaduti)
+    forn_opt = _flt_opt(debiti_fornitori_scaduti_90gg)
+    titoli_opt = _flt_opt(titoli_e_crediti_finanziari_correnti)
+    mezzi_eq_opt = _flt_opt(mezzi_equivalenti_cassa)
+    leas_b_opt = _flt_opt(debiti_leasing_breve)
+    leas_ml_opt = _flt_opt(debiti_leasing_ml)
+    comm_nc_opt = _flt_opt(debiti_commerciali_non_correnti)
 
     if liq_opt is None or (deb_breve_opt is None and deb_ml_opt is None):
         return {
@@ -259,13 +307,17 @@ def calculate_pfn_esma(
             "debiti_finanziari_breve": deb_breve_opt,
             "debiti_finanziari_medio_lungo": deb_ml_opt,
             "debt_like_items": {
-                "fondo_tfr": _flt_opt(tfr_fondo),
-                "finanziamenti_soci": _flt_opt(finanziamenti_soci),
-                "debiti_tributari_scaduti_o_rateizzati": _flt_opt(debiti_tributari_scaduti),
-                "debiti_fornitori_oltre_90gg": _flt_opt(debiti_fornitori_scaduti_90gg),
+                "fondo_tfr": tfr_opt,
+                "finanziamenti_soci": fin_soci_opt,
+                "debiti_tributari_scaduti_o_rateizzati": trib_opt,
+                "debiti_fornitori_oltre_90gg": forn_opt,
                 "totale_debt_like": None,
             },
             "totale_passivita_finanziarie_e_assimilate": None,
+            "pfn_esma_conforme": None,
+            "esma_compliant": False,
+            "esma_missing_components": ["disponibilita_liquide", "debiti_finanziari_breve_o_medio_lungo"],
+            "pfn_finanziaria_gestionale_semplificata": None,
             "pfn_finanziaria_pura_esma": None,
             "pfn_gestionale_con_debt_like": None,
             "pfn_totale": None,
@@ -275,47 +327,99 @@ def calculate_pfn_esma(
             "norma_riferimento": "Orientamento ESMA 32-382-1138 (2021) n. 39 & CNDCEC marzo 2024",
         }
 
-    liquidi_totali = round(liq_opt + _flt(titoli_e_crediti_finanziari_correnti), 2)
-    debito_fin_breve = round(deb_breve_opt or 0.0, 2)
-    debito_fin_ml = round((deb_ml_opt or 0.0) + _flt(altri_debiti_finanziari), 2)
+    liquidi_totali = round(liq_opt + (mezzi_eq_opt or 0.0) + (titoli_opt or 0.0), 2)
+    debito_fin_breve = round((deb_breve_opt or 0.0) + (leas_b_opt or 0.0), 2)
 
-    debt_like_items = round(
-        _flt(tfr_fondo)
-        + _flt(finanziamenti_soci)
-        + _flt(debiti_tributari_scaduti)
-        + _flt(debiti_fornitori_scaduti_90gg),
+    fin_soci_val = fin_soci_opt or 0.0
+    if finanziamenti_soci_in_debito_finanziario:
+        fin_soci_in_fin = fin_soci_val
+        fin_soci_debt_like = 0.0
+    else:
+        fin_soci_in_fin = 0.0
+        fin_soci_debt_like = fin_soci_val
+
+    debito_fin_ml = round(
+        (deb_ml_opt or 0.0)
+        + (altri_fin_opt or 0.0)
+        + (leas_ml_opt or 0.0)
+        + (comm_nc_opt or 0.0)
+        + fin_soci_in_fin,
         2,
     )
 
-    pfn_finanziaria_pura = round((debito_fin_breve + debito_fin_ml) - liquidi_totali, 2)
+    debt_like_items = round(
+        (tfr_opt or 0.0)
+        + fin_soci_debt_like
+        + (trib_opt or 0.0)
+        + (forn_opt or 0.0),
+        2,
+    )
+
+    esma_missing: List[str] = []
+    if deb_breve_opt is None:
+        esma_missing.append("split_indebitamento_corrente_A_B_C")
+    if deb_ml_opt is None:
+        esma_missing.append("split_indebitamento_non_corrente_J_K")
+    if leas_b_opt is None and leas_ml_opt is None:
+        esma_missing.append("debiti_leasing_esma")
+    if comm_nc_opt is None:
+        esma_missing.append("debiti_commerciali_non_correnti_L")
+    if mezzi_eq_opt is None:
+        esma_missing.append("mezzi_equivalenti_e_altre_attivita_finanziarie_correnti")
+
+    is_esma_complete = (
+        esma_schema_completo
+        if esma_schema_completo is not None
+        else (len(esma_missing) == 0)
+    )
+
+    pfn_fin_semplificata = round((debito_fin_breve + debito_fin_ml) - liquidi_totali, 2)
     totale_debiti_finanziari = round(debito_fin_breve + debito_fin_ml + debt_like_items, 2)
     pfn_totale = round(totale_debiti_finanziari - liquidi_totali, 2)
+    pfn_esma_val = pfn_fin_semplificata if is_esma_complete else None
 
     debt_like_dict = {
-        "fondo_tfr": _flt(tfr_fondo),
-        "finanziamenti_soci": _flt(finanziamenti_soci),
-        "debiti_tributari_scaduti_o_rateizzati": _flt(debiti_tributari_scaduti),
-        "debiti_fornitori_oltre_90gg": _flt(debiti_fornitori_scaduti_90gg),
+        "fondo_tfr": tfr_opt,
+        "finanziamenti_soci": (fin_soci_debt_like if not finanziamenti_soci_in_debito_finanziario else 0.0) if fin_soci_opt is not None else None,
+        "debiti_tributari_scaduti_o_rateizzati": trib_opt,
+        "debiti_fornitori_oltre_90gg": forn_opt,
         "totale_debt_like": debt_like_items,
+        "finanziamenti_soci_in_debito_finanziario": finanziamenti_soci_in_debito_finanziario,
     }
 
     return {
         "disponibilita_liquide": liquidi_totali,
         "debiti_finanziari_breve": debito_fin_breve,
         "debiti_finanziari_medio_lungo": debito_fin_ml,
+        "componenti_esma": {
+            "mezzi_equivalenti_cassa": mezzi_eq_opt,
+            "altre_attivita_finanziarie_correnti": titoli_opt,
+            "debiti_leasing_breve": leas_b_opt,
+            "debiti_leasing_ml": leas_ml_opt,
+            "debiti_commerciali_non_correnti": comm_nc_opt,
+            "finanziamenti_soci_in_debito_finanziario": fin_soci_in_fin if finanziamenti_soci_in_debito_finanziario else 0.0,
+        },
         "debt_like_items": debt_like_dict,
         "totale_passivita_finanziarie_e_assimilate": totale_debiti_finanziari,
-        "pfn_finanziaria_pura_esma": pfn_finanziaria_pura,
+        "esma_compliant": is_esma_complete,
+        "esma_missing_components": esma_missing,
+        "pfn_esma_conforme": pfn_esma_val,
+        "pfn_finanziaria_gestionale_semplificata": pfn_fin_semplificata,
+        "pfn_finanziaria_pura_esma": pfn_fin_semplificata,
         "pfn_gestionale_con_debt_like": pfn_totale,
         "pfn_totale": pfn_totale,
         "riconciliazione_pfn": {
-            "pfn_finanziaria_pura_esma": pfn_finanziaria_pura,
+            "pfn_base_nome": "PFN_ESMA_CONFORME" if is_esma_complete else "PFN_GESTIONALE_SEMPLIFICATA",
+            "pfn_esma_conforme": pfn_esma_val,
+            "pfn_finanziaria_gestionale_semplificata": pfn_fin_semplificata,
+            "pfn_finanziaria_pura_esma": pfn_fin_semplificata,
             "totale_debt_like": debt_like_items,
             "pfn_gestionale_con_debt_like": pfn_totale,
-            "delta_riconciliazione": round(pfn_totale - pfn_finanziaria_pura, 2),
+            "delta_riconciliazione": round(pfn_totale - pfn_fin_semplificata, 2),
             "componenti_debt_like": debt_like_dict,
+            "esma_missing_components": esma_missing,
         },
-        "stato_dato": "VERIFICATO",
+        "stato_dato": "VERIFICATO" if is_esma_complete else "PARZIALE_GESTIONALE",
         "segno_convenzionale": "PFN > 0 = Indebitamento Netto; PFN < 0 = Cassa Netta",
         "norma_riferimento": "Orientamento ESMA 32-382-1138 (2021) n. 39 & CNDCEC marzo 2024",
     }
