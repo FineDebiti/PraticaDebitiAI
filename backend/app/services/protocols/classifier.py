@@ -701,38 +701,80 @@ def _classify_ccii_size(
             "esclusi dal debito certo ma da verificare in vista di eventuale revoca sospensione."
         )
 
-    # 3. Analisi Centrale Rischi distinguendo cassa vs garanzie/firma vs accordato informativo
+    # 3. Analisi Centrale Rischi con omogeneità temporale, distinguendo cassa vs garanzie/firma vs accordato informativo
+    def _norm_cr_m(raw_m: Optional[str]) -> Optional[str]:
+        if not raw_m:
+            return None
+        s = str(raw_m).strip()
+        m1 = re.match(r"^((?:19|20)\d{2})[-/](\d{1,2})(?:[-/]\d{1,2})?$", s)
+        if m1 and 1 <= int(m1.group(2)) <= 12:
+            return f"{int(m1.group(1)):04d}-{int(m1.group(2)):02d}"
+        m2 = re.match(r"^(\d{1,2})[-/]((?:19|20)\d{2})$", s)
+        if m2 and 1 <= int(m2.group(1)) <= 12:
+            return f"{int(m2.group(2)):04d}-{int(m2.group(1)):02d}"
+        return None
+
     cr_exposures = list(credit_exposures or [])
     cr_guarantees = list(guarantees_given or [])
-    cr_cash_total = Decimal("0")
+    cr_cash_total: Optional[Decimal] = Decimal("0")
     cr_guarantees_total = Decimal("0")
     cr_accordato_unused = Decimal("0")
+    cr_period_valid = True
 
     if cr_exposures:
-        active_cash = [
-            e for e in cr_exposures
-            if not _is_guarantee_or_firma_exposure(e) and not _is_closed_or_informative_exposure(e)
-        ]
-        firma_exps = [
-            e for e in cr_exposures
-            if _is_guarantee_or_firma_exposure(e) and not _is_closed_or_informative_exposure(e)
-        ]
-        for e in active_cash:
-            ut = _to_decimal(e.utilizzato) or Decimal("0")
-            acc = _to_decimal(e.accordato) or Decimal("0")
-            cr_cash_total += ut
-            if acc > ut:
-                cr_accordato_unused += (acc - ut)
-        for e in firma_exps:
-            cr_guarantees_total += (_to_decimal(e.utilizzato) or _to_decimal(e.accordato) or Decimal("0"))
+        dated_cr = [(e, _norm_cr_m(e.reference_month)) for e in cr_exposures]
+        months = sorted({m for _, m in dated_cr if m})
+        summary_months = sorted({m for c in credit_reports for m in [_norm_cr_m(c.most_recent_month)] if m})
+        if months:
+            sel_m = months[-1]
+            selected_exps = [e for e, m in dated_cr if m == sel_m]
+            if len(months) > 1:
+                anomalies.append(
+                    f"CR con più mensilità ({', '.join(months)}): usata esclusivamente la mensilità omogenea {sel_m}."
+                )
+        elif len(summary_months) == 1:
+            selected_exps = cr_exposures
+        else:
+            selected_exps = []
+            cr_cash_total = None
+            cr_period_valid = False
+            anomalies.append("Centrale Rischi priva di mensilità attendibile per il test dimensionale CCII.")
+            required_verifications.append("Acquisire Centrale Rischi con indicazione esplicita della mensilità di riferimento.")
+
+        if selected_exps:
+            active_cash = [
+                e for e in selected_exps
+                if not _is_guarantee_or_firma_exposure(e) and not _is_closed_or_informative_exposure(e)
+            ]
+            firma_exps = [
+                e for e in selected_exps
+                if _is_guarantee_or_firma_exposure(e) and not _is_closed_or_informative_exposure(e)
+            ]
+            for e in active_cash:
+                ut = _to_decimal(e.utilizzato) or Decimal("0")
+                acc = _to_decimal(e.accordato) or Decimal("0")
+                cr_cash_total += ut
+                if acc > ut:
+                    cr_accordato_unused += (acc - ut)
+            for e in firma_exps:
+                cr_guarantees_total += (_to_decimal(e.utilizzato) or _to_decimal(e.accordato) or Decimal("0"))
     elif credit_reports:
-        latest_cr = sorted(
-            credit_reports,
-            key=lambda c: (c.most_recent_month or "", c.id or ""),
-            reverse=True,
-        )[0]
-        cr_cash_total = _to_decimal(latest_cr.total_exposure) or Decimal("0")
-        cr_guarantees_total = _to_decimal(latest_cr.total_guarantees) or Decimal("0")
+        dated_sum = [(c, _norm_cr_m(c.most_recent_month)) for c in credit_reports]
+        valid_sm = sorted({m for _, m in dated_sum if m})
+        if valid_sm:
+            sel_sm = valid_sm[-1]
+            latest_cr = sorted(
+                [c for c, m in dated_sum if m == sel_sm],
+                key=lambda c: str(c.id or ""),
+                reverse=True,
+            )[0]
+            cr_cash_total = _to_decimal(latest_cr.total_exposure) or Decimal("0")
+            cr_guarantees_total = _to_decimal(latest_cr.total_guarantees) or Decimal("0")
+        else:
+            cr_cash_total = None
+            cr_period_valid = False
+            anomalies.append("Riepilogo Centrale Rischi privo di mensilità attendibile per il test CCII.")
+            required_verifications.append("Acquisire Centrale Rischi con mensilità di riferimento.")
 
     if cr_guarantees:
         gar_sum = sum(
@@ -758,23 +800,27 @@ def _classify_ccii_size(
     external_breakdown = {
         "aer_netto_effettivo": float(aer_net_total),
         "aer_sospeso_contestato": float(aer_suspended_total),
-        "cr_cassa_effettiva": float(cr_cash_total),
+        "cr_cassa_effettiva": float(cr_cash_total) if cr_cash_total is not None else None,
         "cr_garanzie_e_firma": float(cr_guarantees_total),
         "cr_accordato_informativo": float(cr_accordato_unused),
     }
 
     # 4. Superamento soglia da fonti certe vs mancata riconciliazione con il bilancio
-    external_direct_combined = aer_net_total + cr_cash_total
-    single_external_over = aer_net_total > CCII_THRESHOLDS["debiti_max"] or cr_cash_total > CCII_THRESHOLDS["debiti_max"]
+    cr_cash_num = cr_cash_total if cr_cash_total is not None else Decimal("0")
+    external_direct_combined = aer_net_total + cr_cash_num
+    single_external_over = aer_net_total > CCII_THRESHOLDS["debiti_max"] or cr_cash_num > CCII_THRESHOLDS["debiti_max"]
 
     if any_exceeded:
         return "non_minore", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
+
+    if not cr_period_valid and (not eval_list or len(eval_list) < 3):
+        return "non_determinabile", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
 
     if single_external_over:
         if latest_fs_debts is not None and latest_fs_debts <= CCII_THRESHOLDS["debiti_max"]:
             anomalies.append(
                 f"Mancata riconciliazione debitoria: il bilancio espone debiti per {latest_fs_debts:,.2f} EUR (<= 500k) "
-                f"mentre una fonte esterna diretta (AdER={aer_net_total:,.2f}, CR cassa={cr_cash_total:,.2f}) supera 500.000 EUR."
+                f"mentre una fonte esterna diretta (AdER={aer_net_total:,.2f}, CR cassa={cr_cash_num:,.2f}) supera 500.000 EUR."
             )
             required_verifications.append(
                 "Riconciliare i debiti risultanti dal bilancio rispetto a AdER e Centrale Rischi prima di qualificare le soglie art. 2 CCII."
@@ -783,8 +829,8 @@ def _classify_ccii_size(
 
         if aer_net_total > CCII_THRESHOLDS["debiti_max"]:
             evidence.append(f"Debito fiscale netto AdER ({aer_net_total:,.2f} EUR) > 500.000 EUR.")
-        if cr_cash_total > CCII_THRESHOLDS["debiti_max"]:
-            evidence.append(f"Esposizione bancaria per cassa CR ({cr_cash_total:,.2f} EUR) > 500.000 EUR.")
+        if cr_cash_num > CCII_THRESHOLDS["debiti_max"]:
+            evidence.append(f"Esposizione bancaria per cassa CR ({cr_cash_num:,.2f} EUR) > 500.000 EUR.")
         return "non_minore", evidence, metrics_by_year, anomalies, required_verifications, external_breakdown
 
     # 5. Verifica periodo pertinente art. 2 co. 1 lett. d) CCII (ultimi 3 esercizi consecutivi)
@@ -835,7 +881,7 @@ def _classify_ccii_size(
     ):
         if external_direct_combined > CCII_THRESHOLDS["debiti_max"]:
             anomalies.append(
-                f"La somma AdER netto ({aer_net_total:,.2f}) + CR cassa ({cr_cash_total:,.2f}) supera 500.000 EUR mentre "
+                f"La somma AdER netto ({aer_net_total:,.2f}) + CR cassa ({cr_cash_num:,.2f}) supera 500.000 EUR mentre "
                 "i bilanci registrano debiti sotto soglia: riconciliazione esposizioni necessaria."
             )
             required_verifications.append(

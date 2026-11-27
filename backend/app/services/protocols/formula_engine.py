@@ -151,11 +151,46 @@ def _evaluate_period_formulas(
     b13_dec = _d(eb_res.get("altri_accantonamenti_b13"))
 
     ebit_status = "VERIFICATO" if ebit_dec is not None else "NON_VERIFICABILE_NULL"
-    ebitda_status = (
-        "VERIFICATO"
-        if (ebitda_dec is not None and eb_res.get("b10_dettaglio_disponibile"))
-        else ("PARZIALE_CON_AVVISO" if ebitda_dec is not None else "NON_VERIFICABILE_NULL")
-    )
+    has_b10_det = bool(eb_res.get("b10_dettaglio_disponibile"))
+    b10_agg_usato = bool(eb_res.get("b10_aggregato_usato"))
+    b10d_escl = bool(eb_res.get("b10d_escludibile"))
+    b10_missing = list(eb_res.get("b10_missing_fields") or [])
+
+    if ebit_dec is None or ebitda_dec is None:
+        ebitda_val_out: Optional[Decimal] = None
+        ebitda_status = "NON_VERIFICABILE_NULL"
+        ebitda_note = "Conto Economico insufficiente (NULL)."
+    elif has_b10_det:
+        ebitda_val_out = ebitda_dec
+        ebitda_status = "PARZIALE_CON_AVVISO" if b10_missing else "VERIFICATO"
+        ebitda_note = (
+            "B10d, B12 e B13 restano visibili nel raccordo e mai neutralizzati automaticamente."
+            if not b10_missing
+            else f"Componenti B10 assenti ({', '.join(b10_missing)}); B10d/B12/B13 mai neutralizzati."
+        )
+    elif b10_agg_usato and not b10d_escl:
+        # B10 generico senza dettaglio B10a/b/c né B10d -> NON può attestare EBITDA ordinario verificato
+        ebitda_val_out = None
+        ebitda_status = "NON_VERIFICABILE_NULL"
+        ebitda_note = (
+            f"Disponibile solo l'aggregato B10 ({eb_res.get('b10_aggregato_valore')}) senza dettaglio "
+            f"{', '.join(b10_missing)}: impossibile escludere B10d (svalutazione crediti). EBITDA non verificabile."
+        )
+    elif b10_agg_usato and b10d_escl:
+        ebitda_val_out = ebitda_dec
+        ebitda_status = "PARZIALE_CON_AVVISO"
+        ebitda_note = (
+            f"Calcolato da B10 aggregato al netto di B10d documentato; mancano {', '.join(b10_missing)}."
+        )
+    else:
+        # Nessuna voce B10 disponibile
+        ebitda_val_out = ebitda_dec if is_semplificata else None
+        ebitda_status = "PARZIALE_CON_AVVISO" if is_semplificata else "NON_VERIFICABILE_NULL"
+        ebitda_note = (
+            "Regime semplificato privo di dettaglio ammortamenti B10a/b/c: margine esposto pari a EBIT."
+            if is_semplificata
+            else f"Mancano le componenti {', '.join(b10_missing)} per calcolare l'EBITDA ordinario."
+        )
 
     ebit_rec = _formula_record(
         code="EBIT",
@@ -178,16 +213,18 @@ def _evaluate_period_formulas(
         formula="EBITDA = (A − B) + B10a + B10b + B10c",
         inputs={
             "EBIT_A_meno_B": _f(ebit_dec),
-            "ammortamenti_B10a_B10b_B10c": _f(b10abc_dec),
+            "ammortamenti_B10a_B10b_B10c": _f(b10abc_dec) if has_b10_det else None,
+            "B10_aggregato_non_disaggregato": eb_res.get("b10_aggregato_valore"),
+            "missing_fields": b10_missing,
             "B10d_svalutazione_crediti_visibile": _f(b10d_dec),
             "B12_accantonamenti_rischi_visibile": _f(b12_dec),
             "B13_altri_accantonamenti_visibile": _f(b13_dec),
         },
         source=source_label,
         period=period_label,
-        value=ebitda_dec,
+        value=ebitda_val_out,
         validation_status=ebitda_status,
-        notes="B10d, B12 e B13 restano visibili nel raccordo e mai neutralizzati automaticamente.",
+        notes=ebitda_note,
     )
 
     net_res_dec = _d(ce_in.get("utile_perdita"))
@@ -205,6 +242,8 @@ def _evaluate_period_formulas(
     )
 
     # Stato Patrimoniale, Patrimonio Netto e Quadratura SP (vietato inventare SP in semplificata!)
+    sp_quad_aggregata_rec = None
+    sp_quad_analitica_rec = None
     if is_semplificata:
         pn_rec = _formula_record(
             code="PATRIMONIO_NETTO",
@@ -228,6 +267,8 @@ def _evaluate_period_formulas(
             validation_status="NON_VERIFICABILE_NULL",
             notes="Non verificabile in contabilità semplificata.",
         )
+        sp_quad_aggregata_rec = sp_quad_rec
+        sp_quad_analitica_rec = sp_quad_rec
         ccn_op_rec = _formula_record(
             code="CCN_OPERATIVO",
             label="Capitale Circolante Netto Operativo",
@@ -239,10 +280,21 @@ def _evaluate_period_formulas(
             validation_status="NON_VERIFICABILE_NULL",
             notes="Non calcolabile in assenza di Stato Patrimoniale.",
         )
-        pfn_pura_rec = _formula_record(
-            code="PFN_ESMA_PURA",
-            label="PFN Finanziaria Pura (ESMA)",
-            formula="Debiti finanziari (breve + m/l) − Disponibilità liquide",
+        pfn_esma_rec = _formula_record(
+            code="PFN_ESMA_CONFORME",
+            label="PFN Conforme ESMA 32-382-1138",
+            formula="(Debiti fin. correnti + leasing + m/l + comm. non corr.) − (Liquidità + mezzi equivalenti + att. fin. corr.)",
+            inputs={},
+            source=source_label,
+            period=period_label,
+            value=None,
+            validation_status="NON_VERIFICABILE_NULL",
+            notes="Contabilità semplificata priva di SP.",
+        )
+        pfn_fin_gest_rec = _formula_record(
+            code="PFN_GESTIONALE_SEMPLIFICATA",
+            label="PFN finanziaria gestionale semplificata",
+            formula="Debiti bancari / finanziari disponibili − Disponibilità liquide",
             inputs={},
             source=source_label,
             period=period_label,
@@ -253,7 +305,7 @@ def _evaluate_period_formulas(
         pfn_gest_rec = _formula_record(
             code="PFN_GESTIONALE_DEBT_LIKE",
             label="PFN Gestionale (con debt-like)",
-            formula="PFN ESMA Pura + TFR + Finanziamenti soci + Tributari scaduti + Fornitori oltre 90gg",
+            formula="PFN finanziaria + TFR + Finanziamenti soci + Tributari scaduti + Fornitori oltre 90gg",
             inputs={},
             source=source_label,
             period=period_label,
@@ -262,8 +314,12 @@ def _evaluate_period_formulas(
             notes="Contabilità semplificata priva di SP.",
         )
     else:
-        tot_att = _d(sp.get("totale_attivo")) or _d(fs.total_assets)
-        pn_dec = _d(sp.get("patrimonio_netto")) or _d(fs.equity)
+        tot_att = _d(sp.get("totale_attivo"))
+        if tot_att is None and fs.total_assets is not None and (fs.total_assets != 0.0 or bool(sp)):
+            tot_att = _d(fs.total_assets)
+        pn_dec = _d(sp.get("patrimonio_netto"))
+        if pn_dec is None and fs.equity is not None and (fs.equity != 0.0 or bool(sp)):
+            pn_dec = _d(fs.equity)
         pn_rec = _formula_record(
             code="PATRIMONIO_NETTO",
             label="Patrimonio netto",
@@ -275,43 +331,149 @@ def _evaluate_period_formulas(
             validation_status="VERIFICATO" if pn_dec is not None else "NON_VERIFICABILE_NULL",
         )
 
-        # Quadratura SP: verifica Totale Attivo == Passivo complessivo (PN + Fondi + TFR + Debiti + Ratei/Risconti passivi)
-        fondi = _d(sp.get("fondi_rischi")) or Decimal("0.00")
-        tfr_sp = _d(sp.get("tfr")) or Decimal("0.00")
-        debiti_sp = _d(sp.get("debiti_totali")) or _d(fs.total_debts)
-        ratei_p = _d(sp.get("ratei_risconti_passivi")) or Decimal("0.00")
+        # NULL != 0: mai trasformare fondi, TFR o ratei/risconti passivi mancanti in 0.00!
+        fondi_opt = _d(sp.get("fondi_rischi"))
+        tfr_opt_sp = _d(sp.get("tfr"))
+        debiti_sp_opt = _d(sp.get("debiti_totali"))
+        if debiti_sp_opt is None and fs.total_debts is not None and (fs.total_debts != 0.0 or bool(sp)):
+            debiti_sp_opt = _d(fs.total_debts)
+        ratei_p_opt = _d(sp.get("ratei_risconti_passivi"))
         tot_pass_esplicito = _d(sp.get("totale_passivo"))
-        if tot_att is not None and (tot_pass_esplicito is not None or (pn_dec is not None and debiti_sp is not None)):
-            passivo_comp = tot_pass_esplicito if tot_pass_esplicito is not None else _q2(pn_dec + fondi + tfr_sp + debiti_sp + ratei_p)
-            scarto_sp = _q2(tot_att - passivo_comp)
-            sp_ok = abs(scarto_sp) <= Decimal("1.00")
-            sp_quad_rec = _formula_record(
-                code="QUADRATURA_SP",
-                label="Quadratura Stato Patrimoniale",
-                formula="Totale Attivo − (PN + Fondi + TFR + Debiti + Ratei/Risconti passivi) == 0",
+
+        # A) Verifica aggregata (Totale Attivo == Totale Passivo esplicito)
+        if tot_att is not None and tot_pass_esplicito is not None:
+            scarto_agg = _q2(tot_att - tot_pass_esplicito)
+            agg_ok = abs(scarto_agg) <= Decimal("1.00")
+            sp_quad_aggregata_rec = _formula_record(
+                code="QUADRATURA_SP_AGGREGATA",
+                label="Verifica aggregata Stato Patrimoniale",
+                formula="Totale Attivo − Totale Passivo esplicito == 0",
+                inputs={"totale_attivo": _f(tot_att), "totale_passivo": _f(tot_pass_esplicito)},
+                source=source_label,
+                period=period_label,
+                value=scarto_agg,
+                validation_status="VERIFICATO" if agg_ok else "ANOMALIA_QUADRATURA",
+                notes="Verifica dei soli totali aggregati di SP.",
+            )
+        else:
+            sp_quad_aggregata_rec = _formula_record(
+                code="QUADRATURA_SP_AGGREGATA",
+                label="Verifica aggregata Stato Patrimoniale",
+                formula="Totale Attivo − Totale Passivo esplicito == 0",
+                inputs={"totale_attivo": _f(tot_att), "totale_passivo": _f(tot_pass_esplicito)},
+                source=source_label,
+                period=period_label,
+                value=None,
+                validation_status="NON_VERIFICABILE_NULL",
+                notes="Totale Attivo o Totale Passivo esplicito non documentato.",
+            )
+
+        # B) Quadratura analitica delle componenti (richiede tutte le 5 voci del passivo non NULL)
+        sp_missing: list[str] = []
+        for k_name, v_opt in (
+            ("totale_attivo", tot_att),
+            ("patrimonio_netto", pn_dec),
+            ("fondi_rischi", fondi_opt),
+            ("tfr", tfr_opt_sp),
+            ("debiti_totali", debiti_sp_opt),
+            ("ratei_risconti_passivi", ratei_p_opt),
+        ):
+            if v_opt is None:
+                sp_missing.append(k_name)
+
+        if not sp_missing:
+            passivo_analitico = _q2(pn_dec + fondi_opt + tfr_opt_sp + debiti_sp_opt + ratei_p_opt)
+            scarto_an = _q2(tot_att - passivo_analitico)
+            an_ok = abs(scarto_an) <= Decimal("1.00")
+            sp_quad_analitica_rec = _formula_record(
+                code="QUADRATURA_SP_ANALITICA",
+                label="Quadratura analitica Stato Patrimoniale",
+                formula="Totale Attivo − (PN + Fondi rischi + TFR + Debiti + Ratei/Risconti passivi) == 0",
                 inputs={
                     "totale_attivo": _f(tot_att),
-                    "totale_passivo_ricostruito": _f(passivo_comp),
                     "patrimonio_netto": _f(pn_dec),
-                    "debiti_totali": _f(debiti_sp),
+                    "fondi_rischi": _f(fondi_opt),
+                    "tfr": _f(tfr_opt_sp),
+                    "debiti_totali": _f(debiti_sp_opt),
+                    "ratei_risconti_passivi": _f(ratei_p_opt),
+                    "totale_passivo_analitico": _f(passivo_analitico),
                 },
                 source=source_label,
                 period=period_label,
-                value=scarto_sp,
-                validation_status="VERIFICATO" if sp_ok else "ANOMALIA_QUADRATURA",
-                notes="Quadratura SP verificata (tolleranza € 1,00)." if sp_ok else f"Scarto quadratura SP pari a € {scarto_sp:,.2f}.",
+                value=scarto_an,
+                validation_status="VERIFICATO" if an_ok else "ANOMALIA_QUADRATURA",
+                notes="Tutte le componenti analitiche del passivo sono documentate (NULL != 0).",
+            )
+        else:
+            sp_quad_analitica_rec = _formula_record(
+                code="QUADRATURA_SP_ANALITICA",
+                label="Quadratura analitica Stato Patrimoniale",
+                formula="Totale Attivo − (PN + Fondi rischi + TFR + Debiti + Ratei/Risconti passivi) == 0",
+                inputs={
+                    "totale_attivo": _f(tot_att),
+                    "patrimonio_netto": _f(pn_dec),
+                    "fondi_rischi": _f(fondi_opt),
+                    "tfr": _f(tfr_opt_sp),
+                    "debiti_totali": _f(debiti_sp_opt),
+                    "ratei_risconti_passivi": _f(ratei_p_opt),
+                    "missing_components": sp_missing,
+                },
+                source=source_label,
+                period=period_label,
+                value=None,
+                validation_status="NON_VERIFICABILE_NULL",
+                notes=f"Quadratura analitica non eseguibile (NULL != 0): mancano {', '.join(sp_missing)}.",
+            )
+
+        # C) Riepilogo quadratura_sp con distinzione modalità
+        if sp_quad_analitica_rec["validation_status"] == "ANOMALIA_QUADRATURA" or sp_quad_aggregata_rec["validation_status"] == "ANOMALIA_QUADRATURA":
+            anom_src = sp_quad_analitica_rec if sp_quad_analitica_rec["validation_status"] == "ANOMALIA_QUADRATURA" else sp_quad_aggregata_rec
+            sp_quad_rec = _formula_record(
+                code="QUADRATURA_SP",
+                label="Quadratura Stato Patrimoniale",
+                formula=anom_src["formula"],
+                inputs={**anom_src["inputs"], "verification_mode": "ANOMALIA"},
+                source=source_label,
+                period=period_label,
+                value=_d(anom_src["value_exact"]),
+                validation_status="ANOMALIA_QUADRATURA",
+                notes=anom_src["notes"],
+            )
+        elif sp_quad_analitica_rec["validation_status"] == "VERIFICATO":
+            sp_quad_rec = _formula_record(
+                code="QUADRATURA_SP",
+                label="Quadratura Stato Patrimoniale (Analitica completa)",
+                formula=sp_quad_analitica_rec["formula"],
+                inputs={**sp_quad_analitica_rec["inputs"], "verification_mode": "ANALITICA_COMPLETA"},
+                source=source_label,
+                period=period_label,
+                value=_d(sp_quad_analitica_rec["value_exact"]),
+                validation_status="VERIFICATO",
+                notes="Quadratura SP analitica verificata su tutte le componenti (tolleranza € 1,00).",
+            )
+        elif sp_quad_aggregata_rec["validation_status"] == "VERIFICATO":
+            sp_quad_rec = _formula_record(
+                code="QUADRATURA_SP",
+                label="Quadratura Stato Patrimoniale (Solo aggregata)",
+                formula=sp_quad_aggregata_rec["formula"],
+                inputs={**sp_quad_aggregata_rec["inputs"], "verification_mode": "AGGREGATA_SOLO_TOTALI", "missing_analytical": sp_missing},
+                source=source_label,
+                period=period_label,
+                value=_d(sp_quad_aggregata_rec["value_exact"]),
+                validation_status="PARZIALE_CON_AVVISO",
+                notes=f"Quadra il solo totale aggregato Attivo == Passivo; mancano voci analitiche ({', '.join(sp_missing)}).",
             )
         else:
             sp_quad_rec = _formula_record(
                 code="QUADRATURA_SP",
                 label="Quadratura Stato Patrimoniale",
-                formula="Totale Attivo − Totale Passivo == 0",
-                inputs={"totale_attivo": _f(tot_att), "patrimonio_netto": _f(pn_dec), "debiti_totali": _f(debiti_sp)},
+                formula="Totale Attivo − Passivo analitico == 0",
+                inputs={"missing_components": sp_missing, "verification_mode": "NON_VERIFICABILE"},
                 source=source_label,
                 period=period_label,
                 value=None,
                 validation_status="NON_VERIFICABILE_NULL",
-                notes="Componenti SP insufficienti per la quadratura Attivo == Passivo.",
+                notes=f"Componenti SP insufficienti (NULL != 0): mancano {', '.join(sp_missing)}.",
             )
 
         # CCN Operativo = Rimanenze + Crediti commerciali - Debiti fornitori
@@ -342,67 +504,142 @@ def _evaluate_period_formulas(
             notes=ccn_note,
         )
 
-        # PFN ESMA pura e Gestionale con riconciliazione, senza duplicazioni
+        # PFN conforme ESMA vs PFN finanziaria gestionale semplificata vs PFN gestionale con debt-like
         liq_dec = _d(sp.get("disponibilita_liquide"))
         deb_b_breve, deb_b_ml, bank_split_note = extract_bank_debt_split(sp, deb)
-        tfr_val = float(tfr_sp)
-        fin_soci = float(_d(deb.get("soci_finanziamenti")) or Decimal("0.00"))
-        forn_90 = float(_d(deb.get("fornitori_scaduti")) or Decimal("0.00"))
+        mezzi_eq_dec = _d(sp.get("mezzi_equivalenti_cassa"))
+        titoli_fin_dec = _d(sp.get("titoli_e_crediti_finanziari_correnti")) or _d(sp.get("attivita_finanziarie_correnti"))
+        leas_b_dec = _d(deb.get("leasing_breve")) or _d(sp.get("debiti_leasing_breve"))
+        leas_ml_dec = _d(deb.get("leasing_oltre")) or _d(sp.get("debiti_leasing_oltre"))
+        comm_nc_dec = _d(sp.get("debiti_commerciali_non_correnti")) or _d(deb.get("fornitori_oltre"))
 
-        # Evita somma doppia AdER + bilancio tributari: per l'ultimo esercizio usa AdER riconciliato se presente
-        trib_fs = float((_d(deb.get("tributari")) or Decimal("0.00")) + (_d(deb.get("previdenziali")) or Decimal("0.00")))
+        tfr_val_opt = float(tfr_opt_sp) if tfr_opt_sp is not None else None
+        fin_soci_dec = _d(deb.get("soci_finanziamenti"))
+        fin_soci_in_fin = bool(deb.get("finanziamenti_soci_in_debito_finanziario"))
+        forn_90_dec = _d(deb.get("fornitori_scaduti"))
+
+        trib_fs_dec = (_d(deb.get("tributari")) or Decimal("0.00")) + (_d(deb.get("previdenziali")) or Decimal("0.00"))
         if is_latest_period and debt_ledger.get("bucket_totals", {}).get("tributari_contributivi"):
             trib_scad = float(debt_ledger["bucket_totals"]["tributari_contributivi"])
         else:
-            trib_scad = trib_fs
+            trib_scad = float(trib_fs_dec)
+
+        esma_complete = (
+            bank_split_note == "split_esplicito_banche"
+            and (mezzi_eq_dec is not None or titoli_fin_dec is not None)
+            and (leas_b_dec is not None and leas_ml_dec is not None)
+            and (comm_nc_dec is not None)
+        )
 
         if liq_dec is not None and (deb_b_breve is not None or deb_b_ml is not None):
             pfn_res = calculate_pfn_esma(
                 debiti_bancari_breve=deb_b_breve,
                 debiti_bancari_medio_lungo=deb_b_ml,
                 disponibilita_liquide=float(liq_dec),
-                tfr_fondo=tfr_val,
-                finanziamenti_soci=fin_soci,
+                tfr_fondo=tfr_val_opt,
+                finanziamenti_soci=float(fin_soci_dec) if fin_soci_dec is not None else None,
                 debiti_tributari_scaduti=trib_scad,
-                debiti_fornitori_scaduti_90gg=forn_90,
+                debiti_fornitori_scaduti_90gg=float(forn_90_dec) if forn_90_dec is not None else None,
+                titoli_e_crediti_finanziari_correnti=float(titoli_fin_dec) if titoli_fin_dec is not None else 0.0,
+                mezzi_equivalenti_cassa=float(mezzi_eq_dec) if mezzi_eq_dec is not None else None,
+                debiti_leasing_breve=float(leas_b_dec) if leas_b_dec is not None else None,
+                debiti_leasing_ml=float(leas_ml_dec) if leas_ml_dec is not None else None,
+                debiti_commerciali_non_correnti=float(comm_nc_dec) if comm_nc_dec is not None else None,
+                finanziamenti_soci_in_debito_finanziario=fin_soci_in_fin,
+                esma_schema_completo=esma_complete,
             )
-            pfn_pura_dec = _d(pfn_res.get("pfn_finanziaria_pura_esma"))
+            pfn_esma_dec = _d(pfn_res.get("pfn_esma_conforme"))
+            pfn_fin_sempl_dec = _d(pfn_res.get("pfn_finanziaria_gestionale_semplificata"))
             pfn_gest_dec = _d(pfn_res.get("pfn_gestionale_con_debt_like"))
-            pfn_pura_rec = _formula_record(
-                code="PFN_ESMA_PURA",
-                label="PFN Finanziaria Pura (ESMA)",
-                formula="Debiti finanziari (breve + m/l) − Disponibilità liquide",
+
+            if esma_complete and pfn_esma_dec is not None:
+                pfn_esma_rec = _formula_record(
+                    code="PFN_ESMA_CONFORME",
+                    label="PFN Conforme ESMA 32-382-1138",
+                    formula="(A+B+C+D + J+K+L incluso leasing) − (A+B+C+D liquidità e attività fin. correnti)",
+                    inputs={
+                        "debiti_bancari_breve": pfn_res.get("debiti_finanziari_breve"),
+                        "debiti_bancari_ml": pfn_res.get("debiti_finanziari_medio_lungo"),
+                        "componenti_esma": pfn_res.get("componenti_esma"),
+                        "disponibilita_liquide": pfn_res.get("disponibilita_liquide"),
+                    },
+                    source=source_label,
+                    period=period_label,
+                    value=pfn_esma_dec,
+                    validation_status="VERIFICATO",
+                    notes="Schema ESMA 32-382-1138 verificato su tutte le componenti pertinenti.",
+                )
+            else:
+                pfn_esma_rec = _formula_record(
+                    code="PFN_ESMA_CONFORME",
+                    label="PFN Conforme ESMA 32-382-1138",
+                    formula="(A+B+C+D + J+K+L) − Liquidità e attività finanziarie correnti ESMA",
+                    inputs={
+                        "esma_missing_components": pfn_res.get("esma_missing_components"),
+                        "metodo_split_banche": bank_split_note,
+                        "disponibilita_liquide": pfn_res.get("disponibilita_liquide"),
+                    },
+                    source=source_label,
+                    period=period_label,
+                    value=None,
+                    validation_status="NON_VERIFICABILE_NULL",
+                    notes=(
+                        "Dataset incompleto per dichiarare piena conformità ESMA (mancano: "
+                        + ", ".join(pfn_res.get("esma_missing_components") or [])
+                        + "). Utilizzare PFN_GESTIONALE_SEMPLIFICATA per il solo saldo finanziario documentato."
+                    ),
+                )
+
+            pfn_fin_gest_rec = _formula_record(
+                code="PFN_GESTIONALE_SEMPLIFICATA",
+                label="PFN finanziaria gestionale semplificata (non pienamente ESMA)" if not esma_complete else "PFN finanziaria netta gestionale",
+                formula="Debiti bancari/finanziari disponibili − Disponibilità liquide",
                 inputs={
                     "debiti_bancari_breve": pfn_res.get("debiti_finanziari_breve"),
                     "debiti_bancari_ml": pfn_res.get("debiti_finanziari_medio_lungo"),
                     "disponibilita_liquide": pfn_res.get("disponibilita_liquide"),
                     "metodo_split_banche": bank_split_note,
+                    "esma_compliant": esma_complete,
                 },
                 source=source_label,
                 period=period_label,
-                value=pfn_pura_dec,
-                validation_status="VERIFICATO",
+                value=pfn_fin_sempl_dec,
+                validation_status="VERIFICATO" if esma_complete else "PARZIALE_CON_AVVISO",
+                notes="Distinta dalla PFN ESMA conforme finché lo schema ESMA completo non è documentato." if not esma_complete else "",
             )
+
             pfn_gest_rec = _formula_record(
                 code="PFN_GESTIONALE_DEBT_LIKE",
-                label="PFN Gestionale (ESMA + Debt-like)",
-                formula="PFN Pura + TFR + Finanziamenti soci + Tributari scaduti + Fornitori oltre 90gg",
+                label="PFN Gestionale (con debt-like e riconciliazione)",
+                formula="PFN finanziaria base + Debt-like documentati (senza duplicare finanziamenti soci)",
                 inputs={
-                    "pfn_finanziaria_pura": _f(pfn_pura_dec),
+                    "pfn_base_nome": "PFN_ESMA_CONFORME" if esma_complete else "PFN_GESTIONALE_SEMPLIFICATA",
+                    "pfn_base_valore": _f(pfn_fin_sempl_dec),
                     "debt_like_items": pfn_res.get("debt_like_items"),
                     "riconciliazione_pfn": pfn_res.get("riconciliazione_pfn"),
                 },
                 source=source_label,
                 period=period_label,
                 value=pfn_gest_dec,
-                validation_status="VERIFICATO",
+                validation_status="VERIFICATO" if esma_complete else "PARZIALE_CON_AVVISO",
             )
         else:
-            pfn_pura_rec = _formula_record(
-                code="PFN_ESMA_PURA",
-                label="PFN Finanziaria Pura (ESMA)",
-                formula="Debiti finanziari (breve + m/l) − Disponibilità liquide",
+            pfn_esma_rec = _formula_record(
+                code="PFN_ESMA_CONFORME",
+                label="PFN Conforme ESMA 32-382-1138",
+                formula="(A+B+C+D + J+K+L) − Liquidità e attività fin. correnti",
                 inputs={"disponibilita_liquide": _f(liq_dec), "deb_b_breve": deb_b_breve, "deb_b_ml": deb_b_ml},
+                source=source_label,
+                period=period_label,
+                value=None,
+                validation_status="NON_VERIFICABILE_NULL",
+                notes="Disponibilità liquide o passività finanziarie mancanti (NULL).",
+            )
+            pfn_fin_gest_rec = _formula_record(
+                code="PFN_GESTIONALE_SEMPLIFICATA",
+                label="PFN finanziaria gestionale semplificata",
+                formula="Debiti finanziari disponibili − Disponibilità liquide",
+                inputs={"disponibilita_liquide": _f(liq_dec)},
                 source=source_label,
                 period=period_label,
                 value=None,
@@ -411,8 +648,8 @@ def _evaluate_period_formulas(
             )
             pfn_gest_rec = _formula_record(
                 code="PFN_GESTIONALE_DEBT_LIKE",
-                label="PFN Gestionale (ESMA + Debt-like)",
-                formula="PFN Pura + Debt-like items",
+                label="PFN Gestionale (con debt-like)",
+                formula="PFN base + Debt-like items",
                 inputs={},
                 source=source_label,
                 period=period_label,
@@ -435,8 +672,12 @@ def _evaluate_period_formulas(
         "risultato_netto": net_rec,
         "patrimonio_netto": pn_rec,
         "quadratura_sp": sp_quad_rec,
+        "quadratura_sp_aggregata": sp_quad_aggregata_rec,
+        "quadratura_sp_analitica": sp_quad_analitica_rec,
         "ccn_operativo": ccn_op_rec,
-        "pfn_esma_pura": pfn_pura_rec,
+        "pfn_esma": pfn_esma_rec,
+        "pfn_esma_pura": pfn_esma_rec,
+        "pfn_finanziaria_gestionale": pfn_fin_gest_rec,
         "pfn_gestionale": pfn_gest_rec,
         "ebitda_raccordo": eb_res.get("raccordo_bilancio"),
     }
@@ -702,7 +943,8 @@ def _build_protocol_view(
                     "patrimonio_netto": p["patrimonio_netto"]["value"],
                     "quadratura_sp": p["quadratura_sp"]["validation_status"],
                     "ccn_operativo": p["ccn_operativo"]["value"],
-                    "pfn_esma_pura": p["pfn_esma_pura"]["value"],
+                    "pfn_esma_conforme": p["pfn_esma"]["value"],
+                    "pfn_finanziaria_gestionale": p["pfn_finanziaria_gestionale"]["value"],
                     "pfn_gestionale": p["pfn_gestionale"]["value"],
                 }
                 for p in annual_periods
