@@ -18,8 +18,9 @@ from app.schemas.debtor import (
 )
 from app.schemas.dto import (
     IncomeDocumentOut, RelatedCaseOut, CaseIndicatorsOut, FieldEditOut, EnrichmentRequestOut,
-    CaseCrossAnalysisOut,
+    CaseCrossAnalysisOut, ProtocolConfirmationIn, ProtocolAssessmentOut,
 )
+from app.services.protocols.service import get_protocol_assessment, confirm_case_protocol
 from app.services import fiscal_code as fc
 from app.services.cross_analysis import execute_cross_analysis
 from app.services.pdf_report_generator import generate_preanalysis_pdf
@@ -894,6 +895,30 @@ def reanalyze_case_endpoint(case_id: str, db: Session = Depends(get_db)):
         "report": report_data,
         "indicators": indicators_out,
     }
+
+
+@router.get("/cases/{case_id}/protocol-assessment", response_model=ProtocolAssessmentOut)
+def get_protocol_assessment_endpoint(case_id: str, db: Session = Depends(get_db)):
+    """Valutazione tridimensionale (forma giuridica, regime contabile, soglie CCII) e Gate 0 in sola lettura."""
+    return get_protocol_assessment(db, case_id)
+
+
+@router.patch("/cases/{case_id}/protocol-confirmation", response_model=ProtocolAssessmentOut)
+def confirm_case_protocol_endpoint(
+    case_id: str,
+    body: ProtocolConfirmationIn,
+    db: Session = Depends(get_db),
+):
+    """Conferma o rettifica dell'operatore su profilo, regime contabile e stato completezza con audit FieldEdit."""
+    return confirm_case_protocol(
+        db,
+        case_id,
+        debtor_profile_confirmed=body.debtor_profile_confirmed,
+        accounting_regime_confirmed=body.accounting_regime_confirmed,
+        dossier_completeness_status=body.dossier_completeness_status,
+        operator=body.operator,
+        reason=body.reason,
+    )
 
 
 
