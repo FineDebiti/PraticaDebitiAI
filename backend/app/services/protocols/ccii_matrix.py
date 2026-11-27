@@ -385,6 +385,199 @@ def _evaluate_special_category(
     }
 
 
+def _is_production_active(rule: CciiRuleDefinition) -> bool:
+    """Attivazione produttiva richiede contemporaneamente APPROVED e active_in_production=True."""
+    return rule.professional_approval_status == "APPROVED" and bool(rule.active_in_production)
+
+
+def _inspect_total_debt_perimeter(
+    classification: ClassificationResult,
+    debt_ledger: dict[str, Any],
+) -> dict[str, Any]:
+    """Distingue le 6 componenti del perimetro debitorio per l'art. 2 CCII (debiti anche non scaduti)."""
+    ledger_state = debt_ledger.get("stato_dato") or "NON_VERIFICABILE_NULL"
+    debt_totals = debt_ledger.get("totals") or {}
+    bucket_totals = debt_ledger.get("bucket_totals") or {}
+    bs_comp = debt_ledger.get("balance_sheet_comparison") or {}
+    reconciliation_items = list(debt_ledger.get("reconciliation_required") or [])
+    ext_bk = dict(getattr(classification, "ccii_external_breakdown", None) or {})
+    metrics_years = list(classification.ccii_metrics_by_year or [])
+
+    cassa_certe = debt_totals.get("esposizioni_per_cassa_certe")
+    doc_cassa = debt_totals.get("posizioni_documentate_cassa")
+    if doc_cassa is None and cassa_certe is not None:
+        rif_val = float(debt_totals.get("posizioni_riferite_cassa") or 0.0)
+        doc_cassa = max(0.0, round(float(cassa_certe) - rif_val, 2))
+
+    # 2. Esposizioni finanziarie per cassa (distinte dal totale debiti complessivi)
+    cr_cassa_bk = (debt_ledger.get("cr_breakdown") or {}).get("cassa_effettiva")
+    banche_bucket = float(bucket_totals.get("bancari_finanziari") or 0.0)
+    fact_bucket = float(bucket_totals.get("cessioni_credito") or 0.0)
+    if bucket_totals and ("bancari_finanziari" in bucket_totals or "cessioni_credito" in bucket_totals):
+        esp_finanziarie: Optional[float] = round(banche_bucket + fact_bucket, 2)
+    elif cr_cassa_bk is not None:
+        esp_finanziarie = round(float(cr_cassa_bk), 2)
+    elif ext_bk.get("cr_cassa_effettiva") is not None:
+        esp_finanziarie = round(float(ext_bk["cr_cassa_effettiva"]), 2)
+    else:
+        esp_finanziarie = None
+
+    # 3. Debiti complessivi anche non scaduti (bilancio / serie annuale art. 2 riconciliati con DebtLedger)
+    bilancio_deb_opt = bs_comp.get("bilancio_debiti_totali")
+    if bilancio_deb_opt is None:
+        for m in metrics_years:
+            if m.get("debiti") is not None:
+                bilancio_deb_opt = float(m["debiti"])
+                break
+
+    if bilancio_deb_opt is not None and cassa_certe is not None:
+        debiti_complessivi: Optional[float] = round(max(float(bilancio_deb_opt), float(cassa_certe)), 2)
+        delta_cassa_bilancio: Optional[float] = round(float(cassa_certe) - float(bilancio_deb_opt), 2)
+    elif bilancio_deb_opt is not None and ledger_state != "NON_VERIFICABILE_NULL":
+        debiti_complessivi = round(float(bilancio_deb_opt), 2)
+        delta_cassa_bilancio = None
+    elif cassa_certe is not None and ledger_state != "NON_VERIFICABILE_NULL":
+        # Solo cassa da fonti dirette (puo mancare la quota non scaduta/fornitori di bilancio!)
+        debiti_complessivi = round(float(cassa_certe), 2)
+        delta_cassa_bilancio = None
+    else:
+        debiti_complessivi = None
+        delta_cassa_bilancio = None
+
+    # 4. Passivita contestate / sospese (escluse dal debito certo ma tracciate)
+    contestate_val = debt_totals.get("posizioni_contestate_sospese")
+    if contestate_val is None and ext_bk.get("aer_sospeso_contestato") is not None:
+        contestate_val = float(ext_bk["aer_sospeso_contestato"])
+
+    # 5. Garanzie non escusse / rischi di firma (separate dai debiti per cassa)
+    garanzie_val = debt_totals.get("esposizioni_di_firma_e_garanzie")
+    if garanzie_val is None and ext_bk.get("cr_garanzie_e_firma") is not None:
+        garanzie_val = float(ext_bk["cr_garanzie_e_firma"])
+
+    # 6. Importi non riconciliati
+    rif_cassa = float(debt_totals.get("posizioni_riferite_cassa") or 0.0)
+    non_quant_cnt = int(debt_totals.get("posizioni_non_quantificate_count") or 0)
+    bilancio_understates_cassa = bool(delta_cassa_bilancio is not None and delta_cassa_bilancio > 1.00)
+    has_unreconciled = bool(
+        reconciliation_items
+        or rif_cassa > 0.0
+        or non_quant_cnt > 0
+        or bilancio_understates_cassa
+    )
+
+    non_overdue_perimeter_documented = bilancio_deb_opt is not None
+    ricostruzione_affidabile = bool(
+        ledger_state == "VERIFICATO"
+        and not has_unreconciled
+        and debiti_complessivi is not None
+        and non_overdue_perimeter_documented
+    )
+
+    return {
+        "massa_debitoria_documentata_eur": doc_cassa,
+        "esposizioni_finanziarie_per_cassa_eur": esp_finanziarie,
+        "debiti_complessivi_anche_non_scaduti_eur": debiti_complessivi,
+        "passivita_contestate_eur": round(float(contestate_val), 2) if contestate_val is not None else None,
+        "garanzie_non_escusse_eur": round(float(garanzie_val), 2) if garanzie_val is not None else None,
+        "importi_non_riconciliati": {
+            "ledger_stato_dato": ledger_state,
+            "reconciliation_required_count": len(reconciliation_items),
+            "reconciliation_codes": [str(it.get("code") or "") for it in reconciliation_items],
+            "posizioni_riferite_cassa_eur": round(rif_cassa, 2),
+            "posizioni_non_quantificate_count": non_quant_cnt,
+            "delta_cassa_vs_bilancio_eur": delta_cassa_bilancio,
+            "has_unreconciled_amounts": has_unreconciled,
+        },
+        "non_overdue_debt_perimeter_documented": non_overdue_perimeter_documented,
+        "debiti_complessivi_ricostruzione_affidabile": ricostruzione_affidabile,
+    }
+
+
+def _inspect_dimensional_contract(
+    classification: ClassificationResult,
+    debt_perimeter: dict[str, Any],
+    *,
+    attivo_max_eur: float = 300000.0,
+    ricavi_max_eur: float = 200000.0,
+    debiti_max_eur: float = 500000.0,
+) -> dict[str, Any]:
+    """Allinea la lettura ai campi effettivi di classifier.py (attivo, ricavi, debiti, exceeded)."""
+    metrics_years = list(classification.ccii_metrics_by_year or [])
+    exceeded_reasons: list[str] = []
+
+    for m in metrics_years:
+        yr = str(m.get("year") or "n/d")
+        ex_list = list(m.get("exceeded") or [])
+        for ex in ex_list:
+            exceeded_reasons.append(f"Esercizio {yr}: {ex}")
+        if not ex_list:
+            att = m.get("attivo")
+            ric = m.get("ricavi")
+            deb = m.get("debiti")
+            if att is not None and float(att) > attivo_max_eur:
+                exceeded_reasons.append(f"Esercizio {yr}: attivo={float(att):,.2f} > {attivo_max_eur:,.0f}")
+            if ric is not None and float(ric) > ricavi_max_eur:
+                exceeded_reasons.append(f"Esercizio {yr}: ricavi={float(ric):,.2f} > {ricavi_max_eur:,.0f}")
+            if deb is not None and float(deb) > debiti_max_eur:
+                exceeded_reasons.append(f"Esercizio {yr}: debiti={float(deb):,.2f} > {debiti_max_eur:,.0f}")
+
+    tot_deb_comp = debt_perimeter.get("debiti_complessivi_anche_non_scaduti_eur")
+    if tot_deb_comp is not None and float(tot_deb_comp) > debiti_max_eur:
+        # Verifica che non sia gia solo conflitto bilancio vs fonte esterna rilevato dal classificatore
+        if classification.ccii_size_qualification != "non_determinabile":
+            exceeded_reasons.append(
+                f"Debiti complessivi anche non scaduti (€ {float(tot_deb_comp):,.2f}) > soglia € {debiti_max_eur:,.0f}"
+            )
+
+    ext_bk = getattr(classification, "ccii_external_breakdown", None) or {}
+    if classification.ccii_size_qualification == "non_minore":
+        if ext_bk.get("aer_netto_effettivo") is not None and float(ext_bk["aer_netto_effettivo"]) > debiti_max_eur:
+            exceeded_reasons.append(f"Debito netto AdER (€ {float(ext_bk['aer_netto_effettivo']):,.2f}) > € {debiti_max_eur:,.0f}")
+        if ext_bk.get("cr_cassa_effettiva") is not None and float(ext_bk["cr_cassa_effettiva"]) > debiti_max_eur:
+            exceeded_reasons.append(f"Esposizione CR per cassa (€ {float(ext_bk['cr_cassa_effettiva']):,.2f}) > € {debiti_max_eur:,.0f}")
+
+    # Deduplica mantenendo ordine
+    exceeded_reasons = list(dict.fromkeys(exceeded_reasons))
+
+    all_years_complete = bool(metrics_years) and all(
+        bool(m.get("complete_for_ccii"))
+        or (m.get("attivo") is not None and m.get("ricavi") is not None and m.get("debiti") is not None)
+        for m in metrics_years
+    )
+    young_under_3_years = (
+        classification.ccii_size_qualification == "impresa_minore"
+        and 1 <= len(metrics_years) < 3
+        and all_years_complete
+        and not exceeded_reasons
+    )
+    exercises_verified = bool((len(metrics_years) >= 3 or young_under_3_years) and all_years_complete)
+
+    size_qual = classification.ccii_size_qualification
+    deb_reliable = bool(debt_perimeter.get("debiti_complessivi_ricostruzione_affidabile"))
+    deb_under_500k = tot_deb_comp is not None and float(tot_deb_comp) <= debiti_max_eur
+
+    if size_qual == "non_determinabile":
+        effective_size_qual = "non_determinabile"
+    elif size_qual == "non_minore" and exceeded_reasons:
+        effective_size_qual = "non_minore"
+    elif size_qual == "impresa_minore" and exercises_verified and deb_reliable and deb_under_500k:
+        effective_size_qual = "impresa_minore"
+    else:
+        effective_size_qual = "non_determinabile"
+
+    return {
+        "classifier_size_qualification": size_qual,
+        "effective_size_qualification": effective_size_qual,
+        "exercises_count": len(metrics_years),
+        "all_years_complete": all_years_complete,
+        "young_company_under_3_years": young_under_3_years,
+        "exercises_verified": exercises_verified,
+        "exceeded_reasons": exceeded_reasons,
+        "certified_minor": effective_size_qual == "impresa_minore",
+        "confirmed_non_minor": effective_size_qual == "non_minore",
+    }
+
+
 def _rule_metadata_block(
     rule: CciiRuleDefinition,
     *,
@@ -392,12 +585,14 @@ def _rule_metadata_block(
     simulation_mode: bool,
 ) -> dict[str, Any]:
     normatively_effective = assessment_date >= rule.effective_from
-    can_execute = simulation_mode or rule.professional_approval_status == "APPROVED"
-    exec_mode = (
-        "ATTIVA_APPROVATA"
-        if (not simulation_mode and rule.professional_approval_status == "APPROVED")
-        else "SIMULAZIONE_NON_ATTIVA_IN_PRODUZIONE"
-    )
+    prod_active = _is_production_active(rule)
+    can_execute = simulation_mode or prod_active
+    if not simulation_mode and prod_active:
+        exec_mode = "ATTIVA_IN_PRODUZIONE"
+    elif simulation_mode:
+        exec_mode = "SIMULAZIONE_NON_ATTIVA_IN_PRODUZIONE"
+    else:
+        exec_mode = "BLOCCATA_NON_ATTIVA_IN_PRODUZIONE"
     return {
         "rule_code": rule.rule_code,
         "procedure_or_instrument": rule.procedure_or_instrument,
@@ -408,7 +603,7 @@ def _rule_metadata_block(
         "effective_from": rule.effective_from.isoformat(),
         "normatively_effective_at_assessment_date": normatively_effective,
         "professional_approval_status": rule.professional_approval_status,
-        "active_in_production": bool(rule.active_in_production and rule.professional_approval_status == "APPROVED"),
+        "active_in_production": prod_active,
         "execution_mode": exec_mode,
         "can_execute_under_current_mode": can_execute,
         "normative_version": rule.normative_version,
@@ -430,10 +625,25 @@ def _combine_outcome(statuses: list[str], *, any_blocking: bool = False) -> Rule
 
 def _blocked_rule_result(rule: CciiRuleDefinition, *, assessment_date: date, simulation_mode: bool) -> dict[str, Any]:
     meta = _rule_metadata_block(rule, assessment_date=assessment_date, simulation_mode=simulation_mode)
+    if rule.professional_approval_status == "APPROVED" and not rule.active_in_production:
+        exec_status = "APPROVATA_NON_ATTIVA_IN_PRODUZIONE"
+        reason_msg = (
+            f"Regola '{rule.rule_code}' in stato APPROVED ma con active_in_production=False: "
+            "esecuzione produttiva bloccata fino ad attivazione esplicita."
+        )
+    elif rule.professional_approval_status == "SUSPENDED":
+        exec_status = "SOSPESA_NORMA_NON_DEFINITIVA"
+        reason_msg = f"Regola '{rule.rule_code}' in stato SUSPENDED."
+    else:
+        exec_status = "BLOCCATA_IN_ATTESA_APPROVAZIONE"
+        reason_msg = (
+            f"Regola '{rule.rule_code}' in stato '{rule.professional_approval_status}': "
+            "esecuzione produttiva bloccata fino ad approvazione professionale e active_in_production=True."
+        )
     return {
         **meta,
         "deterministic_outcome": "NON_DETERMINABILE",
-        "execution_status": "BLOCCATA_IN_ATTESA_APPROVAZIONE",
+        "execution_status": exec_status,
         "subjective_requirement_status": "NON_DETERMINABILE",
         "dimensional_requirement_status": "NON_DETERMINABILE",
         "objective_requirement_status": "NON_DETERMINABILE",
@@ -442,18 +652,15 @@ def _blocked_rule_result(rule: CciiRuleDefinition, *, assessment_date: date, sim
         "outcome_disclaimer": OUTCOME_DISCLAIMER,
         "satisfied_requirements": [],
         "missing_requirements": [],
-        "indeterminable_requirements": [
-            f"Regola '{rule.rule_code}' in stato '{rule.professional_approval_status}': "
-            "esecuzione produttiva bloccata fino ad approvazione professionale."
-        ],
+        "indeterminable_requirements": [reason_msg],
         "blocking_conditions_verified": [],
         "blocking_conditions_unverified": list(rule.blocking_conditions),
         "missing_documents": [],
         "interpretive_considerations": list(rule.interpretive_considerations),
         "reserved_to_professional": [
-            f"Validazione normativa della regola {rule.rule_code} prima dell'attivazione in produzione."
+            f"Validazione normativa e attivazione esplicita della regola {rule.rule_code}."
         ],
-        "suspended_decisions": [f"Valutazione {rule.procedure_or_instrument} sospesa in attesa approvazione regola."],
+        "suspended_decisions": [f"Valutazione {rule.procedure_or_instrument} sospesa in attesa attivazione."],
         "exceptions_and_transitional": list(rule.exceptions_and_transitional),
     }
 
@@ -536,18 +743,21 @@ def evaluate_ccii_matrix(
 
     legal_form = effective_legal_form or getattr(gate0, "effective_legal_form_profile", None) or classification.legal_form_profile
     accounting_regime = effective_accounting_regime or getattr(gate0, "effective_accounting_regime", None) or classification.accounting_regime
-    size_qual = classification.ccii_size_qualification
     protocol_code = protocol_code_for_profile(legal_form)
 
     gate0_info = _inspect_gate0(gate0)
     pfn_info = _inspect_pfn_esma(formula_engine)
     ledger_state = debt_ledger.get("stato_dato") or "NON_VERIFICABILE_NULL"
-    debt_mass_verified = ledger_state == "VERIFICATO"
     debt_totals = debt_ledger.get("totals") or {}
     cassa_certe = debt_totals.get("esposizioni_per_cassa_certe")
     missing_sources = list(debt_ledger.get("missing_sources_to_acquire") or [])
     reconciliation_items = list(debt_ledger.get("reconciliation_required") or [])
     fiscal_buckets = _classify_fiscal_debt_buckets(debt_ledger)
+    debt_perimeter = _inspect_total_debt_perimeter(classification, debt_ledger)
+    debt_mass_verified = ledger_state == "VERIFICATO"
+    dim_contract = _inspect_dimensional_contract(classification, debt_perimeter)
+    size_qual = dim_contract["effective_size_qualification"]
+    raw_classifier_size_qual = classification.ccii_size_qualification
 
     agricola_cat = _evaluate_special_category(
         "impresa_agricola_camerale",
@@ -602,34 +812,13 @@ def evaluate_ccii_matrix(
     procedure_started_fact = usable_facts.get("data_avvio_procedura_o_cnc")
     procedure_started_date = procedure_started_fact.fact_date if procedure_started_fact else cnc_started_date
 
-    # Metriche triennio art. 2 separate dai debiti
-    metrics_years = list(classification.ccii_metrics_by_year or [])
-    years_attivo_ricavi_ok = (
-        len(metrics_years) >= 3
-        and all(
-            (m.get("attivo") is not None and m.get("ricavi") is not None)
-            for m in metrics_years
-        )
-    )
-    any_attivo_ricavi_exceeded = any(
-        m.get("supera_attivo_300k") is True or m.get("supera_ricavi_200k") is True
-        for m in metrics_years
-    )
-    any_attivo_ricavi_below_all_years = bool(
-        years_attivo_ricavi_ok
-        and all(
-            m.get("supera_attivo_300k") is False and m.get("supera_ricavi_200k") is False
-            for m in metrics_years
-        )
-    )
-
     local_tax_ext_effective = eval_date >= date(2026, 8, 12)
     pending_before_dlgs147 = bool(procedure_started_date and procedure_started_date < date(2026, 8, 12))
 
     # Valutazione per ciascuna delle 14 schede
     schede: list[dict[str, Any]] = []
     for rule in catalog.rules:
-        if not simulation_mode and rule.professional_approval_status != "APPROVED":
+        if not simulation_mode and not _is_production_active(rule):
             schede.append(_blocked_rule_result(rule, assessment_date=eval_date, simulation_mode=simulation_mode))
             continue
 
@@ -676,42 +865,73 @@ def evaluate_ccii_matrix(
                 continue
 
             sat, miss, indet, blk_ver, mdocs = [], [], [], [], list(gate0_info["missing_p0"])
-            if years_attivo_ricavi_ok:
-                sat.append(f"Esercizi rilevanti esaminati ({len(metrics_years)} esercizi con attivo e ricavi documentati).")
+            if dim_contract["young_company_under_3_years"]:
+                sat.append(
+                    f"Impresa costituita da meno di 3 anni: valutati tutti i {dim_contract['exercises_count']} "
+                    "esercizi disponibili completi (attivo, ricavi, debiti) ex art. 2 co. 1 lett. d)."
+                )
+            elif dim_contract["exercises_verified"]:
+                sat.append(
+                    f"Esercizi rilevanti esaminati ({dim_contract['exercises_count']} esercizi con attivo, ricavi e debiti documentati)."
+                )
             else:
                 indet.append(
-                    f"Verifica esercizi rilevanti incompleta ({len(metrics_years)}/3 esercizi completi per attivo e ricavi) — "
-                    "salva prova di costituzione più recente."
+                    f"Verifica esercizi rilevanti incompleta ({dim_contract['exercises_count']}/3 esercizi completi per attivo/ricavi/debiti) "
+                    "o serie non consecutiva/pertinente."
                 )
-                mdocs.append("Bilanci/dichiarazioni dei 3 esercizi antecedenti o certificazione data inizio attività.")
+                mdocs.extend(list(classification.ccii_required_verifications or []))
+                mdocs.append("Bilanci/dichiarazioni dei 3 esercizi antecedenti o visura data costituzione (< 3 anni).")
 
-            if cassa_certe is not None and debt_mass_verified:
-                sat.append(f"Ammontare debiti da DebtLedger VERIFICATO: € {cassa_certe:,.2f}.")
-            elif cassa_certe is not None:
+            deb_tot_eur = debt_perimeter["debiti_complessivi_anche_non_scaduti_eur"]
+            esp_fin_eur = debt_perimeter["esposizioni_finanziarie_per_cassa_eur"]
+            cont_eur = debt_perimeter["passivita_contestate_eur"]
+            gar_eur = debt_perimeter["garanzie_non_escusse_eur"]
+            non_ric = debt_perimeter["importi_non_riconciliati"]
+
+            if debt_perimeter["debiti_complessivi_ricostruzione_affidabile"] and deb_tot_eur is not None:
+                sat.append(
+                    f"Debiti complessivi (anche non scaduti) ricostruiti in via affidabile pari a € {deb_tot_eur:,.2f} "
+                    f"(esposizioni finanziarie per cassa distinte: € {(esp_fin_eur or 0.0):,.2f})."
+                )
+            elif deb_tot_eur is not None:
                 indet.append(
-                    f"Ammontare debiti € {cassa_certe:,.2f} non definitivamente accertato "
-                    f"(DebtLedger.stato_dato={ledger_state})."
+                    f"Perimetro dei debiti complessivi (anche non scaduti) pari a € {deb_tot_eur:,.2f} NON certificabile "
+                    f"(stato DebtLedger={ledger_state}, perimetro non scaduti documentato="
+                    f"{debt_perimeter['non_overdue_debt_perimeter_documented']}, "
+                    f"importi non riconciliati={non_ric['has_unreconciled_amounts']})."
                 )
                 mdocs.extend(missing_sources)
+                if not debt_perimeter["non_overdue_debt_perimeter_documented"]:
+                    mdocs.append("Situazione patrimoniale / partitario debiti complessivi (anche non scaduti verso fornitori e terzi).")
             else:
-                indet.append("Ammontare complessivo dei debiti non determinabile (DebtLedger NULL).")
+                indet.append("Ammontare dei debiti complessivi (anche non scaduti) non determinabile (NULL).")
                 mdocs.extend(missing_sources)
 
-            debt_over_500k = (cassa_certe is not None) and (float(cassa_certe) > 500000.0)
-            if size_qual == "impresa_minore" and debt_mass_verified and any_attivo_ricavi_below_all_years:
+            if cont_eur is not None and cont_eur > 0:
+                indet.append(
+                    f"Presenti passività contestate/sospese per € {cont_eur:,.2f} (escluse dal debito certo ma da verificare per eventuale impatto su soglia € 500k)."
+                )
+            if gar_eur is not None and gar_eur > 0:
+                sat.append(
+                    f"Garanzie non escusse / rischi di firma (€ {gar_eur:,.2f}) mantenute distinte dal debito complessivo art. 2 CCII."
+                )
+
+            if dim_contract["certified_minor"]:
                 dim_st = "VERIFICATO"
                 sat.append("Tutti e tre i requisiti cumulativi art. 2 co. 1 lett. d) rispettati: qualifica IMPRESA MINORE.")
                 if legal_form == "societa_capitali_srl":
                     sat.append("Invarianza forma: S.r.l. sotto soglia resta soggetta al Protocollo B economico-contabile.")
-            elif size_qual == "non_minore" and (any_attivo_ricavi_exceeded or debt_over_500k):
+            elif dim_contract["confirmed_non_minor"]:
                 dim_st = "NON_SODDISFATTO"
-                miss.append("Soglia dimensionale art. 2 co. 1 lett. d) superata su fonte documentata → Impresa NON MINORE.")
+                miss.extend(dim_contract["exceeded_reasons"])
+                miss.append("Soglia dimensionale art. 2 co. 1 lett. d) superata su fonte documentata → Impresa NON MINORE (non equivale a insolvenza).")
             else:
                 dim_st = "NON_DETERMINABILE"
-                if not debt_mass_verified:
-                    indet.append("Verifica soglia debiti <= € 500.000 sospesa perché il DebtLedger richiede riconciliazione.")
+                for anom in (classification.anomalies or []):
+                    if anom not in indet:
+                        indet.append(anom)
 
-            schede.append(_make_evaluation(
+            dim_card = _make_evaluation(
                 rule, assessment_date=eval_date, simulation_mode=simulation_mode,
                 subjective_status="VERIFICATO",
                 dimensional_status=dim_st,
@@ -719,15 +939,17 @@ def evaluate_ccii_matrix(
                 procedural_status="VERIFICATO" if gate0_info["dossier_confirmed"] else "NON_DETERMINABILE",
                 satisfied=sat, missing=miss, indeterminable=indet,
                 blocking_verified=blk_ver,
-                blocking_unverified=[] if dim_st != "NON_DETERMINABILE" else ["Completezza 3 esercizi e riconciliazione passivo"],
+                blocking_unverified=[] if dim_st != "NON_DETERMINABILE" else ["Completezza esercizi pertinenti e ricostruzione affidabile debiti anche non scaduti"],
                 missing_docs=mdocs,
                 reserved=[
-                    "Verifica di eventuali componenti straordinarie, passività contestate o data inizio attività.",
+                    "Verifica di eventuali componenti straordinarie, passività contestate, garanzie escutibili o data inizio attività.",
                     "Accertamento autonomo dello stato di crisi/insolvenza (il superamento delle soglie non determina insolvenza).",
                 ],
                 suspended=[] if dim_st != "NON_DETERMINABILE" else ["Qualificazione dimensionale art. 2 co. 1 lett. d) sospesa."],
                 outcome_override="NON_DETERMINABILE" if dim_st == "NON_DETERMINABILE" else ("VERIFICATO" if dim_st == "VERIFICATO" else "NON_SODDISFATTO"),
-            ))
+            )
+            dim_card["debt_perimeter_breakdown"] = debt_perimeter
+            schede.append(dim_card)
 
         # ------------------------------------------------------------------
         # 2) CCII-ALL-01 — Art. 3 co. 4 lett. a-d
@@ -1968,8 +2190,12 @@ def evaluate_ccii_matrix(
             "total_rules": len(catalog.rules),
             "pending_approval_count": sum(1 for r in catalog.rules if r.professional_approval_status == "PENDING_APPROVAL"),
             "approved_count": sum(1 for r in catalog.rules if r.professional_approval_status == "APPROVED"),
+            "approved_but_inactive_count": sum(
+                1 for r in catalog.rules if r.professional_approval_status == "APPROVED" and not r.active_in_production
+            ),
+            "active_in_production_count": sum(1 for r in catalog.rules if _is_production_active(r)),
             "suspended_legislative_count": len(catalog.suspended_legislative_rules),
-            "any_rule_active_in_production": any(r.active_in_production for r in catalog.rules),
+            "any_rule_active_in_production": any(_is_production_active(r) for r in catalog.rules),
         },
         "automatic_recommendation": None,
         "human_gate_required": True,
@@ -1978,11 +2204,14 @@ def evaluate_ccii_matrix(
             "legal_form_profile": legal_form,
             "accounting_regime": accounting_regime,
             "ccii_size_qualification": size_qual,
+            "classifier_size_qualification": raw_classifier_size_qual,
+            "dimensional_contract": dim_contract,
             "protocol_code": protocol_code,
             "gate0": gate0_info,
             "debt_ledger_status": ledger_state,
             "debt_mass_verified": debt_mass_verified,
             "debt_cassa_certe": cassa_certe,
+            "debt_perimeter": debt_perimeter,
             "reconciliation_required_count": len(reconciliation_items),
             "pfn_esma": pfn_info,
             "fiscal_debt_buckets": fiscal_buckets,

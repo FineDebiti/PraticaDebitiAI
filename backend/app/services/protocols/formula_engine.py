@@ -57,6 +57,14 @@ def _d(val: Any) -> Optional[Decimal]:
         return None
 
 
+def _first_not_none(*vals: Optional[Decimal]) -> Optional[Decimal]:
+    """Return the first value that is not None (preserving documented Decimal('0'))."""
+    for val in vals:
+        if val is not None:
+            return val
+    return None
+
+
 def _q2(val: Decimal) -> Decimal:
     return val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
@@ -508,10 +516,10 @@ def _evaluate_period_formulas(
         liq_dec = _d(sp.get("disponibilita_liquide"))
         deb_b_breve, deb_b_ml, bank_split_note = extract_bank_debt_split(sp, deb)
         mezzi_eq_dec = _d(sp.get("mezzi_equivalenti_cassa"))
-        titoli_fin_dec = _d(sp.get("titoli_e_crediti_finanziari_correnti")) or _d(sp.get("attivita_finanziarie_correnti"))
-        leas_b_dec = _d(deb.get("leasing_breve")) or _d(sp.get("debiti_leasing_breve"))
-        leas_ml_dec = _d(deb.get("leasing_oltre")) or _d(sp.get("debiti_leasing_oltre"))
-        comm_nc_dec = _d(sp.get("debiti_commerciali_non_correnti")) or _d(deb.get("fornitori_oltre"))
+        titoli_fin_dec = _first_not_none(_d(sp.get("titoli_e_crediti_finanziari_correnti")), _d(sp.get("attivita_finanziarie_correnti")))
+        leas_b_dec = _first_not_none(_d(deb.get("leasing_breve")), _d(sp.get("debiti_leasing_breve")))
+        leas_ml_dec = _first_not_none(_d(deb.get("leasing_oltre")), _d(sp.get("debiti_leasing_oltre")))
+        comm_nc_dec = _first_not_none(_d(sp.get("debiti_commerciali_non_correnti")), _d(deb.get("fornitori_oltre")))
 
         tfr_val_opt = float(tfr_opt_sp) if tfr_opt_sp is not None else None
         fin_soci_dec = _d(deb.get("soci_finanziamenti"))

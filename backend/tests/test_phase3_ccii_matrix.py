@@ -8,6 +8,8 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
+from pydantic import ValidationError
+
 from app.db import get_db
 from app.main import app
 from app.models.entities import (
@@ -21,6 +23,7 @@ from app.models.entities import (
 from app.services.case_indicators import compute_case_indicators
 from app.services.indicators import compute_indicators
 from app.services.protocols.ccii_matrix import (
+    CciiRuleDefinition,
     evaluate_ccii_matrix,
     load_ccii_catalog,
 )
@@ -46,15 +49,36 @@ def _cls(
     if metrics is None:
         if size == "non_minore":
             metrics = [
-                {"year": 2023, "attivo": 450000.0, "ricavi": 320000.0, "supera_attivo_300k": True, "supera_ricavi_200k": True},
-                {"year": 2024, "attivo": 420000.0, "ricavi": 290000.0, "supera_attivo_300k": True, "supera_ricavi_200k": True},
-                {"year": 2025, "attivo": 390000.0, "ricavi": 260000.0, "supera_attivo_300k": True, "supera_ricavi_200k": True},
+                {
+                    "year": "2025",
+                    "attivo": 390000.0,
+                    "ricavi": 260000.0,
+                    "debiti": 620000.0,
+                    "exceeded": ["attivo=390,000.00 > 300.000", "ricavi=260,000.00 > 200.000", "debiti=620,000.00 > 500.000"],
+                    "complete_for_ccii": True,
+                },
+                {
+                    "year": "2024",
+                    "attivo": 420000.0,
+                    "ricavi": 290000.0,
+                    "debiti": 590000.0,
+                    "exceeded": ["attivo=420,000.00 > 300.000", "ricavi=290,000.00 > 200.000", "debiti=590,000.00 > 500.000"],
+                    "complete_for_ccii": True,
+                },
+                {
+                    "year": "2023",
+                    "attivo": 450000.0,
+                    "ricavi": 320000.0,
+                    "debiti": 540000.0,
+                    "exceeded": ["attivo=450,000.00 > 300.000", "ricavi=320,000.00 > 200.000", "debiti=540,000.00 > 500.000"],
+                    "complete_for_ccii": True,
+                },
             ]
         elif size == "impresa_minore":
             metrics = [
-                {"year": 2023, "attivo": 180000.0, "ricavi": 140000.0, "supera_attivo_300k": False, "supera_ricavi_200k": False},
-                {"year": 2024, "attivo": 195000.0, "ricavi": 155000.0, "supera_attivo_300k": False, "supera_ricavi_200k": False},
-                {"year": 2025, "attivo": 210000.0, "ricavi": 170000.0, "supera_attivo_300k": False, "supera_ricavi_200k": False},
+                {"year": "2025", "attivo": 210000.0, "ricavi": 170000.0, "debiti": 180000.0, "exceeded": [], "complete_for_ccii": True},
+                {"year": "2024", "attivo": 195000.0, "ricavi": 155000.0, "debiti": 170000.0, "exceeded": [], "complete_for_ccii": True},
+                {"year": "2023", "attivo": 180000.0, "ricavi": 140000.0, "debiti": 160000.0, "exceeded": [], "complete_for_ccii": True},
             ]
         else:
             metrics = []
@@ -98,7 +122,21 @@ def _ledger(
     trib_entries: list[dict] | None = None,
     missing: list[str] | None = None,
     reconciliation_required: list[dict] | None = None,
+    include_balance_debts: bool = True,
 ) -> dict:
+    t_entries = trib_entries if trib_entries is not None else [
+        {
+            "source": "AdER",
+            "creditor": "Agenzia delle Entrate-Riscossione",
+            "description": "Cartella IRAP/IVA (erariale)",
+            "amount": 180000.0,
+            "exposure_kind": "cassa",
+            "evidence_level": "documentata",
+            "status": "attivo",
+        }
+    ]
+    trib_tot = round(sum(float(e.get("amount") or 0.0) for e in t_entries), 2)
+    bank_tot = round(max(0.0, float(cassa_certe) - trib_tot), 2) if cassa_certe is not None else 0.0
     return {
         "stato_dato": stato_dato,
         "riconciliazione_necessaria": bool(reconciliation_required),
@@ -106,32 +144,44 @@ def _ledger(
         "missing_sources_to_acquire": missing or [],
         "cr_temporal_status": "OMOGENEO" if stato_dato == "VERIFICATO" else "NON_VERIFICABILE_NULL",
         "cr_breakdown": {
-            "cassa_effettiva": 220000.0 if cassa_certe is not None else None,
+            "cassa_effettiva": bank_tot if cassa_certe is not None else None,
             "rischi_di_firma": 0.0,
             "garanzie_prestate": 0.0,
             "accordato_inutilizzato": 20000.0,
         },
         "buckets": {
-            "tributari_contributivi": trib_entries if trib_entries is not None else [
-                {
-                    "source": "AdER",
-                    "creditor": "Agenzia delle Entrate-Riscossione",
-                    "description": "Cartella IRAP/IVA (erariale)",
-                    "amount": 180000.0,
-                    "exposure_kind": "cassa",
-                    "status": "attivo",
-                }
-            ],
+            "tributari_contributivi": t_entries,
             "bancari_finanziari": [],
             "fornitori_dipendenti": [],
             "coobbligazioni_garanzie": [],
-            "cessionari_factoring": [],
+            "cessioni_credito": [],
             "contestate_eventuali_non_quantificate": [],
             "estinte_e_piani_pagamento": [],
         },
+        "bucket_totals": {
+            "tributari_contributivi": trib_tot,
+            "bancari_finanziari": bank_tot,
+            "fornitori_dipendenti": 0.0,
+            "coobbligazioni_garanzie": 0.0,
+            "cessioni_credito": 0.0,
+            "contestate_eventuali_non_quantificate": 0.0,
+            "estinte_e_piani_pagamento": 0.0,
+        },
         "totals": {
             "esposizioni_per_cassa_certe": cassa_certe,
+            "esposizioni_per_cassa_certe_exact": f"{cassa_certe:.2f}" if cassa_certe is not None else "NULL",
+            "esposizioni_di_firma_e_garanzie": 0.0,
+            "posizioni_contestate_sospese": 0.0,
+            "posizioni_non_quantificate_count": 0,
+            "piani_pagamento_residui": 0.0,
+            "posizioni_documentate_cassa": cassa_certe,
+            "posizioni_riferite_cassa": 0.0 if cassa_certe is not None else None,
         },
+        "balance_sheet_comparison": (
+            {"bilancio_debiti_totali": cassa_certe}
+            if (include_balance_debts and cassa_certe is not None and stato_dato == "VERIFICATO")
+            else {}
+        ),
     }
 
 
@@ -617,6 +667,58 @@ def test_19_simulation_mode_false_blocca_tutte_le_regole_pending_approval():
         assert card["execution_status"] == "BLOCCATA_IN_ATTESA_APPROVAZIONE"
         assert card["deterministic_outcome"] == "NON_DETERMINABILE"
         assert card["active_in_production"] is False
+
+
+def test_22_doppia_verifica_approvazione_e_attivazione_produttiva(tmp_path):
+    catalog, _ = load_ccii_catalog()
+    raw = catalog.model_dump(mode="json")
+
+    # 1. PENDING_APPROVAL + active_in_production=True deve fallire validazione Pydantic
+    bad_raw = json.loads(json.dumps(raw))
+    bad_raw["rules"][0]["active_in_production"] = True
+    bad_path = tmp_path / "bad_pending_active.json"
+    bad_path.write_text(json.dumps(bad_raw), encoding="utf-8")
+    with pytest.raises(ValidationError):
+        load_ccii_catalog(bad_path)
+
+    # 2. APPROVED + active_in_production=False: eseguibile in simulazione, ma BLOCCATA con simulation_mode=False
+    raw["rules"][0]["professional_approval_status"] = "APPROVED"
+    raw["rules"][0]["active_in_production"] = False
+    raw["rules"][0]["approved_by"] = "Avv. Reviewer"
+    raw["rules"][0]["approved_at"] = "2026-11-27"
+    # Regola 2: APPROVED + active_in_production=True
+    raw["rules"][2]["professional_approval_status"] = "APPROVED"
+    raw["rules"][2]["active_in_production"] = True
+    raw["rules"][2]["approved_by"] = "Avv. Reviewer"
+    raw["rules"][2]["approved_at"] = "2026-11-27"
+
+    dual_path = tmp_path / "dual_gate.json"
+    dual_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    res_sim = evaluate_ccii_matrix(
+        _cls(), _gate0(), _ledger(), _formula(),
+        assessment_date="2026-11-27",
+        simulation_mode=True,
+        catalog_path=dual_path,
+    )
+    assert res_sim["catalog_approval_summary"]["approved_count"] == 2
+    assert res_sim["catalog_approval_summary"]["approved_but_inactive_count"] == 1
+    assert res_sim["catalog_approval_summary"]["active_in_production_count"] == 1
+
+    res_prod = evaluate_ccii_matrix(
+        _cls(), _gate0(), _ledger(), _formula(),
+        assessment_date="2026-11-27",
+        simulation_mode=False,
+        catalog_path=dual_path,
+    )
+    cards = _by_code(res_prod)
+    # CCII-DIM-01 è APPROVED ma active_in_production=False -> bloccata!
+    assert cards["CCII-DIM-01"]["execution_status"] == "APPROVATA_NON_ATTIVA_IN_PRODUZIONE"
+    assert cards["CCII-DIM-01"]["deterministic_outcome"] == "NON_DETERMINABILE"
+    assert cards["CCII-DIM-01"]["active_in_production"] is False
+    # CCII-CPQ-01 ha entrambi APPROVED e active_in_production=True -> attiva
+    assert cards["CCII-CPQ-01"]["execution_status"] == "ATTIVA_VALUTATA"
+    assert cards["CCII-CPQ-01"]["active_in_production"] is True
 
 
 def test_20_anomalie_preesistenti_corrette(db_session):
