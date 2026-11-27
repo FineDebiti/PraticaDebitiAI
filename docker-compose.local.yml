@@ -36,6 +36,7 @@ services:
     restart: unless-stopped
 
   backend:
+    image: praticadebitiai-backend:latest
     build: ./backend
     restart: unless-stopped
     env_file: .env.local
@@ -59,7 +60,7 @@ services:
       retries: 30
 
   worker:
-    build: ./backend
+    image: praticadebitiai-backend:latest
     restart: unless-stopped
     env_file: .env.local
     depends_on:
@@ -74,6 +75,7 @@ services:
     command: celery -A app.workers.celery_app worker --concurrency=1 --loglevel=info -Q default
 
   frontend:
+    image: praticadebitiai-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod

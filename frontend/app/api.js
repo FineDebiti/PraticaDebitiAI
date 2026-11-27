@@ -423,3 +423,30 @@ export async function clearCaseChat(caseId) {
   if (!r.ok) return { success: false };
   return r.json();
 }
+
+// ---------- Classificazione tridimensionale & Gate 0 (Fase 1 Protocolli A/B) ----------
+export async function getProtocolAssessment(caseId) {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/protocol-assessment`, {
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    let detail = "Errore caricamento inquadramento metodologico";
+    try { detail = (await r.json()).detail || detail; } catch {}
+    throw new Error(detail);
+  }
+  return r.json();
+}
+
+export async function confirmCaseProtocol(caseId, payload) {
+  const r = await apiFetch(`${getApiBase()}/api/cases/${caseId}/protocol-confirmation`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    let detail = "Errore salvataggio conferma protocollo";
+    try { detail = (await r.json()).detail || detail; } catch {}
+    throw new Error(detail);
+  }
+  return r.json();
+}

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from datetime import datetime
 
 
@@ -154,4 +154,32 @@ class CaseCrossAnalysisOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ProtocolConfirmationIn(BaseModel):
+    debtor_profile_confirmed: Literal[
+        "impresa_individuale",
+        "societa_capitali_srl",
+        "persona_fisica_non_imprenditore",
+        "societa_persone",
+        "altra_forma_giuridica",
+        "forma_incerta",
+    ]
+    accounting_regime_confirmed: Optional[Literal[
+        "ordinaria",
+        "semplificata",
+        "altro_regime",
+        "non_documentato",
+    ]] = None
+    dossier_completeness_status: Literal["in_raccolta", "fascicolo_confermato"] = "in_raccolta"
+    operator: str = "operatore_non_autenticato"
+    reason: str = ""
+
+
+class ProtocolAssessmentOut(BaseModel):
+    case_id: str
+    detected: Dict[str, Any]
+    confirmed: Dict[str, Any]
+    effective: Dict[str, Any]
+    gate0: Dict[str, Any]
 

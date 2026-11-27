@@ -3,6 +3,7 @@ const EMBED_CSP =
   "frame-ancestors 'self' https://flow-canvas-automations.lovable.app https://preview--flow-canvas-automations.lovable.app https://id-preview--49092334-bbfd-47c6-9334-7ba579814b60.lovable.app https://lovable.dev";
 
 module.exports = {
+  output: "standalone",
   reactStrictMode: true,
   async rewrites() {
     return [

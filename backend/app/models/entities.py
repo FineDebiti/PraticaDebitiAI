@@ -39,6 +39,15 @@ class Case(Base):
     tags: Mapped[str] = mapped_column(String, default="")  # csv
     next_deadline: Mapped[str] = mapped_column(String, default="")  # ISO date
 
+    # --- Classificazione metodologica e Gate 0 (Fase 1 Protocolli A/B) ---
+    debtor_profile_detected: Mapped[str] = mapped_column(String, nullable=True, default=None)
+    debtor_profile_confirmed: Mapped[str] = mapped_column(String, nullable=True, default=None)
+    accounting_regime_detected: Mapped[str] = mapped_column(String, nullable=True, default=None)
+    accounting_regime_confirmed: Mapped[str] = mapped_column(String, nullable=True, default=None)
+    protocol_code: Mapped[str] = mapped_column(String, nullable=True, default=None)
+    dossier_completeness_status: Mapped[str] = mapped_column(String, default="in_raccolta")
+    protocol_confirmed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True, default=None)
+
     documents: Mapped[list["Document"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     creditors: Mapped[list["Creditor"]] = relationship(back_populates="case", cascade="all, delete-orphan")
     positions: Mapped[list["DebtPosition"]] = relationship(back_populates="case", cascade="all, delete-orphan")

@@ -18,8 +18,9 @@ from app.schemas.debtor import (
 )
 from app.schemas.dto import (
     IncomeDocumentOut, RelatedCaseOut, CaseIndicatorsOut, FieldEditOut, EnrichmentRequestOut,
-    CaseCrossAnalysisOut,
+    CaseCrossAnalysisOut, ProtocolConfirmationIn, ProtocolAssessmentOut,
 )
+from app.services.protocols.service import get_protocol_assessment, confirm_case_protocol
 from app.services import fiscal_code as fc
 from app.services.cross_analysis import execute_cross_analysis
 from app.services.pdf_report_generator import generate_preanalysis_pdf
@@ -686,8 +687,9 @@ def get_preanalysis_report(case_id: str, db: Session = Depends(get_db)):
     _get_case(db, case_id)
     report_record, report_data = _get_fresh_report(db, case_id)
     if isinstance(report_data, dict):
-        docs = db.query(Document).filter_by(case_id=case_id).all()
-        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        if not isinstance(report_data.get("technical_dossier"), dict):
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {
             "version": report_record.version,
             "status": report_record.status,
@@ -780,8 +782,9 @@ def get_technical_dossier_pdf_endpoint(
     case = _get_case(db, case_id)
     report_record, report_data = _get_fresh_report(db, case_id)
     if isinstance(report_data, dict):
-        docs = db.query(Document).filter_by(case_id=case_id).all()
-        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        if not isinstance(report_data.get("technical_dossier"), dict):
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {"version": report_record.version}
 
     pdf_bytes = generate_technical_dossier_pdf(report_data)
@@ -839,8 +842,10 @@ def approve_human_gate_endpoint(
     """Tenta la validazione Human Gate della relazione: blocca se le anomalie rosse non sono prese in carico."""
     _get_case(db, case_id)
     _, report_data = get_or_create_preanalysis_report(db, case_id)
-    docs = db.query(Document).filter_by(case_id=case_id).all()
-    dossier = build_complete_technical_dossier(docs=docs, report_data=report_data)
+    dossier = report_data.get("technical_dossier") if isinstance(report_data, dict) else None
+    if not isinstance(dossier, dict):
+        docs = db.query(Document).filter_by(case_id=case_id).all()
+        dossier = build_complete_technical_dossier(docs=docs, report_data=report_data)
     result = attempt_human_gate_approval(
         dossier=dossier,
         professionista=req.professionista,
@@ -870,9 +875,10 @@ def reanalyze_case_endpoint(case_id: str, db: Session = Depends(get_db)):
         cross_warning = str(exc)
 
     report_record, report_data = reset_preanalysis_report(db, case_id)
-    docs = db.query(Document).filter_by(case_id=case_id).all()
     if isinstance(report_data, dict):
-        report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
+        if not isinstance(report_data.get("technical_dossier"), dict):
+            docs = db.query(Document).filter_by(case_id=case_id).all()
+            report_data["technical_dossier"] = build_complete_technical_dossier(docs, report_data)
         report_data["_meta"] = {
             "version": report_record.version,
             "status": report_record.status,
@@ -889,6 +895,30 @@ def reanalyze_case_endpoint(case_id: str, db: Session = Depends(get_db)):
         "report": report_data,
         "indicators": indicators_out,
     }
+
+
+@router.get("/cases/{case_id}/protocol-assessment", response_model=ProtocolAssessmentOut)
+def get_protocol_assessment_endpoint(case_id: str, db: Session = Depends(get_db)):
+    """Valutazione tridimensionale (forma giuridica, regime contabile, soglie CCII) e Gate 0 in sola lettura."""
+    return get_protocol_assessment(db, case_id)
+
+
+@router.patch("/cases/{case_id}/protocol-confirmation", response_model=ProtocolAssessmentOut)
+def confirm_case_protocol_endpoint(
+    case_id: str,
+    body: ProtocolConfirmationIn,
+    db: Session = Depends(get_db),
+):
+    """Conferma o rettifica dell'operatore su profilo, regime contabile e stato completezza con audit FieldEdit."""
+    return confirm_case_protocol(
+        db,
+        case_id,
+        debtor_profile_confirmed=body.debtor_profile_confirmed,
+        accounting_regime_confirmed=body.accounting_regime_confirmed,
+        dossier_completeness_status=body.dossier_completeness_status,
+        operator=body.operator,
+        reason=body.reason,
+    )
 
 
 

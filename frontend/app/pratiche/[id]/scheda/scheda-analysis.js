@@ -1281,6 +1281,9 @@ export function AuditTrail({ caseId, edits, docs, goTab }) {
           <p>
             Stato del Quality Gate a 4 livelli, esportazione dei calcoli Decimal non arrotondati (JSON/CSV) e registro delle rettifiche manuali (FieldEdit).
           </p>
+          <p style={{ fontSize: 12, color: "var(--pd-warn, #92400e)", marginTop: 4 }}>
+            Nota identificazione operatore: l&apos;identità dell&apos;operatore non è autenticata (nessun sistema di login/ruoli attivo); il log FieldEdit attesta l&apos;evento a fini organizzativi e non costituisce prova certa dell&apos;identità personale.
+          </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {effectiveCaseId && (

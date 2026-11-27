@@ -8,6 +8,7 @@ import { getCard, getCase, saveDebtor, createCompany, updateCompany, deleteCompa
   getIncomeDocuments, getIncomeSummary, runCrossAnalysis, getCrossAnalysis, getPreanalysisReport, reanalyzeCase } from "../../../api";
 import DocumentsPanel from "../../../components/DocumentsPanel";
 import CaseChatDrawer from "../../../components/CaseChatDrawer";
+import ProtocolGate0Card from "../../../components/ProtocolGate0Card";
 import { CrBadge, Section, Stat, ToolsBar } from "./scheda-ui";
 import {
   AuditTrail as AuditTrailView,
@@ -337,6 +338,7 @@ export default function Scheda({ params, initialSection = "documenti" }) {
       </div>
 
       <RelatedBanner caseId={id} related={related} />
+      <ProtocolGate0Card caseId={id} docsCount={docs.length} onConfirmed={load} />
 
       {incomeToast && (
         <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 60, background: "var(--pd-ok)", color: "var(--pd-surface)",
